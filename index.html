@@ -230,8 +230,8 @@
         .module-twothird { grid-column: span 8; }
 
         .module-header {
-            margin-bottom: 0.8rem;
-            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.8rem;
         }
 
         .module-title {
@@ -673,17 +673,37 @@
             margin-left: 0.5rem;
         }
 
-        /* Info */
-        .info {
+        /* Modal Shortcuts */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
             background: var(--bg-secondary);
             border: 1px solid var(--border-primary);
             padding: 2rem;
-            margin-top: 3rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
             position: relative;
-            overflow: hidden;
         }
 
-        .info::after {
+        .modal-content::after {
             content: '';
             position: absolute;
             top: 0;
@@ -693,23 +713,47 @@
             opacity: 0.12;
             z-index: 1;
             pointer-events: none;
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><filter id="infon"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="5" /></filter><rect width="100%" height="100%" filter="url(%23infon)"/></svg>');
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><filter id="modaln"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="5" /></filter><rect width="100%" height="100%" filter="url(%23modaln)"/></svg>');
         }
 
-        .info h3 {
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            position: relative;
+            z-index: 2;
+        }
+
+        .modal-title {
             font-size: 0.7rem;
             font-weight: 500;
             text-transform: lowercase;
             letter-spacing: 0.08em;
             color: var(--text-tertiary);
-            margin-bottom: 1rem;
-            position: relative;
-            z-index: 2;
+        }
+
+        .modal-close {
+            background: none;
+            border: 1px solid var(--border-primary);
+            color: var(--text-primary);
+            padding: 0.3rem 0.6rem;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-weight: 500;
+            text-transform: lowercase;
+            letter-spacing: 0.05em;
+            transition: all 0.15s ease;
+        }
+
+        .modal-close:hover {
+            background: var(--hover-primary);
+            border-color: var(--border-secondary);
         }
 
         .shortcuts-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
             gap: 1rem;
             position: relative;
             z-index: 2;
@@ -734,6 +778,8 @@
 
         .shortcut-desc {
             color: var(--text-tertiary);
+            display: flex;
+            align-items: center;
         }
 
         /* Responsive */
@@ -884,23 +930,14 @@
                 height: 50px !important;
             }
 
-            .info {
+            .modal-content {
                 padding: 1.5rem;
+                max-height: 90vh;
             }
-
+            
             .shortcuts-grid {
-                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                grid-template-columns: 1fr;
                 gap: 0.8rem;
-            }
-
-            .shortcut {
-                font-size: 0.8rem;
-            }
-
-            .shortcut-key {
-                font-size: 0.65rem;
-                padding: 0.25rem 0.5rem;
-                min-width: 45px;
             }
         }
 
@@ -973,10 +1010,6 @@
             .slot-btn {
                 font-size: 0.65rem;
             }
-
-            .shortcuts-grid {
-                grid-template-columns: 1fr;
-            }
         }
 
         @media (min-width: 768px) and (max-width: 1024px) {
@@ -1037,6 +1070,74 @@
         <button id="themeToggle" style="background: none; border: 1px solid var(--border-primary); color: var(--text-primary); padding: 0.5rem 0.8rem; cursor: pointer; font-size: 0.7rem; font-weight: 500; text-transform: lowercase; letter-spacing: 0.05em; transition: all 0.15s ease;">
             <span id="themeIcon">◐</span>
         </button>
+    </div>
+
+    <!-- Shortcuts Modal -->
+    <div class="modal-overlay" id="shortcutsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">keyboard shortcuts</h3>
+                <button class="modal-close" id="closeModal">esc</button>
+            </div>
+            <div class="shortcuts-grid">
+                <div class="shortcut">
+                    <span class="shortcut-key">1-8</span>
+                    <span class="shortcut-desc">drums</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">a-k</span>
+                    <span class="shortcut-desc">notes</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">space</span>
+                    <span class="shortcut-desc">play+rec</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">enter</span>
+                    <span class="shortcut-desc">start</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">r</span>
+                    <span class="shortcut-desc">rec manual</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">o</span>
+                    <span class="shortcut-desc">add layer</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">p</span>
+                    <span class="shortcut-desc">play loop</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">l</span>
+                    <span class="shortcut-desc">play all</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">c</span>
+                    <span class="shortcut-desc">clear loop</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">v</span>
+                    <span class="shortcut-desc">download</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">x</span>
+                    <span class="shortcut-desc">clear pattern</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">q/z/b/n</span>
+                    <span class="shortcut-desc">slots A/B/C/D</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">m</span>
+                    <span class="shortcut-desc">toggle mic</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">?</span>
+                    <span class="shortcut-desc">show shortcuts</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="container">
@@ -1304,82 +1405,16 @@
             </div>
         </div>
 
-        <!-- Info -->
-        <div class="info">
-            <h3>shortcuts</h3>
-            <div class="shortcuts-grid">
-                <div class="shortcut">
-                    <span class="shortcut-key">1-8</span>
-                    <span class="shortcut-desc">drums</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">a-k</span>
-                    <span class="shortcut-desc">notes</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">space</span>
-                    <span class="shortcut-desc">play+rec</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">enter</span>
-                    <span class="shortcut-desc">start</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">load demo</span>
-                    <span class="shortcut-desc">example track</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">clear all</span>
-                    <span class="shortcut-desc">reset everything</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">r</span>
-                    <span class="shortcut-desc">rec manual</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">o</span>
-                    <span class="shortcut-desc">add layer</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">p</span>
-                    <span class="shortcut-desc">play loop</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">l</span>
-                    <span class="shortcut-desc">play all</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">c</span>
-                    <span class="shortcut-desc">clear loop</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">v</span>
-                    <span class="shortcut-desc">download</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">x</span>
-                    <span class="shortcut-desc">clear pattern</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">q/z/b/n</span>
-                    <span class="shortcut-desc">slots A/B/C/D</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">m</span>
-                    <span class="shortcut-desc">toggle mic</span>
-                </div>
+        <!-- Credit + Support -->
+        <div style="text-align: center; padding: 2rem; font-size: 0.7rem; color: var(--text-tertiary);">
+            <div style="margin-bottom: 0.8rem;">
+                designed, coded & built by <a href="https://nicolasbronzina.com" target="_blank" style="color: var(--text-tertiary); text-decoration: none; border-bottom: 1px solid var(--border-secondary);">nicolás bronzina</a>
+            </div>
+            <div>
+                <a href="https://buymeacoffee.com/nbronzina" target="_blank" style="color: var(--text-tertiary); text-decoration: none; border-bottom: 1px solid var(--border-secondary); transition: all 0.3s ease;">support this project</a>
             </div>
         </div>
-
-<!-- Credit + Support -->
-<div style="text-align: center; padding: 2rem; font-size: 0.7rem; color: var(--text-tertiary);">
-    <div style="margin-bottom: 0.8rem;">
-        designed, coded & built by <a href="https://nicolasbronzina.com" target="_blank" style="color: var(--text-tertiary); text-decoration: none; border-bottom: 1px solid var(--border-secondary);">nicolás bronzina</a>
     </div>
-    <div>
-        <a href="https://buymeacoffee.com/nbronzina" target="_blank" style="color: var(--text-tertiary); text-decoration: none; border-bottom: 1px solid var(--border-secondary); transition: all 0.3s ease;">support playground</a>
-    </div>
-</div>
 
     <script>
         // Audio Engine
@@ -1445,11 +1480,10 @@
         let vibeBaseRadius = 80;
         let vibeCurrentScale = 1;
         let vibeTargetScale = 1;
-        let vibeMouthState = 'neutral'; // neutral, happy, excited
-        let vibeIsDoingTrick = false; // Flag to pause audio reactions during tricks
-        let lastVibeExpression = null; // Track last expression to avoid repeats
+        let vibeMouthState = 'neutral';
+        let vibeIsDoingTrick = false;
+        let lastVibeExpression = null;
 
-        // Click reactions - abstract/experimental expressions
         const vibeExpressions = [
             {
                 name: 'glitch',
@@ -1461,7 +1495,7 @@
                     vibeEyeLeft.setAttribute('r', '2');
                     vibeEyeRight.setAttribute('r', '6');
                 },
-                mouth: 'M 60 115 L 70 120 L 80 115 L 90 125 L 100 115 L 110 120 L 120 115 L 130 125 L 140 115' // Glitchy zigzag
+                mouth: 'M 60 115 L 70 120 L 80 115 L 90 125 L 100 115 L 110 120 L 120 115 L 130 125 L 140 115'
             },
             {
                 name: 'melt',
@@ -1473,7 +1507,7 @@
                     vibeEyeLeft.setAttribute('r', '3');
                     vibeEyeRight.setAttribute('r', '3');
                 },
-                mouth: 'M 70 130 Q 100 135 130 130' // Melting down
+                mouth: 'M 70 130 Q 100 135 130 130'
             },
             {
                 name: 'zen',
@@ -1481,7 +1515,7 @@
                     vibeEyeLeft.setAttribute('r', '1');
                     vibeEyeRight.setAttribute('r', '1');
                 },
-                mouth: 'M 80 115 L 120 115' // Flat line
+                mouth: 'M 80 115 L 120 115'
             },
             {
                 name: 'vibrate',
@@ -1493,7 +1527,7 @@
                     vibeEyeLeft.setAttribute('r', '5');
                     vibeEyeRight.setAttribute('r', '5');
                 },
-                mouth: 'M 68 115 Q 75 120 82 115 Q 90 110 98 115 Q 106 120 114 115 Q 122 110 130 115' // Wavy energy
+                mouth: 'M 68 115 Q 75 120 82 115 Q 90 110 98 115 Q 106 120 114 115 Q 122 110 130 115'
             },
             {
                 name: 'flip',
@@ -1503,7 +1537,7 @@
                     vibeEyeLeft.setAttribute('r', '4');
                     vibeEyeRight.setAttribute('r', '4');
                 },
-                mouth: 'M 70 85 Q 100 75 130 85' // Upside down
+                mouth: 'M 70 85 Q 100 75 130 85'
             },
             {
                 name: 'spiral',
@@ -1515,36 +1549,30 @@
                     vibeEyeLeft.setAttribute('r', '2');
                     vibeEyeRight.setAttribute('r', '7');
                 },
-                mouth: 'M 100 115 Q 110 120 115 115 Q 118 108 112 105' // Swirl
+                mouth: 'M 100 115 Q 110 120 115 115 Q 118 108 112 105'
             }
         ];
 
         function doRandomVibeTrick() {
-            if (vibeIsDoingTrick) return; // Don't interrupt current trick
+            if (vibeIsDoingTrick) return;
             
             vibeIsDoingTrick = true;
             
-            // Filter out last expression to avoid repeats
             let availableExpressions = vibeExpressions;
             if (lastVibeExpression !== null) {
                 availableExpressions = vibeExpressions.filter((expr, index) => index !== lastVibeExpression);
             }
             
-            // Pick random expression from available ones
             const randomIndex = Math.floor(Math.random() * availableExpressions.length);
             const expression = availableExpressions[randomIndex];
             
-            // Remember this expression to avoid repeating it next time
             lastVibeExpression = vibeExpressions.indexOf(expression);
             
-            // Apply expression
             expression.eyes();
             vibeMouth.setAttribute('d', expression.mouth);
             
-            // Return to normal after 2 seconds
             setTimeout(() => {
                 vibeIsDoingTrick = false;
-                // Reset to default positions
                 vibeEyeLeft.setAttribute('cx', '75');
                 vibeEyeLeft.setAttribute('cy', '85');
                 vibeEyeLeft.setAttribute('r', '4');
@@ -1557,19 +1585,16 @@
             }, 2000);
         }
 
-        // Add click listener to vibe circle
         document.getElementById('vibeCircle').addEventListener('click', doRandomVibeTrick);
 
         function animateVibe() {
             requestAnimationFrame(animateVibe);
             
-            // Don't animate if user is doing a trick
             if (vibeIsDoingTrick) {
                 return;
             }
             
             if (!isActive || !analyser) {
-                // Sleeping state - closed eyes
                 vibeEyeLeft.setAttribute('ry', '1');
                 vibeEyeRight.setAttribute('ry', '1');
                 vibeCurrentScale = 1;
@@ -1578,41 +1603,31 @@
                 return;
             }
             
-            // Get audio data
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
             analyser.getByteFrequencyData(dataArray);
             
-            // Calculate average volume
             let sum = 0;
             for (let i = 0; i < bufferLength; i++) {
                 sum += dataArray[i];
             }
             const average = sum / bufferLength;
-            const normalizedVolume = average / 255; // 0 to 1
+            const normalizedVolume = average / 255;
             
-            // Animate based on volume
-            if (normalizedVolume > 0.02) { // Active sound
-                // Open eyes
+            if (normalizedVolume > 0.02) {
                 vibeEyeLeft.setAttribute('ry', '4');
                 vibeEyeRight.setAttribute('ry', '4');
                 
-                // Scale circle based on volume
                 vibeTargetScale = 1 + (normalizedVolume * 0.15);
                 
-                // Change mouth expression
                 if (normalizedVolume > 0.15) {
-                    // Excited
                     vibeMouth.setAttribute('d', 'M 70 110 Q 100 130 130 110');
                 } else if (normalizedVolume > 0.05) {
-                    // Happy
                     vibeMouth.setAttribute('d', 'M 70 115 Q 100 125 130 115');
                 } else {
-                    // Subtle smile
                     vibeMouth.setAttribute('d', 'M 75 115 Q 100 120 125 115');
                 }
                 
-                // Blink occasionally when excited
                 if (normalizedVolume > 0.2 && Math.random() > 0.98) {
                     vibeEyeLeft.setAttribute('ry', '1');
                     vibeEyeRight.setAttribute('ry', '1');
@@ -1622,20 +1637,17 @@
                     }, 100);
                 }
             } else {
-                // Idle state
                 vibeEyeLeft.setAttribute('ry', '4');
                 vibeEyeRight.setAttribute('ry', '4');
                 vibeTargetScale = 1;
                 vibeMouth.setAttribute('d', 'M 75 115 Q 100 118 125 115');
             }
             
-            // Smooth scaling
             vibeCurrentScale += (vibeTargetScale - vibeCurrentScale) * 0.15;
             const newRadius = vibeBaseRadius * vibeCurrentScale;
             vibeCircle.setAttribute('r', newRadius);
         }
 
-        // Start vibe animation
         animateVibe();
 
         function initSystem() {
@@ -2147,7 +2159,6 @@
                 document.getElementById('playSeq').textContent = 'stop';
                 document.getElementById('playSeq').classList.add('active');
                 
-                // AUTO-START RECORDING when play is pressed
                 if (!isRecording && !isOverdub) {
                     isRecording = true;
                     recordingStart = audioContext.currentTime;
@@ -2214,7 +2225,6 @@
             document.getElementById('playSeq').textContent = 'play+rec';
             document.getElementById('playSeq').classList.remove('active');
             
-            // AUTO-STOP RECORDING when sequencer stops (unless it's just a tempo change)
             if (shouldStopRecording && isRecording) {
                 isRecording = false;
                 if (mediaRecorder && mediaRecorder.state !== 'inactive') {
@@ -2489,7 +2499,7 @@
             document.getElementById('tempoVal').textContent = this.value;
             document.getElementById('tempoStatus').textContent = this.value;
             if (isPlaying) {
-                stopSequencer(false); // Don't stop recording, just restart sequencer with new tempo
+                stopSequencer(false);
                 setTimeout(() => toggleSequencer(), 50);
             }
         });
@@ -2518,6 +2528,26 @@
             }
         });
 
+        // Shortcuts Modal
+        const modal = document.getElementById('shortcutsModal');
+        const closeModalBtn = document.getElementById('closeModal');
+
+        function openModal() {
+            modal.classList.add('active');
+        }
+
+        function closeModal() {
+            modal.classList.remove('active');
+        }
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        closeModalBtn.addEventListener('click', closeModal);
+
         const keyMap = {
             '1': 'kick', '2': 'snare', '3': 'hihat', '4': 'clap',
             '5': 'tom1', '6': 'perc', '7': 'cymbal', '8': 'rim',
@@ -2528,6 +2558,17 @@
 
         document.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
+            
+            if (e.key === '?' && !modal.classList.contains('active')) {
+                e.preventDefault();
+                openModal();
+                return;
+            }
+            
+            if (e.key === 'Escape' && modal.classList.contains('active')) {
+                closeModal();
+                return;
+            }
             
             if (key === 'enter') {
                 initSystem();
@@ -2623,7 +2664,6 @@
             const dataArray = new Uint8Array(bufferLength);
             analyser.getByteTimeDomainData(dataArray);
             
-            // Get colors from CSS variables
             const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--viz-bg').trim();
             const lineColor = getComputedStyle(document.documentElement).getPropertyValue('--viz-line').trim();
             
