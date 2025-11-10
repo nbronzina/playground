@@ -1067,9 +1067,12 @@
             <div class="brand">playground mk-1</div>
             <div style="font-size: 0.7rem; color: var(--text-tertiary); font-weight: 400; margin-top: 0.3rem;" id="timestamp"></div>
         </div>
-        <button id="themeToggle" style="background: none; border: 1px solid var(--border-primary); color: var(--text-primary); padding: 0.5rem 0.8rem; cursor: pointer; font-size: 0.7rem; font-weight: 500; text-transform: lowercase; letter-spacing: 0.05em; transition: all 0.15s ease;">
-            <span id="themeIcon">◐</span>
-        </button>
+        <div style="display: flex; gap: 0.5rem; position: relative; z-index: 2;">
+            <button id="shortcutsBtn" style="background: none; border: 1px solid var(--border-primary); color: var(--text-primary); padding: 0.5rem 0.8rem; cursor: pointer; font-size: 0.7rem; font-weight: 500; text-transform: lowercase; letter-spacing: 0.05em; transition: all 0.15s ease;">?</button>
+            <button id="themeToggle" style="background: none; border: 1px solid var(--border-primary); color: var(--text-primary); padding: 0.5rem 0.8rem; cursor: pointer; font-size: 0.7rem; font-weight: 500; text-transform: lowercase; letter-spacing: 0.05em; transition: all 0.15s ease;">
+                <span id="themeIcon">◐</span>
+            </button>
+        </div>
     </div>
 
     <!-- Shortcuts Modal -->
@@ -2539,6 +2542,9 @@
         function closeModal() {
             modal.classList.remove('active');
         }
+
+        // Shortcuts Modal Button
+        document.getElementById('shortcutsBtn').addEventListener('click', openModal);
 
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
