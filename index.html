@@ -183,7 +183,7 @@
 
         /* Visualizer */
         .visualizer {
-            height: 200px;
+            height: 60px;
             background: #fafafa;
             position: relative;
             overflow: hidden;
@@ -472,6 +472,27 @@
             grid-template-columns: repeat(2, 1fr);
             gap: 0.5rem;
             margin-bottom: 1rem;
+        }
+
+        /* Mic indicator */
+        .mic-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #999;
+            margin-right: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .mic-indicator.active {
+            background: #ff4444;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
         }
 
         /* Sequencer */
@@ -794,7 +815,7 @@
 
             /* Visualizer */
             .visualizer {
-                height: 80px !important;
+                height: 50px !important;
             }
 
             /* Info section */
@@ -981,7 +1002,20 @@
             <div class="status-item">patterns: <span class="status-value" id="patternCount">0</span></div>
         </div>
 
-        <!-- Main Grid - Drums + Pattern (composición agrupada) -->
+        <!-- Visualizer - top monitor (full width, thin) -->
+        <div class="workspace">
+            <div class="module module-full">
+                <div class="module-header">
+                    <div class="module-title">wave</div>
+                    <div class="module-desc">visual audio feedback</div>
+                </div>
+                <div class="visualizer" style="height: 60px;">
+                    <canvas id="viz"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Grid - Drums + Pattern -->
         <div class="workspace">
             <!-- Drums - main instrument -->
             <div class="module module-twothird">
@@ -1072,9 +1106,9 @@
             </div>
         </div>
 
-        <!-- Keys + Loop (melodía + grabación) -->
+        <!-- Keys - full width (more space) -->
         <div class="workspace">
-            <div class="module module-twothird">
+            <div class="module module-full">
                 <div class="module-header">
                     <div class="module-title">keys</div>
                     <div class="module-desc">play melodies with a-k keys</div>
@@ -1125,47 +1159,9 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Loop Station - junto a keys -->
-            <div class="module module-third">
-                <div class="module-header">
-                    <div class="module-title">loop</div>
-                    <div class="module-desc">record & layer up to 4 loops</div>
-                </div>
-                
-                <!-- Slot selector -->
-                <div class="btn-group" style="margin-bottom: 1rem;">
-                    <button class="btn-secondary slot-btn active" data-slot="A">A</button>
-                    <button class="btn-secondary slot-btn" data-slot="B">B</button>
-                    <button class="btn-secondary slot-btn" data-slot="C">C</button>
-                    <button class="btn-secondary slot-btn" data-slot="D">D</button>
-                </div>
-                
-                <!-- Slot info -->
-                <div style="text-align: center; margin-bottom: 1rem; min-height: 1.2rem;">
-                    <span style="font-size: 0.65rem; color: #999;" id="slotInfo">slot A · empty</span>
-                </div>
-                
-                <!-- Controls -->
-                <button class="btn-secondary" id="recordBtn">rec</button>
-                <button class="btn-secondary" id="overdubBtn" style="margin-top: 0.5rem;">overdub</button>
-                <button class="btn-secondary" id="playLoopBtn" style="margin-top: 0.5rem;">play</button>
-                <button class="btn-secondary" id="playAllBtn" style="margin-top: 0.5rem;">play all</button>
-                <button class="btn-secondary" id="clearLoopBtn" style="margin-top: 0.5rem;">clear</button>
-                <button class="btn" id="downloadBtn" style="margin-top: 0.5rem; display: none;">download</button>
-                
-                <div class="control-group" style="margin-top: 1.5rem;">
-                    <div class="control-label">
-                        <span>volume</span>
-                        <span class="control-value" id="masterVolVal">70%</span>
-                    </div>
-                    <input type="range" id="masterVol" min="0" max="100" value="70">
-                </div>
-                <button class="btn" id="initBtn" style="margin-top: 1rem;">start</button>
-            </div>
         </div>
 
-        <!-- Tempo + FX + Visualizer (controles globales) -->
+        <!-- Tempo + FX + Loop (all controls together) -->
         <div class="workspace">
             <div class="module module-third">
                 <div class="module-header">
@@ -1211,16 +1207,48 @@
 
             <div class="module module-third">
                 <div class="module-header">
-                    <div class="module-title">wave</div>
-                    <div class="module-desc">visual audio feedback</div>
+                    <div class="module-title">loop</div>
+                    <div class="module-desc">record & layer up to 4 loops + mic input</div>
                 </div>
-                <div class="visualizer" style="height: 120px;">
-                    <canvas id="viz"></canvas>
+                
+                <!-- Slot selector -->
+                <div class="btn-group" style="margin-bottom: 1rem;">
+                    <button class="btn-secondary slot-btn active" data-slot="A">A</button>
+                    <button class="btn-secondary slot-btn" data-slot="B">B</button>
+                    <button class="btn-secondary slot-btn" data-slot="C">C</button>
+                    <button class="btn-secondary slot-btn" data-slot="D">D</button>
                 </div>
+                
+                <!-- Mic control -->
+                <button class="btn-secondary" id="micBtn" style="margin-bottom: 1rem;">
+                    <span class="mic-indicator" id="micIndicator"></span>mic
+                </button>
+                
+                <!-- Slot info -->
+                <div style="text-align: center; margin-bottom: 1rem; min-height: 1.2rem;">
+                    <span style="font-size: 0.65rem; color: #999;" id="slotInfo">slot A · empty</span>
+                </div>
+                
+                <!-- Controls -->
+                <button class="btn-secondary" id="recordBtn">rec</button>
+                <button class="btn-secondary" id="overdubBtn" style="margin-top: 0.5rem;">overdub</button>
+                <button class="btn-secondary" id="playLoopBtn" style="margin-top: 0.5rem;">play</button>
+                <button class="btn-secondary" id="playAllBtn" style="margin-top: 0.5rem;">play all</button>
+                <button class="btn-secondary" id="clearLoopBtn" style="margin-top: 0.5rem;">clear</button>
+                <button class="btn" id="downloadBtn" style="margin-top: 0.5rem; display: none;">download</button>
+                
+                <div class="control-group" style="margin-top: 1.5rem;">
+                    <div class="control-label">
+                        <span>volume</span>
+                        <span class="control-value" id="masterVolVal">70%</span>
+                    </div>
+                    <input type="range" id="masterVol" min="0" max="100" value="70">
+                </div>
+                <button class="btn" id="initBtn" style="margin-top: 1rem;">start</button>
             </div>
         </div>
 
-        <!-- Info -->
+                <!-- Info -->
         <div class="info">
             <h3>keys</h3>
             <div class="shortcuts-grid">
@@ -1280,6 +1308,10 @@
                     <span class="shortcut-key">q/z/b/n</span>
                     <span class="shortcut-desc">slots A/B/C/D</span>
                 </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">m</span>
+                    <span class="shortcut-desc">toggle mic</span>
+                </div>
             </div>
         </div>
 
@@ -1295,6 +1327,12 @@
         let masterGain;
         let analyser;
         let isActive = false;
+        
+        // Microphone system
+        let micStream = null;
+        let micSource = null;
+        let micGain = null;
+        let isMicActive = false;
         
         // Loop slots system (inspired by Teenage Engineering)
         let loopSlots = {
@@ -1353,12 +1391,66 @@
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = 2048;
                 
+                // Create effects chain
+                // Delay
+                const delayNode = audioContext.createDelay();
+                delayNode.delayTime.value = 0.3;
+                const delayFeedback = audioContext.createGain();
+                delayFeedback.gain.value = 0.3;
+                const delayMix = audioContext.createGain();
+                delayMix.gain.value = 0.2; // 20% default
+                
+                // Connect delay feedback loop
+                delayNode.connect(delayFeedback);
+                delayFeedback.connect(delayNode);
+                delayNode.connect(delayMix);
+                
+                // Reverb (using convolver with impulse response)
+                const reverbNode = audioContext.createConvolver();
+                const reverbMix = audioContext.createGain();
+                reverbMix.gain.value = 0.4; // 40% default
+                
+                // Create simple reverb impulse response
+                const reverbTime = 2;
+                const sampleRate = audioContext.sampleRate;
+                const length = sampleRate * reverbTime;
+                const impulse = audioContext.createBuffer(2, length, sampleRate);
+                const impulseL = impulse.getChannelData(0);
+                const impulseR = impulse.getChannelData(1);
+                
+                for (let i = 0; i < length; i++) {
+                    const decay = Math.pow(1 - i / length, 2);
+                    impulseL[i] = (Math.random() * 2 - 1) * decay;
+                    impulseR[i] = (Math.random() * 2 - 1) * decay;
+                }
+                reverbNode.buffer = impulse;
+                reverbNode.connect(reverbMix);
+                
+                // Filter
+                const filterNode = audioContext.createBiquadFilter();
+                filterNode.type = 'lowpass';
+                filterNode.frequency.value = 8000;
+                filterNode.Q.value = 1;
+                
+                // Connect effects chain
+                // masterGain -> delay -> delayMix -> filterNode -> analyser -> destination
+                // masterGain -> reverb -> reverbMix -> filterNode
+                masterGain.connect(delayNode);
+                masterGain.connect(reverbNode);
+                masterGain.connect(filterNode);
+                delayMix.connect(filterNode);
+                reverbMix.connect(filterNode);
+                filterNode.connect(analyser);
+                analyser.connect(audioContext.destination);
+                
+                // Store nodes globally for control
+                window.delayMix = delayMix;
+                window.reverbMix = reverbMix;
+                window.filterNode = filterNode;
+                
                 // Create media stream destination for recording
                 mediaStreamDestination = audioContext.createMediaStreamDestination();
-                
-                masterGain.connect(analyser);
-                analyser.connect(audioContext.destination);
-                masterGain.connect(mediaStreamDestination);
+                analyser.connect(mediaStreamDestination);
                 
                 isActive = true;
                 document.getElementById('sysStatus').textContent = 'active';
@@ -1374,6 +1466,85 @@
                 audioContext.resume();
                 isActive = true;
                 document.getElementById('sysStatus').textContent = 'active';
+            }
+        }
+
+        // Microphone functions
+        async function toggleMic() {
+            if (!audioContext) {
+                initSystem();
+                setTimeout(toggleMic, 100);
+                return;
+            }
+            
+            if (!isMicActive) {
+                // Request microphone access
+                try {
+                    micStream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: {
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            autoGainControl: false
+                        } 
+                    });
+                    
+                    // Create audio source from microphone
+                    micSource = audioContext.createMediaStreamSource(micStream);
+                    
+                    // Create gain node for mic
+                    micGain = audioContext.createGain();
+                    micGain.gain.value = 1.0;
+                    
+                    // Connect mic to master gain (goes through effects)
+                    micSource.connect(micGain);
+                    micGain.connect(masterGain);
+                    
+                    isMicActive = true;
+                    
+                    // Update UI
+                    document.getElementById('micBtn').classList.add('active');
+                    document.getElementById('micIndicator').classList.add('active');
+                    
+                    // Show message
+                    const heroP = document.querySelector('.hero p');
+                    const originalText = heroP.textContent;
+                    heroP.textContent = 'mic active · ready to capture external audio';
+                    setTimeout(() => {
+                        heroP.textContent = originalText;
+                    }, 3000);
+                    
+                } catch (error) {
+                    console.error('Microphone access denied:', error);
+                    alert('Could not access microphone. Please check permissions.');
+                }
+            } else {
+                // Stop microphone
+                if (micSource) {
+                    micSource.disconnect();
+                    micSource = null;
+                }
+                if (micGain) {
+                    micGain.disconnect();
+                    micGain = null;
+                }
+                if (micStream) {
+                    micStream.getTracks().forEach(track => track.stop());
+                    micStream = null;
+                }
+                
+                isMicActive = false;
+                
+                // Update UI
+                document.getElementById('micBtn').classList.remove('active');
+                document.getElementById('micIndicator').classList.remove('active');
+                
+                // Show message
+                const heroP = document.querySelector('.hero p');
+                const originalText = heroP.textContent;
+                heroP.textContent = 'mic off';
+                setTimeout(() => {
+                    heroP.textContent = originalText;
+                }, 2000);
             }
         }
 
@@ -1692,6 +1863,9 @@
 
         // Event Listeners
         document.getElementById('initBtn').addEventListener('click', initSystem);
+        
+        // Mic button
+        document.getElementById('micBtn').addEventListener('click', toggleMic);
 
         // Helper function for touch-friendly event listeners
         function addTouchClick(element, handler) {
@@ -2026,18 +2200,35 @@
         document.getElementById('tempo').addEventListener('input', function() {
             document.getElementById('tempoVal').textContent = this.value;
             document.getElementById('tempoStatus').textContent = this.value;
+            // If sequencer is playing, restart with new tempo
+            if (isPlaying) {
+                stopSequencer();
+                setTimeout(() => toggleSequencer(), 50);
+            }
         });
 
         document.getElementById('reverb').addEventListener('input', function() {
+            const value = this.value / 100;
             document.getElementById('reverbVal').textContent = this.value + '%';
+            if (window.reverbMix) {
+                window.reverbMix.gain.value = value;
+            }
         });
 
         document.getElementById('delay').addEventListener('input', function() {
+            const value = this.value / 100;
             document.getElementById('delayVal').textContent = this.value + '%';
+            if (window.delayMix) {
+                window.delayMix.gain.value = value;
+            }
         });
 
         document.getElementById('filter').addEventListener('input', function() {
-            document.getElementById('filterVal').textContent = this.value + 'Hz';
+            const value = parseInt(this.value);
+            document.getElementById('filterVal').textContent = value + 'Hz';
+            if (window.filterNode) {
+                window.filterNode.frequency.setValueAtTime(value, audioContext.currentTime);
+            }
         });
 
         // Keyboard
@@ -2089,6 +2280,10 @@
             }
             if (key === 'v') {
                 document.getElementById('downloadBtn').click();
+                return;
+            }
+            if (key === 'm') {
+                toggleMic();
                 return;
             }
             
@@ -2294,6 +2489,11 @@
 
         // Clear All - resets everything to initial state
         document.getElementById('clearAllBtn').addEventListener('click', () => {
+            // Turn off mic if active
+            if (isMicActive) {
+                toggleMic();
+            }
+            
             // Clear all loop slots
             Object.keys(loopSlots).forEach(key => {
                 loopSlots[key].loop = [];
@@ -2336,12 +2536,15 @@
             
             document.getElementById('reverb').value = 40;
             document.getElementById('reverbVal').textContent = '40%';
+            if (window.reverbMix) window.reverbMix.gain.value = 0.4;
             
             document.getElementById('delay').value = 20;
             document.getElementById('delayVal').textContent = '20%';
+            if (window.delayMix) window.delayMix.gain.value = 0.2;
             
             document.getElementById('filter').value = 8000;
             document.getElementById('filterVal').textContent = '8000Hz';
+            if (window.filterNode) window.filterNode.frequency.value = 8000;
             
             document.getElementById('masterVol').value = 70;
             document.getElementById('masterVolVal').textContent = '70%';
