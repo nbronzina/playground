@@ -1336,10 +1336,10 @@
         
         // Loop slots system (inspired by Teenage Engineering)
         let loopSlots = {
-            A: { loop: [], audioBlob: null, isPlaying: false },
-            B: { loop: [], audioBlob: null, isPlaying: false },
-            C: { loop: [], audioBlob: null, isPlaying: false },
-            D: { loop: [], audioBlob: null, isPlaying: false }
+            A: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, isPlaying: false },
+            B: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, isPlaying: false },
+            C: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, isPlaying: false },
+            D: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, isPlaying: false }
         };
         let activeSlot = 'A';
         let isRecording = false;
@@ -1999,8 +1999,20 @@
                     audioChunks.push(event.data);
                 };
                 
-                mediaRecorder.onstop = () => {
-                    loopSlots[activeSlot].audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                mediaRecorder.onstop = async () => {
+                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    loopSlots[activeSlot].audioBlob = blob;
+                    
+                    // Convert blob to AudioBuffer for playback
+                    try {
+                        const arrayBuffer = await blob.arrayBuffer();
+                        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                        loopSlots[activeSlot].audioBuffer = audioBuffer;
+                        loopSlots[activeSlot].duration = audioBuffer.duration;
+                    } catch (error) {
+                        console.error('Error decoding audio:', error);
+                    }
+                    
                     updateSlotUI();
                     // Show download button
                     document.getElementById('downloadBtn').style.display = 'block';
@@ -2047,8 +2059,20 @@
                     audioChunks.push(event.data);
                 };
                 
-                mediaRecorder.onstop = () => {
-                    loopSlots[activeSlot].audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                mediaRecorder.onstop = async () => {
+                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    loopSlots[activeSlot].audioBlob = blob;
+                    
+                    // Convert blob to AudioBuffer for playback
+                    try {
+                        const arrayBuffer = await blob.arrayBuffer();
+                        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                        loopSlots[activeSlot].audioBuffer = audioBuffer;
+                        loopSlots[activeSlot].duration = audioBuffer.duration;
+                    } catch (error) {
+                        console.error('Error decoding audio:', error);
+                    }
+                    
                     updateSlotUI();
                     document.getElementById('downloadBtn').style.display = 'block';
                 };
@@ -2072,7 +2096,6 @@
 
         document.getElementById('playLoopBtn').addEventListener('click', () => {
             const slot = loopSlots[activeSlot];
-            if (slot.loop.length === 0) return;
             
             if (!audioContext) {
                 initSystem();
@@ -2080,15 +2103,26 @@
                 return;
             }
             
-            slot.loop.forEach(event => {
-                setTimeout(() => {
-                    if (event.type === 'drum') {
-                        playDrum(event.sound, true); // skipRecording = true
-                    } else if (event.type === 'synth') {
-                        playNote(event.freq, true); // skipRecording = true
-                    }
-                }, event.time * 1000);
-            });
+            // Play recorded audio buffer if exists
+            if (slot.audioBuffer) {
+                const source = audioContext.createBufferSource();
+                source.buffer = slot.audioBuffer;
+                source.connect(masterGain);
+                source.start(0);
+            }
+            
+            // Play programmed events (drums/keys)
+            if (slot.loop.length > 0) {
+                slot.loop.forEach(event => {
+                    setTimeout(() => {
+                        if (event.type === 'drum') {
+                            playDrum(event.sound, true); // skipRecording = true
+                        } else if (event.type === 'synth') {
+                            playNote(event.freq, true); // skipRecording = true
+                        }
+                    }, event.time * 1000);
+                });
+            }
         });
 
         // Play all slots simultaneously
@@ -2101,6 +2135,16 @@
             
             Object.keys(loopSlots).forEach(slotKey => {
                 const slot = loopSlots[slotKey];
+                
+                // Play recorded audio buffer if exists
+                if (slot.audioBuffer) {
+                    const source = audioContext.createBufferSource();
+                    source.buffer = slot.audioBuffer;
+                    source.connect(masterGain);
+                    source.start(0);
+                }
+                
+                // Play programmed events (drums/keys)
                 if (slot.loop.length > 0) {
                     slot.loop.forEach(event => {
                         setTimeout(() => {
@@ -2118,6 +2162,8 @@
         document.getElementById('clearLoopBtn').addEventListener('click', () => {
             loopSlots[activeSlot].loop = [];
             loopSlots[activeSlot].audioBlob = null;
+            loopSlots[activeSlot].audioBuffer = null;
+            loopSlots[activeSlot].duration = 0;
             updateSlotUI();
             document.getElementById('downloadBtn').style.display = 'none';
         });
@@ -2158,16 +2204,25 @@
         // Update slot UI (info text and indicators)
         function updateSlotUI() {
             const slot = loopSlots[activeSlot];
-            const hasContent = slot.loop.length > 0;
+            const hasContent = slot.loop.length > 0 || slot.audioBuffer !== null;
             
             // Update slot info text
-            const infoText = hasContent ? `slot ${activeSlot} · ${slot.loop.length} events` : `slot ${activeSlot} · empty`;
+            let infoText;
+            if (slot.audioBuffer) {
+                const duration = slot.duration.toFixed(1);
+                infoText = `slot ${activeSlot} · ${duration}s recorded`;
+            } else if (slot.loop.length > 0) {
+                infoText = `slot ${activeSlot} · ${slot.loop.length} events`;
+            } else {
+                infoText = `slot ${activeSlot} · empty`;
+            }
             document.getElementById('slotInfo').textContent = infoText;
             
             // Update slot button indicators
             document.querySelectorAll('.slot-btn').forEach(btn => {
                 const slotKey = btn.dataset.slot;
-                if (loopSlots[slotKey].loop.length > 0) {
+                const slotHasContent = loopSlots[slotKey].loop.length > 0 || loopSlots[slotKey].audioBuffer !== null;
+                if (slotHasContent) {
                     btn.classList.add('has-content');
                 } else {
                     btn.classList.remove('has-content');
@@ -2414,6 +2469,8 @@
             Object.keys(loopSlots).forEach(key => {
                 loopSlots[key].loop = [];
                 loopSlots[key].audioBlob = null;
+                loopSlots[key].audioBuffer = null;
+                loopSlots[key].duration = 0;
             });
             drums.forEach(drum => {
                 sequencerSteps[drum] = Array(16).fill(false);
@@ -2498,6 +2555,8 @@
             Object.keys(loopSlots).forEach(key => {
                 loopSlots[key].loop = [];
                 loopSlots[key].audioBlob = null;
+                loopSlots[key].audioBuffer = null;
+                loopSlots[key].duration = 0;
                 loopSlots[key].isPlaying = false;
             });
             
