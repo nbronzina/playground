@@ -375,6 +375,9 @@
         .control-value {
             color: #000;
             font-weight: 600;
+            min-width: 50px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
         }
 
         input[type="range"] {
@@ -2023,7 +2026,7 @@
             }
         }
 
-        function stopSequencer() {
+        function stopSequencer(shouldStopRecording = true) {
             clearInterval(sequencerInterval);
             isPlaying = false;
             currentStep = 0;
@@ -2031,8 +2034,8 @@
             document.getElementById('playSeq').textContent = 'play+rec';
             document.getElementById('playSeq').classList.remove('active');
             
-            // AUTO-STOP RECORDING when sequencer stops
-            if (isRecording) {
+            // AUTO-STOP RECORDING when sequencer stops (unless it's just a tempo change)
+            if (shouldStopRecording && isRecording) {
                 isRecording = false;
                 if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                     mediaRecorder.stop();
@@ -2306,7 +2309,7 @@
             document.getElementById('tempoVal').textContent = this.value;
             document.getElementById('tempoStatus').textContent = this.value;
             if (isPlaying) {
-                stopSequencer();
+                stopSequencer(false); // Don't stop recording, just restart sequencer with new tempo
                 setTimeout(() => toggleSequencer(), 50);
             }
         });
