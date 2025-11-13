@@ -1,0 +1,266 @@
+/* ============================================
+   PLAYGROUND INDEX STYLES
+   Landing page for playground releases
+   ============================================ */
+
+/* === ABOUT SECTION === */
+.about-card {
+    margin-bottom: 2rem;
+}
+
+.about-card pre {
+    background: var(--bg-tertiary);
+    padding: 1rem;
+    border-radius: 2px;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* === VALUES LIST === */
+.values-list {
+    list-style: none;
+    padding: 0;
+    margin-top: 1rem;
+}
+
+.values-list li {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    padding: 0.5rem 0;
+    padding-left: 1.5rem;
+    position: relative;
+}
+
+.values-list li::before {
+    content: '•';
+    position: absolute;
+    left: 0.5rem;
+    color: var(--text-tertiary);
+}
+
+/* === RELEASES GRID === */
+.releases-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+/* === RELEASE CARD === */
+.release-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    text-decoration: none;
+    display: block;
+}
+
+.release-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.12;
+    z-index: 1;
+    pointer-events: none;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="5" /></filter><rect width="100%" height="100%" filter="url(%23n)"/></svg>');
+}
+
+.release-card > * {
+    position: relative;
+    z-index: 2;
+}
+
+.release-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-secondary);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.release-card.disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.release-card.disabled:hover {
+    transform: none;
+    box-shadow: none;
+    border-color: var(--border-primary);
+}
+
+/* === RELEASE CARD HEADER === */
+.release-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+    gap: 1rem;
+}
+
+.release-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-transform: lowercase;
+    letter-spacing: 0.05em;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+/* === RELEASE DESCRIPTION === */
+.release-description {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 1rem;
+}
+
+/* === RELEASE META === */
+.release-meta {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+}
+
+.release-tag {
+    font-size: 0.65rem;
+    color: var(--text-tertiary);
+    background: var(--bg-tertiary);
+    padding: 0.25rem 0.5rem;
+    border-radius: 2px;
+    text-transform: lowercase;
+}
+
+/* === APPROACH SECTION === */
+.approach-list {
+    list-style: none;
+    padding: 0;
+    margin-top: 1rem;
+}
+
+.approach-list li {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    padding: 0.3rem 0;
+    padding-left: 1rem;
+    position: relative;
+}
+
+.approach-list li::before {
+    content: '·';
+    position: absolute;
+    left: 0;
+    color: var(--text-tertiary);
+}
+
+/* === SUPPORT SECTION === */
+.support-card pre {
+    background: var(--bg-tertiary);
+    padding: 1rem;
+    border-radius: 2px;
+    font-size: 0.75rem;
+    line-height: 1.6;
+}
+
+.support-card a {
+    color: var(--text-primary);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border-secondary);
+}
+
+.support-card a:hover {
+    color: var(--text-secondary);
+}
+
+/* === NOMENCLATURE SECTION === */
+.nomenclature-list {
+    list-style: none;
+    padding: 0;
+    margin-top: 1rem;
+}
+
+.nomenclature-list li {
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    padding: 0.4rem 0;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.nomenclature-list li::before {
+    content: '→';
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+}
+
+.nomenclature-note {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 1rem;
+    font-style: italic;
+}
+
+/* === SECTION SPACING === */
+.section {
+    margin-bottom: 3rem;
+}
+
+.section-title {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: lowercase;
+    color: var(--text-tertiary);
+    margin-bottom: 1.5rem;
+}
+
+/* === FULL WIDTH CARD === */
+.card-full {
+    width: 100%;
+    margin-bottom: 1.5rem;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+    .releases-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .release-card {
+        padding: 1rem;
+    }
+
+    .release-title {
+        font-size: 0.85rem;
+    }
+
+    .release-description {
+        font-size: 0.7rem;
+    }
+
+    .section {
+        margin-bottom: 2rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .release-header {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .release-card {
+        padding: 0.8rem;
+    }
+}
