@@ -1062,10 +1062,14 @@
 
 /* Footer */
 .footer {
-  padding: 2rem;
+  margin-top: 3rem;
+  padding: 2rem 0;
   text-align: center;
-  font-size: 0.75rem;
   color: var(--text-tertiary);
+  font-size: 0.7rem;
+}
+
+.footer-content {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1074,9 +1078,9 @@
 }
 
 .footer a {
-  color: var(--text-secondary);
-  font-weight: 500;
+  color: var(--text-tertiary);
   text-decoration: none;
+  border-bottom: 1px solid var(--border-secondary);
   transition: color 0.2s;
 }
 
@@ -1086,11 +1090,12 @@
 
 .separator {
   color: var(--border-primary);
+  margin: 0 0.5rem;
 }
 
 .version {
-  font-family: 'Courier New', monospace;
-  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  text-transform: lowercase;
 }
         
     </style>
@@ -1444,11 +1449,13 @@
 
 <!-- Footer -->
 <div class="footer">
-  <span class="version">mk-1 v0.1</span>
-  <span class="separator">•</span>
-  <span>designed, coded & built by <a href="https://nicolasbronzina.com" target="_blank">nicolás bronzina</a></span>
-  <span class="separator">•</span>
-  <a href="https://buymeacoffee.com/nbronzina" target="_blank">support this project</a>
+  <div class="footer-content">
+    <span class="version">mk-1 v0.1</span>
+    <span class="separator">•</span>
+    <span>designed, coded & built by <a href="https://nicolasbronzina.com" target="_blank">nicolás bronzina</a></span>
+    <span class="separator">•</span>
+    <a href="https://buymeacoffee.com/nbronzina" target="_blank">support this project</a>
+  </div>
 </div>
 
     <script>
