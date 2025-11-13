@@ -1059,6 +1059,45 @@
                 height: 20px;
             }
         }
+
+         .footer {
+          margin-top: 3rem;
+          padding: 2rem 0;
+          text-align: center;
+          color: var(--text-tertiary);
+          font-size: 0.7rem;
+          border-top: 1px solid var(--border-primary);
+        }
+
+        .footer-content {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 1rem;
+          flex-wrap: wrap;
+        }
+
+        .footer a {
+          color: var(--text-tertiary);
+          text-decoration: none;
+          border-bottom: 1px solid var(--border-secondary);
+          transition: color 0.2s;
+        }
+
+        .footer a:hover {
+          color: var(--text-primary);
+        }
+
+        .separator {
+          color: var(--border-primary);
+        }
+
+        .version {
+          font-family: 'Courier New', monospace;
+          font-size: 0.7rem;
+          color: var(--text-tertiary);
+        }
+        
     </style>
 </head>
 <body>
@@ -1409,13 +1448,15 @@
         </div>
 
 <!-- Footer -->
-<div style="padding: 2rem; text-align: center; font-size: 0.7rem; color: var(--text-tertiary); border-top: 1px solid var(--border-primary); display: flex; justify-content: center; align-items: center; gap: 1rem; flex-wrap: wrap;">
-    <span style="font-family: 'Courier New', monospace;">mk-1 v0.1</span>
-    <span style="color: var(--border-primary);">•</span>
-    <span>designed, coded & built by <a href="https://nicolasbronzina.com" target="_blank" style="color: var(--text-tertiary); text-decoration: none; border-bottom: 1px solid var(--border-secondary); transition: color 0.2s;">nicolás bronzina</a></span>
-    <span style="color: var(--border-primary);">•</span>
-    <a href="https://buymeacoffee.com/nbronzina" target="_blank" style="color: var(--text-tertiary); text-decoration: none; border-bottom: 1px solid var(--border-secondary); transition: color 0.2s;">support this project</a>
-</div>
+    <div class="footer">
+      <div class="footer-content">
+        <span class="version">mk-1 v0.1</span>
+        <span class="separator">•</span>
+        <span>designed, coded & built by <a href="https://nicolasbronzina.com" target="_blank">nicolás bronzina</a></span>
+        <span class="separator">•</span>
+        <a href="https://buymeacoffee.com/nbronzina" target="_blank">support this project</a>
+      </div>
+    </div>
 
     <script>
         // Audio Engine
