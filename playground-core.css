@@ -1,0 +1,517 @@
+/* ============================================
+   PLAYGROUND CORE STYLES
+   Shared foundation for all playground releases
+   ============================================ */
+
+/* === RESET === */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* === CSS VARIABLES === */
+:root {
+    /* Light mode (default) */
+    --bg-primary: #f2f2f0;
+    --bg-secondary: #fefefe;
+    --bg-tertiary: #fafafa;
+    --bg-input: #0f0f0f;
+    --border-primary: #e0e0e0;
+    --border-secondary: #2a2a2a;
+    --text-primary: #000;
+    --text-secondary: #666;
+    --text-tertiary: #999;
+    --text-invert: #fff;
+    --accent-primary: #000;
+    --accent-secondary: #e0e0e0;
+    --hover-primary: #f0f0f0;
+    --hover-secondary: #ccc;
+    --active-bg: #000;
+    --active-text: #fff;
+    --viz-bg: #fafafa;
+    --viz-line: #000;
+    
+    /* Status colors */
+    --status-live: #00ff00;
+    --status-planned: #999;
+    --status-beta: #ff9500;
+}
+
+:root.dark-mode {
+    /* Dark mode */
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #141414;
+    --bg-tertiary: #0f0f0f;
+    --bg-input: #0f0f0f;
+    --border-primary: #2a2a2a;
+    --border-secondary: #444;
+    --text-primary: #e0e0e0;
+    --text-secondary: #999;
+    --text-tertiary: #666;
+    --text-invert: #000;
+    --accent-primary: #e0e0e0;
+    --accent-secondary: #2a2a2a;
+    --hover-primary: #1a1a1a;
+    --hover-secondary: #444;
+    --active-bg: #e0e0e0;
+    --active-text: #000;
+    --viz-bg: #0a0a0a;
+    --viz-line: #e0e0e0;
+    
+    /* Status colors dark mode */
+    --status-live: #00ff00;
+    --status-planned: #666;
+    --status-beta: #ff9500;
+}
+
+/* === BODY BASE === */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Arial', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    position: relative;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* === GRAIN TEXTURE OVERLAY (FIXED) === */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.25;
+    z-index: 1;
+    pointer-events: none;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="1.2" numOctaves="6" seed="2" /></filter><rect width="100%" height="100%" filter="url(%23noise)" opacity="1"/></svg>');
+}
+
+/* === SUBTLE VIGNETTE === */
+body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+    box-shadow: inset 0 0 200px rgba(0,0,0,0.12);
+}
+
+/* === HEADER === */
+.header {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-primary);
+    padding: 1.5rem 2rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    overflow: hidden;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.12;
+    z-index: 1;
+    pointer-events: none;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="250" height="250"><filter id="hn"><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="4" /></filter><rect width="100%" height="100%" filter="url(%23hn)"/></svg>');
+}
+
+.brand {
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: lowercase;
+    position: relative;
+    z-index: 2;
+}
+
+/* === CONTAINER === */
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem 2rem;
+    position: relative;
+    z-index: 2;
+}
+
+/* === HERO === */
+.hero {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.hero h1 {
+    font-size: 1.8rem;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+}
+
+.hero p {
+    font-size: 0.85rem;
+    color: var(--text-tertiary);
+    font-weight: 300;
+    transition: all 0.3s ease;
+}
+
+/* === CARDS/MODULES === */
+.card, .module {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    min-width: 0;
+    transition: all 0.15s ease;
+}
+
+/* Grain texture on cards/modules */
+.card::after, .module::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.12;
+    z-index: 1;
+    pointer-events: none;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="5" /></filter><rect width="100%" height="100%" filter="url(%23n)"/></svg>');
+}
+
+.card > *, .module > * {
+    position: relative;
+    z-index: 2;
+}
+
+.card:hover {
+    border-color: var(--border-secondary);
+    transform: translateY(-2px);
+}
+
+/* === CARD HEADER === */
+.card-header, .module-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.8rem;
+}
+
+.card-title, .module-title {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: lowercase;
+    color: var(--text-tertiary);
+}
+
+.card-desc, .module-desc {
+    font-size: 0.65rem;
+    font-weight: 400;
+    color: #bbb;
+    margin-top: 0.3rem;
+    line-height: 1.4;
+}
+
+/* === BUTTONS === */
+.btn {
+    width: 100%;
+    padding: 1rem;
+    background: var(--active-bg);
+    border: none;
+    color: var(--active-text);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: lowercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.btn:hover {
+    background: var(--hover-secondary);
+}
+
+.btn:active {
+    background: var(--active-bg);
+    transform: scale(0.98);
+}
+
+.btn-secondary {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-primary);
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    width: 100%;
+    padding: 1rem;
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: lowercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-secondary:hover {
+    background: var(--hover-primary);
+    border-color: var(--border-secondary);
+}
+
+.btn-secondary.active {
+    background: var(--active-bg);
+    color: var(--active-text);
+    border-color: var(--text-primary);
+}
+
+/* === LINKS === */
+a {
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: var(--text-secondary);
+}
+
+/* === STATUS BADGES === */
+.status-badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.6rem;
+    font-weight: 500;
+    text-transform: lowercase;
+    letter-spacing: 0.05em;
+    border-radius: 2px;
+    background: var(--bg-tertiary);
+    color: var(--text-tertiary);
+    border: 1px solid var(--border-primary);
+}
+
+.status-badge.live {
+    color: var(--status-live);
+    border-color: var(--status-live);
+}
+
+.status-badge.planned {
+    color: var(--status-planned);
+    border-color: var(--status-planned);
+}
+
+.status-badge.beta {
+    color: var(--status-beta);
+    border-color: var(--status-beta);
+}
+
+/* === FOOTER === */
+.footer {
+    margin-top: 3rem;
+    padding: 2rem 0;
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: 0.7rem;
+    position: relative;
+    z-index: 2;
+}
+
+.footer-content {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.footer a {
+    color: var(--text-tertiary);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border-secondary);
+    transition: color 0.2s;
+}
+
+.footer a:hover {
+    color: var(--text-primary);
+}
+
+.separator {
+    color: var(--border-primary);
+    margin: 0 0.5rem;
+}
+
+.version {
+    color: var(--text-tertiary);
+    text-transform: lowercase;
+}
+
+/* === MODAL === */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(4px);
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal-content {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    padding: 2rem;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.modal-content::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.12;
+    z-index: 1;
+    pointer-events: none;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><filter id="modaln"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="5" /></filter><rect width="100%" height="100%" filter="url(%23modaln)"/></svg>');
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    position: relative;
+    z-index: 2;
+}
+
+.modal-title {
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: lowercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
+}
+
+.modal-close {
+    background: none;
+    border: 1px solid var(--border-primary);
+    color: var(--text-primary);
+    padding: 0.3rem 0.6rem;
+    cursor: pointer;
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: lowercase;
+    letter-spacing: 0.05em;
+    transition: all 0.15s ease;
+}
+
+.modal-close:hover {
+    background: var(--hover-primary);
+    border-color: var(--border-secondary);
+}
+
+/* === RESPONSIVE BASE === */
+@media (max-width: 768px) {
+    .header {
+        padding: 1rem 1.5rem;
+    }
+
+    .brand {
+        font-size: 0.9rem;
+    }
+
+    .hero h1 {
+        font-size: 1.5rem;
+    }
+
+    .hero p {
+        font-size: 0.8rem;
+    }
+
+    .container {
+        padding: 1.5rem 1rem;
+    }
+
+    .card, .module {
+        padding: 1rem;
+    }
+
+    .card-header, .module-header {
+        margin-bottom: 0.8rem;
+        padding-bottom: 0.6rem;
+    }
+
+    .card-title, .module-title {
+        font-size: 0.65rem;
+    }
+
+    .card-desc, .module-desc {
+        font-size: 0.6rem;
+    }
+
+    .btn, .btn-secondary {
+        font-size: 0.7rem;
+        padding: 0.8rem;
+    }
+
+    .modal-content {
+        padding: 1.5rem;
+        max-height: 90vh;
+    }
+}
+
+@media (max-width: 480px) {
+    .header {
+        padding: 0.8rem 1rem;
+    }
+
+    .brand {
+        font-size: 0.8rem;
+    }
+
+    .hero h1 {
+        font-size: 1.3rem;
+    }
+
+    .hero p {
+        font-size: 0.75rem;
+    }
+
+    .container {
+        padding: 1rem 0.8rem;
+    }
+
+    .card, .module {
+        padding: 0.8rem;
+    }
+}
