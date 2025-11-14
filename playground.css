@@ -139,6 +139,22 @@ html {
     outline-offset: 2px;
 }
 
+/* === IN DEVELOPMENT STATE === */
+.release-card.in-development {
+    cursor: default;
+    opacity: 0.7;
+}
+
+.release-card.in-development:hover {
+    transform: none;
+    border-color: var(--border-primary);
+    box-shadow: none;
+}
+
+.release-card.in-development::after {
+    opacity: 0.06;
+}
+
 /* === RELEASE CARD HEADER === */
 .release-header {
     display: flex;
@@ -181,6 +197,29 @@ html {
     padding: 0.35rem 0.7rem;
     border-radius: 2px;
     text-transform: lowercase;
+}
+
+/* === STATUS BADGES === */
+.status-badge {
+    font-size: 0.65rem;
+    font-weight: 500;
+    text-transform: lowercase;
+    letter-spacing: 0.05em;
+    padding: 0.35rem 0.7rem;
+    border-radius: 2px;
+    white-space: nowrap;
+}
+
+.status-badge.live {
+    background: rgba(34, 197, 94, 0.15);
+    color: rgb(34, 197, 94);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.status-badge.development {
+    background: rgba(251, 191, 36, 0.15);
+    color: rgb(251, 191, 36);
+    border: 1px solid rgba(251, 191, 36, 0.3);
 }
 
 /* === SUPPORT SECTION === */
