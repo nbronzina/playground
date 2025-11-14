@@ -217,14 +217,19 @@ html {
 
 .status-badge.development {
     background: rgba(251, 191, 36, 0.15);
-    color: rgb(251, 191, 36);
+    color: rgb(180, 120, 0);
     border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+/* Dark mode - color claro para badge development */
+html.dark-mode .status-badge.development {
+    color: rgb(251, 191, 36);
 }
 
 /* === SUPPORT SECTION === */
 .support-card pre {
     background: transparent;
-    padding: 1.5rem;
+    padding: 2rem 1.5rem;
     border-radius: 2px;
     font-size: 0.85rem;
     line-height: 1.8;
