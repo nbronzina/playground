@@ -145,12 +145,27 @@ html {
     color: var(--text-tertiary);
 }
 
-/* === RELEASES GRID === */
-.releases-grid {
+/* === TWO COLUMN GRID === */
+.two-column-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
     margin-bottom: 2rem;
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.column-title {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: lowercase;
+    color: var(--text-tertiary);
+    margin-bottom: 0.5rem;
 }
 
 /* === RELEASE CARD === */
@@ -164,6 +179,7 @@ html {
     cursor: pointer;
     text-decoration: none;
     display: block;
+    height: 100%;
 }
 
 .release-card::after {
@@ -193,42 +209,6 @@ html {
 .release-card:focus-visible {
     outline: 2px solid var(--accent-primary);
     outline-offset: 2px;
-}
-
-/* === DISABLED CARDS - MORE SUBTLE === */
-.release-card.disabled {
-    cursor: not-allowed;
-    opacity: 0.4;
-    padding: 1rem 1.5rem;
-    min-height: auto;
-}
-
-.release-card.disabled::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: repeating-linear-gradient(
-        45deg,
-        transparent,
-        transparent 12px,
-        rgba(0,0,0,0.015) 12px,
-        rgba(0,0,0,0.015) 24px
-    );
-    z-index: 3;
-    pointer-events: none;
-}
-
-.release-card.disabled:hover {
-    transform: none;
-    box-shadow: none;
-    border-color: var(--border-primary);
-}
-
-.release-card.disabled .release-description {
-    font-size: 0.75rem;
 }
 
 /* === RELEASE CARD HEADER === */
@@ -273,6 +253,11 @@ html {
     padding: 0.35rem 0.7rem;
     border-radius: 2px;
     text-transform: lowercase;
+}
+
+/* === PHILOSOPHY CARDS === */
+.card-philosophy {
+    height: 100%;
 }
 
 /* === APPROACH SECTION === */
@@ -323,10 +308,6 @@ html {
 }
 
 /* === NOMENCLATURE SECTION === */
-.nomenclature-section {
-    margin-top: 2.5rem;
-}
-
 .nomenclature-list {
     list-style: none;
     padding: 0;
@@ -382,6 +363,13 @@ html {
 }
 
 /* === RESPONSIVE === */
+@media (max-width: 900px) {
+    .two-column-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+}
+
 @media (max-width: 768px) {
     .hero {
         padding: 2rem 0 3rem;
@@ -405,17 +393,12 @@ html {
         padding: 0.9rem 1.5rem;
     }
 
-    .releases-grid {
-        grid-template-columns: 1fr;
-        gap: 1rem;
+    .two-column-grid {
+        gap: 1.2rem;
     }
 
     .release-card {
         padding: 1rem;
-    }
-
-    .release-card.disabled {
-        padding: 0.8rem 1rem;
     }
 
     .release-title {
@@ -471,6 +454,10 @@ html {
         padding: 0.8rem 1.2rem;
     }
 
+    .two-column-grid {
+        gap: 1rem;
+    }
+
     .release-header {
         flex-direction: column;
         gap: 0.5rem;
@@ -478,10 +465,6 @@ html {
 
     .release-card {
         padding: 0.8rem;
-    }
-    
-    .release-card.disabled {
-        padding: 0.7rem 0.8rem;
     }
 
     .release-title {
