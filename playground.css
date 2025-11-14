@@ -69,38 +69,8 @@ html {
     font-weight: 300;
     letter-spacing: 0.03em;
     max-width: 500px;
-    margin: 0 auto 2rem;
+    margin: 0 auto;
     line-height: 1.6;
-}
-
-.hero-cta {
-    margin-top: 2rem;
-}
-
-.hero-btn {
-    display: inline-block;
-    width: auto;
-    min-width: 200px;
-    padding: 1rem 2rem;
-    text-decoration: none;
-}
-
-.hero-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-/* === ABOUT SECTION === */
-.about-card {
-    margin-bottom: 2rem;
-    text-align: center;
-}
-
-.about-intro {
-    font-size: 0.95rem;
-    line-height: 1.7;
-    color: var(--text-secondary);
-    margin: 0;
 }
 
 /* === TWO COLUMN GRID === */
@@ -286,11 +256,6 @@ html {
         font-size: 0.85rem;
     }
 
-    .hero-btn {
-        min-width: 180px;
-        padding: 0.9rem 1.5rem;
-    }
-
     .two-column-grid {
         gap: 1.2rem;
     }
@@ -337,11 +302,6 @@ html {
 
     .hero-description {
         font-size: 0.8rem;
-    }
-
-    .hero-btn {
-        min-width: 160px;
-        padding: 0.8rem 1.2rem;
     }
 
     .two-column-grid {
