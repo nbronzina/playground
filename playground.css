@@ -107,7 +107,6 @@ html {
     cursor: pointer;
     text-decoration: none;
     display: block;
-    height: 100%;
 }
 
 .release-card::after {
