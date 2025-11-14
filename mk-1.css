@@ -14,6 +14,32 @@
     margin-bottom: 1.5rem;
 }
 
+/* === CARD TYPOGRAPHY (AGREGADO PARA CONSISTENCIA) === */
+.card h2 {
+    font-size: 1.5rem;
+    font-weight: 400;
+    margin-bottom: 1.5rem;
+    text-transform: lowercase;
+}
+
+.card h3 {
+    font-size: 1.1rem;
+    font-weight: 400;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+    text-transform: lowercase;
+}
+
+.card p {
+    margin-bottom: 1rem;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.card p:last-child {
+    margin-bottom: 0;
+}
+
 /* === SUPPORT CARD === */
 .support-card pre {
     background: var(--bg-tertiary);
@@ -26,8 +52,7 @@
 
 .support-card a {
     color: var(--text-primary);
-    text-decoration: none;
-    border-bottom: 1px solid var(--border-secondary);
+    text-decoration: underline;
     transition: color 0.2s ease;
 }
 
