@@ -12,13 +12,90 @@
     align-items: start;
 }
 
+.workspace-three-cols {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    align-items: stretch;
+}
+
 .module-full { grid-column: span 12; }
 .module-half { grid-column: span 6; }
 .module-third { 
     grid-column: span 4;
-    min-height: 520px;
 }
 .module-twothird { grid-column: span 8; }
+
+/* === LOOP VERTICAL LAYOUT === */
+.loop-vertical {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.loop-vertical .btn-group {
+    margin-bottom: 1rem;
+}
+
+.loop-vertical .loop-mic-btn {
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.loop-vertical .loop-info {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    font-size: 0.65rem;
+    color: var(--text-tertiary);
+}
+
+.loop-vertical .loop-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.loop-vertical .loop-bottom {
+    margin-top: auto;
+    padding-top: 1.5rem;
+}
+
+/* === VIBE VERTICAL === */
+.vibe-vertical {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.vibe-container-vertical {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    padding: 2rem 0;
+}
+
+.vibe-circle {
+    width: 340px;
+    height: 340px;
+    max-width: 100%;
+    cursor: pointer;
+}
+
+/* === FX VERTICAL === */
+.fx-vertical {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.fx-vertical .control-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
 
 /* === VISUALIZER === */
 .visualizer {
@@ -267,7 +344,6 @@ select:focus {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 0.5rem;
-    margin-bottom: 1rem;
 }
 
 /* === MIC INDICATOR === */
@@ -428,8 +504,14 @@ select:focus {
         grid-column: span 12;
     }
     
-    .module-third {
-        min-height: auto;
+    .workspace-three-cols {
+        grid-template-columns: 1fr;
+    }
+    
+    .loop-vertical,
+    .vibe-vertical,
+    .fx-vertical {
+        height: auto;
     }
 }
 
@@ -437,6 +519,10 @@ select:focus {
     .workspace {
         gap: 1rem;
         margin-bottom: 1rem;
+    }
+    
+    .workspace-three-cols {
+        gap: 1rem;
     }
 
     .pad-grid {
