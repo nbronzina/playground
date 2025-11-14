@@ -87,7 +87,7 @@ canvas {
     font-size: 0.7rem;
     font-weight: 400;
     text-transform: lowercase;
-    letter-spacing: 0.03em;
+    letter-spacing: var(--letter-spacing-normal);
     color: var(--text-tertiary);
     position: relative;
     z-index: 2;
@@ -184,7 +184,7 @@ canvas {
     font-size: 0.7rem;
     font-weight: 400;
     text-transform: lowercase;
-    letter-spacing: 0.03em;
+    letter-spacing: var(--letter-spacing-normal);
     color: var(--text-tertiary);
 }
 
@@ -360,7 +360,7 @@ select:focus {
     font-size: 0.7rem;
     font-weight: 400;
     text-transform: lowercase;
-    letter-spacing: 0.03em;
+    letter-spacing: var(--letter-spacing-normal);
     margin-bottom: 1.5rem;
     position: relative;
     overflow: hidden;
