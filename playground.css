@@ -93,56 +93,14 @@ html {
 /* === ABOUT SECTION === */
 .about-card {
     margin-bottom: 2rem;
+    text-align: center;
 }
 
 .about-intro {
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     line-height: 1.7;
     color: var(--text-secondary);
-    margin-bottom: 0.8rem;
-}
-
-.about-rule {
-    font-size: 0.85rem;
-    line-height: 1.7;
-    color: var(--text-primary);
-    font-style: italic;
-    margin-top: 1.2rem;
-}
-
-.values-section {
-    margin-top: 2rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--border-primary);
-}
-
-.values-title {
-    font-size: 0.75rem;
-    color: var(--text-primary);
-    display: block;
-    margin-bottom: 0.8rem;
-}
-
-/* === VALUES LIST === */
-.values-list {
-    list-style: none;
-    padding: 0;
     margin: 0;
-}
-
-.values-list li {
-    font-size: 0.85rem;
-    color: var(--text-primary);
-    padding: 0.5rem 0;
-    padding-left: 1.5rem;
-    position: relative;
-}
-
-.values-list li::before {
-    content: '•';
-    position: absolute;
-    left: 0.5rem;
-    color: var(--text-tertiary);
 }
 
 /* === TWO COLUMN GRID === */
@@ -255,33 +213,6 @@ html {
     text-transform: lowercase;
 }
 
-/* === PHILOSOPHY CARDS === */
-.card-philosophy {
-    height: 100%;
-}
-
-/* === APPROACH SECTION === */
-.approach-list {
-    list-style: none;
-    padding: 0;
-    margin-top: 1rem;
-}
-
-.approach-list li {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    padding: 0.3rem 0;
-    padding-left: 1rem;
-    position: relative;
-}
-
-.approach-list li::before {
-    content: '·';
-    position: absolute;
-    left: 0;
-    color: var(--text-tertiary);
-}
-
 /* === SUPPORT SECTION === */
 .support-card pre {
     background: var(--bg-tertiary);
@@ -305,39 +236,6 @@ html {
 .support-card a:focus-visible {
     outline: 2px solid var(--accent-primary);
     outline-offset: 2px;
-}
-
-/* === NOMENCLATURE SECTION === */
-.nomenclature-list {
-    list-style: none;
-    padding: 0;
-    margin-top: 1rem;
-}
-
-.nomenclature-list li {
-    font-family: 'Courier New', monospace;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    padding: 0.4rem 0;
-    display: flex;
-    gap: 0.5rem;
-}
-
-.nomenclature-list li::before {
-    content: '→';
-    color: var(--text-tertiary);
-    flex-shrink: 0;
-}
-
-.nomenclature-desc {
-    color: var(--text-tertiary);
-}
-
-.nomenclature-note {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    margin-top: 1rem;
-    font-style: italic;
 }
 
 /* === SECTION SPACING - UNIFIED === */
@@ -421,14 +319,6 @@ html {
     .support-card pre {
         font-size: 0.8rem;
         padding: 1.2rem;
-    }
-    
-    .about-intro {
-        font-size: 0.85rem;
-    }
-    
-    .about-rule {
-        font-size: 0.8rem;
     }
 }
 
