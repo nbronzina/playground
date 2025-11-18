@@ -36,11 +36,11 @@
     <div class="header">
         <div>
             <div class="brand">playground mk-1</div>
-            <div style="font-size: 0.7rem; color: var(--text-tertiary); font-weight: 400; margin-top: 0.3rem;" id="timestamp"></div>
+            <div class="header-timestamp" id="timestamp"></div>
         </div>
-        <div style="display: flex; gap: 0.5rem; position: relative; z-index: 2;">
-            <button id="shortcutsBtn" style="background: none; border: 1px solid var(--border-primary); color: var(--text-primary); padding: 0.5rem 0.8rem; cursor: pointer; font-size: 0.7rem; font-weight: 500; text-transform: lowercase; letter-spacing: 0.05em; transition: all 0.15s ease;">?</button>
-            <button id="themeToggle" style="background: none; border: 1px solid var(--border-primary); color: var(--text-primary); padding: 0.5rem 0.8rem; cursor: pointer; font-size: 0.7rem; font-weight: 500; text-transform: lowercase; letter-spacing: 0.05em; transition: all 0.15s ease;">
+        <div class="header-actions">
+            <button id="shortcutsBtn" class="header-btn">?</button>
+            <button id="themeToggle" class="header-btn">
                 <span id="themeIcon">◐</span>
             </button>
         </div>
@@ -118,9 +118,9 @@
         <div class="hero">
             <h1>create · loop · play</h1>
             <p>try the demo or just start creating</p>
-            <div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 1rem;">
-                <button class="btn" id="loadDemoBtn" style="max-width: 150px;">load demo</button>
-                <button class="btn-secondary" id="clearAllBtn" style="max-width: 150px; padding: 0.8rem 1.5rem; font-size: 0.7rem;">clear all</button>
+            <div class="hero-actions">
+                <button class="btn hero-btn" id="loadDemoBtn">load demo</button>
+                <button class="btn-secondary hero-btn" id="clearAllBtn">clear all</button>
             </div>
         </div>
 

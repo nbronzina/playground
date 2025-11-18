@@ -1,4 +1,38 @@
-// Audio Engine
+// ============================================
+// CONSTANTS
+// ============================================
+const AUDIO_CONSTANTS = {
+    MASTER_VOLUME: 0.7,
+    ANALYSER_FFT_SIZE: 2048,
+    DELAY_TIME: 0.3,
+    DELAY_FEEDBACK: 0.3,
+    REVERB_TIME: 2,
+    DEFAULT_FILTER_FREQ: 10000,
+    DEFAULT_TEMPO: 120,
+    SEQUENCER_STEPS: 16,
+    LOOP_SLOTS_COUNT: 4
+};
+
+const SYNTH_DEFAULTS = {
+    ATTACK_MS: 10,
+    RELEASE_MS: 300,
+    GAIN: 0.3
+};
+
+const ANIMATION_CONSTANTS = {
+    VIBE_BASE_RADIUS: 80,
+    VIBE_SCALE_FACTOR: 0.15,
+    VIBE_LERP_SPEED: 0.15,
+    VIBE_VOLUME_THRESHOLD_LOW: 0.02,
+    VIBE_VOLUME_THRESHOLD_MID: 0.05,
+    VIBE_VOLUME_THRESHOLD_HIGH: 0.15,
+    VIBE_TRICK_DURATION: 2000,
+    VIZ_LINE_WIDTH: 2
+};
+
+// ============================================
+// AUDIO ENGINE
+// ============================================
 let audioContext;
 let masterGain;
 let analyser;
@@ -38,8 +72,8 @@ let currentStep = 0;
 let isPlaying = false;
 let sequencerInterval;
 
-let attackTime = 10;
-let releaseTime = 300;
+let attackTime = SYNTH_DEFAULTS.ATTACK_MS;
+let releaseTime = SYNTH_DEFAULTS.RELEASE_MS;
 
 const canvas = document.getElementById('viz');
 const ctx = canvas.getContext('2d');
@@ -58,7 +92,7 @@ let vibeCircle = document.getElementById('vibeCircleMain');
 let vibeEyeLeft = document.getElementById('vibeEyeLeft');
 let vibeEyeRight = document.getElementById('vibeEyeRight');
 let vibeMouth = document.getElementById('vibeMouth');
-let vibeBaseRadius = 80;
+let vibeBaseRadius = ANIMATION_CONSTANTS.VIBE_BASE_RADIUS;
 let vibeCurrentScale = 1;
 let vibeTargetScale = 1;
 let vibeMouthState = 'neutral';
@@ -163,10 +197,58 @@ function doRandomVibeTrick() {
         vibeEyeRight.setAttribute('r', '4');
         vibeEyeRight.setAttribute('ry', '4');
         vibeMouth.setAttribute('d', 'M 70 115 Q 100 125 130 115');
-    }, 2000);
+    }, ANIMATION_CONSTANTS.VIBE_TRICK_DURATION);
 }
 
 document.getElementById('vibeCircle').addEventListener('click', doRandomVibeTrick);
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+function startMediaRecording() {
+    audioChunks = [];
+    document.getElementById('downloadBtn').style.display = 'none';
+
+    mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
+
+    mediaRecorder.ondataavailable = (event) => {
+        audioChunks.push(event.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+        loopSlots[activeSlot].audioBlob = blob;
+
+        try {
+            const arrayBuffer = await blob.arrayBuffer();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            loopSlots[activeSlot].audioBuffer = audioBuffer;
+            loopSlots[activeSlot].duration = audioBuffer.duration;
+        } catch (error) {
+            console.error('Error decoding audio:', error);
+        }
+
+        updateSlotUI();
+        document.getElementById('downloadBtn').style.display = 'block';
+    };
+
+    mediaRecorder.start();
+}
+
+function addTouchClick(element, handler) {
+    let touchHandled = false;
+    element.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        touchHandled = true;
+        handler.call(this, e);
+    });
+    element.addEventListener('click', function(e) {
+        if (!touchHandled) {
+            handler.call(this, e);
+        }
+        touchHandled = false;
+    });
+}
 
 function animateVibe() {
     requestAnimationFrame(animateVibe);
@@ -194,16 +276,16 @@ function animateVibe() {
     }
     const average = sum / bufferLength;
     const normalizedVolume = average / 255;
-    
-    if (normalizedVolume > 0.02) {
+
+    if (normalizedVolume > ANIMATION_CONSTANTS.VIBE_VOLUME_THRESHOLD_LOW) {
         vibeEyeLeft.setAttribute('ry', '4');
         vibeEyeRight.setAttribute('ry', '4');
-        
-        vibeTargetScale = 1 + (normalizedVolume * 0.15);
-        
-        if (normalizedVolume > 0.15) {
+
+        vibeTargetScale = 1 + (normalizedVolume * ANIMATION_CONSTANTS.VIBE_SCALE_FACTOR);
+
+        if (normalizedVolume > ANIMATION_CONSTANTS.VIBE_VOLUME_THRESHOLD_HIGH) {
             vibeMouth.setAttribute('d', 'M 70 110 Q 100 130 130 110');
-        } else if (normalizedVolume > 0.05) {
+        } else if (normalizedVolume > ANIMATION_CONSTANTS.VIBE_VOLUME_THRESHOLD_MID) {
             vibeMouth.setAttribute('d', 'M 70 115 Q 100 125 130 115');
         } else {
             vibeMouth.setAttribute('d', 'M 75 115 Q 100 120 125 115');
@@ -224,7 +306,7 @@ function animateVibe() {
         vibeMouth.setAttribute('d', 'M 75 115 Q 100 118 125 115');
     }
     
-    vibeCurrentScale += (vibeTargetScale - vibeCurrentScale) * 0.15;
+    vibeCurrentScale += (vibeTargetScale - vibeCurrentScale) * ANIMATION_CONSTANTS.VIBE_LERP_SPEED;
     const newRadius = vibeBaseRadius * vibeCurrentScale;
     vibeCircle.setAttribute('r', newRadius);
 }
@@ -234,17 +316,17 @@ animateVibe();
 function initSystem() {
     if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        
+
         masterGain = audioContext.createGain();
-        masterGain.gain.value = 0.7;
-        
+        masterGain.gain.value = AUDIO_CONSTANTS.MASTER_VOLUME;
+
         analyser = audioContext.createAnalyser();
-        analyser.fftSize = 2048;
+        analyser.fftSize = AUDIO_CONSTANTS.ANALYSER_FFT_SIZE;
         
         const delayNode = audioContext.createDelay();
-        delayNode.delayTime.value = 0.3;
+        delayNode.delayTime.value = AUDIO_CONSTANTS.DELAY_TIME;
         const delayFeedback = audioContext.createGain();
-        delayFeedback.gain.value = 0.3;
+        delayFeedback.gain.value = AUDIO_CONSTANTS.DELAY_FEEDBACK;
         const delayMix = audioContext.createGain();
         delayMix.gain.value = 0;
         
@@ -256,7 +338,7 @@ function initSystem() {
         const reverbMix = audioContext.createGain();
         reverbMix.gain.value = 0;
         
-        const reverbTime = 2;
+        const reverbTime = AUDIO_CONSTANTS.REVERB_TIME;
         const sampleRate = audioContext.sampleRate;
         const length = sampleRate * reverbTime;
         const impulse = audioContext.createBuffer(2, length, sampleRate);
@@ -273,7 +355,7 @@ function initSystem() {
         
         const filterNode = audioContext.createBiquadFilter();
         filterNode.type = 'lowpass';
-        filterNode.frequency.value = 10000;
+        filterNode.frequency.value = AUDIO_CONSTANTS.DEFAULT_FILTER_FREQ;
         filterNode.Q.value = 1;
         
         masterGain.connect(delayNode);
@@ -675,21 +757,6 @@ function playNote(freq, skipRecording = false) {
 document.getElementById('initBtn').addEventListener('click', initSystem);
 document.getElementById('micBtn').addEventListener('click', toggleMic);
 
-function addTouchClick(element, handler) {
-    let touchHandled = false;
-    element.addEventListener('touchstart', function(e) {
-        e.preventDefault();
-        touchHandled = true;
-        handler.call(this, e);
-    });
-    element.addEventListener('click', function(e) {
-        if (!touchHandled) {
-            handler.call(this, e);
-        }
-        touchHandled = false;
-    });
-}
-
 document.querySelectorAll('.pad').forEach(pad => {
     addTouchClick(pad, function() {
         const sound = this.dataset.sound;
@@ -744,35 +811,9 @@ function toggleSequencer() {
             isRecording = true;
             recordingStart = audioContext.currentTime;
             loopSlots[activeSlot].loop = [];
-            audioChunks = [];
-            
-            document.getElementById('downloadBtn').style.display = 'none';
-            
-            mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
-            
-            mediaRecorder.ondataavailable = (event) => {
-                audioChunks.push(event.data);
-            };
-            
-            mediaRecorder.onstop = async () => {
-                const blob = new Blob(audioChunks, { type: 'audio/webm' });
-                loopSlots[activeSlot].audioBlob = blob;
-                
-                try {
-                    const arrayBuffer = await blob.arrayBuffer();
-                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                    loopSlots[activeSlot].audioBuffer = audioBuffer;
-                    loopSlots[activeSlot].duration = audioBuffer.duration;
-                } catch (error) {
-                    console.error('Error decoding audio:', error);
-                }
-                
-                updateSlotUI();
-                document.getElementById('downloadBtn').style.display = 'block';
-            };
-            
-            mediaRecorder.start();
-            
+
+            startMediaRecording();
+
             document.getElementById('recordBtn').textContent = 'recording...';
             document.getElementById('recordBtn').classList.add('active');
             document.getElementById('recStatus').textContent = 'on';
@@ -837,35 +878,9 @@ document.getElementById('recordBtn').addEventListener('click', () => {
         isOverdub = false;
         recordingStart = audioContext.currentTime;
         loopSlots[activeSlot].loop = [];
-        audioChunks = [];
-        
-        document.getElementById('downloadBtn').style.display = 'none';
-        
-        mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
-        
-        mediaRecorder.ondataavailable = (event) => {
-            audioChunks.push(event.data);
-        };
-        
-        mediaRecorder.onstop = async () => {
-            const blob = new Blob(audioChunks, { type: 'audio/webm' });
-            loopSlots[activeSlot].audioBlob = blob;
-            
-            try {
-                const arrayBuffer = await blob.arrayBuffer();
-                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                loopSlots[activeSlot].audioBuffer = audioBuffer;
-                loopSlots[activeSlot].duration = audioBuffer.duration;
-            } catch (error) {
-                console.error('Error decoding audio:', error);
-            }
-            
-            updateSlotUI();
-            document.getElementById('downloadBtn').style.display = 'block';
-        };
-        
-        mediaRecorder.start();
-        
+
+        startMediaRecording();
+
         document.getElementById('recordBtn').textContent = 'recording...';
         document.getElementById('recordBtn').classList.add('active');
         document.getElementById('recStatus').textContent = 'on';
@@ -890,35 +905,9 @@ document.getElementById('overdubBtn').addEventListener('click', () => {
     if (!isOverdub && !isRecording) {
         isOverdub = true;
         recordingStart = audioContext.currentTime;
-        audioChunks = [];
-        
-        document.getElementById('downloadBtn').style.display = 'none';
-        
-        mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
-        
-        mediaRecorder.ondataavailable = (event) => {
-            audioChunks.push(event.data);
-        };
-        
-        mediaRecorder.onstop = async () => {
-            const blob = new Blob(audioChunks, { type: 'audio/webm' });
-            loopSlots[activeSlot].audioBlob = blob;
-            
-            try {
-                const arrayBuffer = await blob.arrayBuffer();
-                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                loopSlots[activeSlot].audioBuffer = audioBuffer;
-                loopSlots[activeSlot].duration = audioBuffer.duration;
-            } catch (error) {
-                console.error('Error decoding audio:', error);
-            }
-            
-            updateSlotUI();
-            document.getElementById('downloadBtn').style.display = 'block';
-        };
-        
-        mediaRecorder.start();
-        
+
+        startMediaRecording();
+
         document.getElementById('overdubBtn').textContent = 'layering...';
         document.getElementById('overdubBtn').classList.add('active');
         document.getElementById('recStatus').textContent = 'overdub';
@@ -1236,44 +1225,54 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// Cache color values to avoid repeated getComputedStyle calls
+let cachedVizBgColor = null;
+let cachedVizLineColor = null;
+
+function updateVizColors() {
+    cachedVizBgColor = getComputedStyle(document.documentElement).getPropertyValue('--viz-bg').trim();
+    cachedVizLineColor = getComputedStyle(document.documentElement).getPropertyValue('--viz-line').trim();
+}
+
 function drawViz() {
+    requestAnimationFrame(drawViz);
+
     if (!isActive || !analyser) {
-        requestAnimationFrame(drawViz);
         return;
     }
-    
-    requestAnimationFrame(drawViz);
-    
+
+    // Update colors if not cached (first run or theme change)
+    if (!cachedVizBgColor || !cachedVizLineColor) {
+        updateVizColors();
+    }
+
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
     analyser.getByteTimeDomainData(dataArray);
-    
-    const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--viz-bg').trim();
-    const lineColor = getComputedStyle(document.documentElement).getPropertyValue('--viz-line').trim();
-    
-    ctx.fillStyle = bgColor;
+
+    ctx.fillStyle = cachedVizBgColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = lineColor;
+
+    ctx.lineWidth = ANIMATION_CONSTANTS.VIZ_LINE_WIDTH;
+    ctx.strokeStyle = cachedVizLineColor;
     ctx.beginPath();
-    
+
     const sliceWidth = canvas.width / bufferLength;
     let x = 0;
-    
+
     for (let i = 0; i < bufferLength; i++) {
         const v = dataArray[i] / 128.0;
         const y = v * canvas.height / 2;
-        
+
         if (i === 0) {
             ctx.moveTo(x, y);
         } else {
             ctx.lineTo(x, y);
         }
-        
+
         x += sliceWidth;
     }
-    
+
     ctx.lineTo(canvas.width, canvas.height / 2);
     ctx.stroke();
 }
@@ -1458,4 +1457,6 @@ const html = document.documentElement;
 
 themeToggle.addEventListener('click', () => {
     html.classList.toggle('dark-mode');
+    // Update visualizer colors when theme changes
+    updateVizColors();
 });
