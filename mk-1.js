@@ -1838,7 +1838,9 @@ themeToggle.addEventListener('click', () => {
     updateVizColors();
 });
 
-// Synth Presets (localStorage)
+// ============================================
+// SYNTH PRESETS (Progressive UI)
+// ============================================
 const PRESETS_KEY = 'playground-mk1-synth-presets';
 
 function loadPresetsFromStorage() {
@@ -1856,21 +1858,6 @@ function savePresetsToStorage(presets) {
     } catch (e) {
         console.error('Could not save presets:', e);
     }
-}
-
-function updatePresetDropdown() {
-    const select = document.getElementById('synthPreset');
-    const presets = loadPresetsFromStorage();
-
-    // Clear and rebuild
-    select.innerHTML = '<option value="">--</option>';
-
-    Object.keys(presets).forEach(name => {
-        const option = document.createElement('option');
-        option.value = name;
-        option.textContent = name;
-        select.appendChild(option);
-    });
 }
 
 function getCurrentSynthSettings() {
@@ -1891,20 +1878,88 @@ function applySynthSettings(settings) {
     releaseTime = parseInt(settings.release);
 }
 
-document.getElementById('savePresetBtn').addEventListener('click', () => {
-    const name = prompt('Preset name:');
-    if (!name || !name.trim()) return;
+function updateSynthPresetUI() {
+    const presets = loadPresetsFromStorage();
+    const hasPresets = Object.keys(presets).length > 0;
+    const ui = document.getElementById('synthPresetUI');
+
+    ui.querySelector('.preset-empty').style.display = hasPresets ? 'none' : 'flex';
+    ui.querySelector('.preset-filled').style.display = hasPresets ? 'flex' : 'none';
+    ui.querySelector('.preset-input').style.display = 'none';
+
+    if (hasPresets) {
+        const select = document.getElementById('synthPreset');
+        select.innerHTML = '<option value="">load preset</option>';
+        Object.keys(presets).forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            select.appendChild(option);
+        });
+        // Add clear all option
+        const clearOption = document.createElement('option');
+        clearOption.value = '__clear_all__';
+        clearOption.textContent = '── clear all ──';
+        select.appendChild(clearOption);
+    }
+}
+
+function showSynthPresetInput() {
+    const ui = document.getElementById('synthPresetUI');
+    ui.querySelector('.preset-empty').style.display = 'none';
+    ui.querySelector('.preset-filled').style.display = 'none';
+    ui.querySelector('.preset-input').style.display = 'flex';
+    document.getElementById('presetNameInput').value = '';
+    document.getElementById('presetNameInput').focus();
+}
+
+function hideSynthPresetInput() {
+    updateSynthPresetUI();
+}
+
+// Initial save button
+document.getElementById('savePresetBtn').addEventListener('click', showSynthPresetInput);
+
+// Add save button (when presets exist)
+document.getElementById('addPresetBtn').addEventListener('click', showSynthPresetInput);
+
+// Confirm save
+document.getElementById('confirmPresetBtn').addEventListener('click', () => {
+    const name = document.getElementById('presetNameInput').value.trim();
+    if (!name) return;
 
     const presets = loadPresetsFromStorage();
-    presets[name.trim()] = getCurrentSynthSettings();
+    presets[name] = getCurrentSynthSettings();
     savePresetsToStorage(presets);
-    updatePresetDropdown();
-    document.getElementById('synthPreset').value = name.trim();
+    updateSynthPresetUI();
     showMessage('preset saved');
 });
 
+// Cancel save
+document.getElementById('cancelPresetBtn').addEventListener('click', hideSynthPresetInput);
+
+// Enter key in input
+document.getElementById('presetNameInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        document.getElementById('confirmPresetBtn').click();
+    } else if (e.key === 'Escape') {
+        hideSynthPresetInput();
+    }
+});
+
+// Load preset from dropdown
 document.getElementById('synthPreset').addEventListener('change', function() {
     if (!this.value) return;
+
+    if (this.value === '__clear_all__') {
+        if (confirm('Clear all saved presets?')) {
+            savePresetsToStorage({});
+            updateSynthPresetUI();
+            showMessage('presets cleared');
+        }
+        this.value = '';
+        return;
+    }
 
     const presets = loadPresetsFromStorage();
     const preset = presets[this.value];
@@ -1913,12 +1968,15 @@ document.getElementById('synthPreset').addEventListener('change', function() {
         applySynthSettings(preset);
         showMessage('preset loaded');
     }
+    this.value = '';
 });
 
-// Initialize preset dropdown
-updatePresetDropdown();
+// Initialize synth preset UI
+updateSynthPresetUI();
 
-// Pattern Presets (localStorage)
+// ============================================
+// PATTERN PRESETS (Progressive UI)
+// ============================================
 const PATTERNS_KEY = 'playground-mk1-patterns';
 
 function loadPatternsFromStorage() {
@@ -1938,20 +1996,6 @@ function savePatternsToStorage(patterns) {
     }
 }
 
-function updatePatternDropdown() {
-    const select = document.getElementById('patternPreset');
-    const patterns = loadPatternsFromStorage();
-
-    select.innerHTML = '<option value="">patterns</option>';
-
-    Object.keys(patterns).forEach(name => {
-        const option = document.createElement('option');
-        option.value = name;
-        option.textContent = name;
-        select.appendChild(option);
-    });
-}
-
 function getCurrentPattern() {
     const pattern = {};
     for (const drum in sequencerSteps) {
@@ -1968,20 +2012,88 @@ function applyPattern(pattern) {
     updatePatternCount();
 }
 
-document.getElementById('savePatternBtn').addEventListener('click', () => {
-    const name = prompt('Pattern name:');
-    if (!name || !name.trim()) return;
+function updatePatternPresetUI() {
+    const patterns = loadPatternsFromStorage();
+    const hasPatterns = Object.keys(patterns).length > 0;
+    const ui = document.getElementById('patternPresetUI');
+
+    ui.querySelector('.preset-empty').style.display = hasPatterns ? 'none' : 'flex';
+    ui.querySelector('.preset-filled').style.display = hasPatterns ? 'flex' : 'none';
+    ui.querySelector('.preset-input').style.display = 'none';
+
+    if (hasPatterns) {
+        const select = document.getElementById('patternPreset');
+        select.innerHTML = '<option value="">load pattern</option>';
+        Object.keys(patterns).forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            select.appendChild(option);
+        });
+        // Add clear all option
+        const clearOption = document.createElement('option');
+        clearOption.value = '__clear_all__';
+        clearOption.textContent = '── clear all ──';
+        select.appendChild(clearOption);
+    }
+}
+
+function showPatternPresetInput() {
+    const ui = document.getElementById('patternPresetUI');
+    ui.querySelector('.preset-empty').style.display = 'none';
+    ui.querySelector('.preset-filled').style.display = 'none';
+    ui.querySelector('.preset-input').style.display = 'flex';
+    document.getElementById('patternNameInput').value = '';
+    document.getElementById('patternNameInput').focus();
+}
+
+function hidePatternPresetInput() {
+    updatePatternPresetUI();
+}
+
+// Initial save button
+document.getElementById('savePatternBtn').addEventListener('click', showPatternPresetInput);
+
+// Add save button (when patterns exist)
+document.getElementById('addPatternBtn').addEventListener('click', showPatternPresetInput);
+
+// Confirm save
+document.getElementById('confirmPatternBtn').addEventListener('click', () => {
+    const name = document.getElementById('patternNameInput').value.trim();
+    if (!name) return;
 
     const patterns = loadPatternsFromStorage();
-    patterns[name.trim()] = getCurrentPattern();
+    patterns[name] = getCurrentPattern();
     savePatternsToStorage(patterns);
-    updatePatternDropdown();
-    document.getElementById('patternPreset').value = name.trim();
+    updatePatternPresetUI();
     showMessage('pattern saved');
 });
 
+// Cancel save
+document.getElementById('cancelPatternBtn').addEventListener('click', hidePatternPresetInput);
+
+// Enter key in input
+document.getElementById('patternNameInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        document.getElementById('confirmPatternBtn').click();
+    } else if (e.key === 'Escape') {
+        hidePatternPresetInput();
+    }
+});
+
+// Load pattern from dropdown
 document.getElementById('patternPreset').addEventListener('change', function() {
     if (!this.value) return;
+
+    if (this.value === '__clear_all__') {
+        if (confirm('Clear all saved patterns?')) {
+            savePatternsToStorage({});
+            updatePatternPresetUI();
+            showMessage('patterns cleared');
+        }
+        this.value = '';
+        return;
+    }
 
     const patterns = loadPatternsFromStorage();
     const pattern = patterns[this.value];
@@ -1991,10 +2103,11 @@ document.getElementById('patternPreset').addEventListener('change', function() {
         applyPattern(pattern);
         showMessage('pattern loaded');
     }
+    this.value = '';
 });
 
-// Initialize pattern dropdown
-updatePatternDropdown();
+// Initialize pattern preset UI
+updatePatternPresetUI();
 
 // ============================================
 // MIDI INPUT SUPPORT
