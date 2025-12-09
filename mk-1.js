@@ -2462,6 +2462,240 @@ window.MK1 = (function() {
             }
         },
 
+        // === LOOPER ===
+        looper: {
+            // Helper: normalize slot name to uppercase
+            _normalizeSlot: function(slot) {
+                if (typeof slot !== 'string') return null;
+                const normalized = slot.toUpperCase();
+                if (['A', 'B', 'C', 'D'].includes(normalized)) {
+                    return normalized;
+                }
+                return null;
+            },
+
+            // Start recording on a slot
+            record: function(slot) {
+                const normalizedSlot = this._normalizeSlot(slot);
+                if (!normalizedSlot) return;
+
+                // Initialize audio if needed
+                if (!audioContext) {
+                    initSystem();
+                }
+
+                // Switch to the target slot
+                activeSlot = normalizedSlot;
+                document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('active'));
+                const slotBtn = document.querySelector(`[data-slot="${normalizedSlot}"]`);
+                if (slotBtn) slotBtn.classList.add('active');
+
+                // Start recording (clear existing content)
+                isRecording = true;
+                isOverdub = false;
+                recordingStart = audioContext.currentTime;
+                loopSlots[normalizedSlot].loop = [];
+
+                startMediaRecording();
+
+                document.getElementById('recordBtn').textContent = 'recording...';
+                document.getElementById('recordBtn').classList.add('active');
+                document.getElementById('recStatus').textContent = 'on';
+                updateSlotUI();
+            },
+
+            // Stop current recording
+            stopRecording: function() {
+                if (isRecording) {
+                    isRecording = false;
+                    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                        mediaRecorder.stop();
+                    }
+                    document.getElementById('recordBtn').textContent = 'rec manual';
+                    document.getElementById('recordBtn').classList.remove('active');
+                    document.getElementById('recStatus').textContent = 'off';
+                }
+                if (isOverdub) {
+                    isOverdub = false;
+                    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                        mediaRecorder.stop();
+                    }
+                    document.getElementById('overdubBtn').textContent = 'add layer';
+                    document.getElementById('overdubBtn').classList.remove('active');
+                    document.getElementById('recStatus').textContent = 'off';
+                }
+                updateSlotUI();
+            },
+
+            // Check if currently recording
+            isRecording: function() {
+                return isRecording || isOverdub;
+            },
+
+            // Play a specific slot
+            play: function(slot) {
+                const normalizedSlot = this._normalizeSlot(slot);
+                if (!normalizedSlot) return;
+
+                if (!audioContext) {
+                    initSystem();
+                }
+
+                const slotData = loopSlots[normalizedSlot];
+
+                // Play audio buffer if exists
+                if (slotData.audioBuffer) {
+                    const source = audioContext.createBufferSource();
+                    source.buffer = slotData.audioBuffer;
+                    source.connect(masterGain);
+                    source.start(0);
+
+                    // Track playback state
+                    slotData.isPlaying = true;
+                    source.onended = () => {
+                        slotData.isPlaying = false;
+                    };
+                }
+
+                // Replay event loop
+                if (slotData.loop.length > 0) {
+                    slotData.isPlaying = true;
+                    let maxTime = 0;
+
+                    slotData.loop.forEach(event => {
+                        if (event.time > maxTime) maxTime = event.time;
+                        setTimeout(() => {
+                            if (event.type === 'drum') {
+                                playDrum(event.sound, true);
+                            } else if (event.type === 'synth') {
+                                playNote(event.freq, true);
+                            }
+                        }, event.time * 1000);
+                    });
+
+                    // Clear playing state after all events finish
+                    setTimeout(() => {
+                        slotData.isPlaying = false;
+                    }, (maxTime + 1) * 1000);
+                }
+            },
+
+            // Play all slots with content
+            playAll: function() {
+                Object.keys(loopSlots).forEach(slotKey => {
+                    const slot = loopSlots[slotKey];
+                    if (slot.audioBuffer || slot.loop.length > 0) {
+                        this.play(slotKey);
+                    }
+                });
+            },
+
+            // Stop a specific slot (limited - can't stop audio buffer mid-play)
+            stop: function(slot) {
+                const normalizedSlot = this._normalizeSlot(slot);
+                if (!normalizedSlot) return;
+
+                // Mark as not playing (note: can't actually stop AudioBufferSourceNode mid-play easily)
+                loopSlots[normalizedSlot].isPlaying = false;
+            },
+
+            // Stop all slots
+            stopAll: function() {
+                Object.keys(loopSlots).forEach(slotKey => {
+                    loopSlots[slotKey].isPlaying = false;
+                });
+            },
+
+            // Check if a slot is playing
+            isPlaying: function(slot) {
+                const normalizedSlot = this._normalizeSlot(slot);
+                if (!normalizedSlot) return false;
+                return loopSlots[normalizedSlot].isPlaying || false;
+            },
+
+            // Add layer (overdub) to existing slot
+            addLayer: function(slot) {
+                const normalizedSlot = this._normalizeSlot(slot);
+                if (!normalizedSlot) return;
+
+                if (!audioContext) {
+                    initSystem();
+                }
+
+                // Switch to target slot
+                activeSlot = normalizedSlot;
+                document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('active'));
+                const slotBtn = document.querySelector(`[data-slot="${normalizedSlot}"]`);
+                if (slotBtn) slotBtn.classList.add('active');
+
+                // Start overdub (keeps existing content)
+                if (!isOverdub && !isRecording) {
+                    isOverdub = true;
+                    recordingStart = audioContext.currentTime;
+
+                    startMediaRecording();
+
+                    document.getElementById('overdubBtn').textContent = 'layering...';
+                    document.getElementById('overdubBtn').classList.add('active');
+                    document.getElementById('recStatus').textContent = 'overdub';
+                }
+                updateSlotUI();
+            },
+
+            // Clear a specific slot
+            clear: function(slot) {
+                const normalizedSlot = this._normalizeSlot(slot);
+                if (!normalizedSlot) return;
+
+                loopSlots[normalizedSlot].loop = [];
+                loopSlots[normalizedSlot].audioBlob = null;
+                loopSlots[normalizedSlot].audioBuffer = null;
+                loopSlots[normalizedSlot].duration = 0;
+                loopSlots[normalizedSlot].isPlaying = false;
+                updateSlotUI();
+            },
+
+            // Clear all slots
+            clearAll: function() {
+                Object.keys(loopSlots).forEach(slotKey => {
+                    loopSlots[slotKey].loop = [];
+                    loopSlots[slotKey].audioBlob = null;
+                    loopSlots[slotKey].audioBuffer = null;
+                    loopSlots[slotKey].duration = 0;
+                    loopSlots[slotKey].isPlaying = false;
+                });
+                updateSlotUI();
+                document.getElementById('downloadBtn').style.display = 'none';
+            },
+
+            // Get status of a specific slot
+            getSlotStatus: function(slot) {
+                const normalizedSlot = this._normalizeSlot(slot);
+                if (!normalizedSlot) return null;
+
+                const slotData = loopSlots[normalizedSlot];
+                return {
+                    hasContent: slotData.loop.length > 0 || slotData.audioBuffer !== null,
+                    isPlaying: slotData.isPlaying || false,
+                    duration: slotData.duration || 0,
+                    events: slotData.loop.length,
+                    hasAudio: slotData.audioBuffer !== null
+                };
+            },
+
+            // Get status of all slots
+            getAllStatus: function() {
+                const status = {};
+                Object.keys(loopSlots).forEach(slotKey => {
+                    status[slotKey.toLowerCase()] = this.getSlotStatus(slotKey);
+                });
+                status.activeSlot = activeSlot.toLowerCase();
+                status.isRecording = isRecording;
+                status.isOverdub = isOverdub;
+                return status;
+            }
+        },
+
         // === UTILITY ===
         utils: {
             getState: function() {
@@ -2482,7 +2716,7 @@ window.MK1 = (function() {
                         chorus: window.chorusMix?.gain.value || 0
                     },
                     sequencer: JSON.parse(JSON.stringify(sequencerSteps)),
-                    activeSlot: activeSlot
+                    looper: MK1.looper.getAllStatus()
                 };
             },
 
