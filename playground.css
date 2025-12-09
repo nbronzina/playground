@@ -231,29 +231,20 @@ html.dark-mode .status-badge.airtist {
 }
 
 /* === SUPPORT SECTION === */
-.support-card pre {
-    background: transparent;
-    padding: 1.5rem;
-    border-radius: 2px;
+.support-text {
     font-size: 0.85rem;
-    line-height: 1.8;
+    color: var(--text-secondary);
     text-align: center;
 }
 
-.support-card a {
+.support-text a {
     color: var(--text-primary);
-    text-decoration: none;
-    border-bottom: 1px solid var(--border-secondary);
-    transition: color 0.2s ease;
+    text-decoration: underline;
+    text-underline-offset: 2px;
 }
 
-.support-card a:hover {
-    color: var(--text-secondary);
-}
-
-.support-card a:focus-visible {
-    outline: 2px solid var(--accent-primary);
-    outline-offset: 2px;
+.support-text a:hover {
+    color: var(--accent-primary, var(--text-primary));
 }
 
 /* === SECTION SPACING - UNIFIED === */
