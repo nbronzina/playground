@@ -90,10 +90,12 @@ body {
 /* === WORDMARK === */
 .wordmark {
     font-weight: 500;
+    letter-spacing: 0;
 }
 
 .wordmark .separator {
     opacity: 0.4;
+    margin: 0;
 }
 
 /* === GRAIN TEXTURE OVERLAY (FIXED) === */
