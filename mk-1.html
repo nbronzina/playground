@@ -129,6 +129,12 @@
             <div class="status-item">rec: <span class="status-value" id="recStatus">off</span></div>
             <div class="status-item"><span class="status-value" id="tempoStatus">120</span> bpm</div>
             <div class="status-item">patterns: <span class="status-value" id="patternCount">0</span></div>
+            <div class="status-item beat-indicator">
+                <span class="beat-dot" data-beat="1"></span>
+                <span class="beat-dot" data-beat="2"></span>
+                <span class="beat-dot" data-beat="3"></span>
+                <span class="beat-dot" data-beat="4"></span>
+            </div>
         </div>
 
         <!-- Visualizer -->
@@ -250,6 +256,8 @@
                         <option value="square">square</option>
                         <option value="sawtooth">saw</option>
                         <option value="triangle">triangle</option>
+                        <option value="pulse">pulse</option>
+                        <option value="noise">noise</option>
                     </select>
                 </div>
 
@@ -360,7 +368,10 @@
                         <span>tempo</span>
                         <span class="control-value" id="tempoVal">120</span>
                     </div>
-                    <input type="range" id="tempo" min="60" max="200" value="120">
+                    <div class="tempo-controls">
+                        <input type="range" id="tempo" min="60" max="200" value="120">
+                        <button class="btn-secondary tap-btn" id="tapTempoBtn">tap</button>
+                    </div>
                 </div>
                 <div class="control-group">
                     <div class="control-label">

@@ -165,6 +165,45 @@ const vibeExpressions = [
             vibeEyeRight.setAttribute('r', '7');
         },
         mouth: 'M 100 115 Q 110 120 115 115 Q 118 108 112 105'
+    },
+    {
+        name: 'wink',
+        eyes: () => {
+            vibeEyeLeft.setAttribute('r', '4');
+            vibeEyeRight.setAttribute('ry', '1');
+            vibeEyeRight.setAttribute('r', '4');
+        },
+        mouth: 'M 70 115 Q 100 130 130 115'
+    },
+    {
+        name: 'surprised',
+        eyes: () => {
+            vibeEyeLeft.setAttribute('r', '7');
+            vibeEyeRight.setAttribute('r', '7');
+        },
+        mouth: 'M 90 120 Q 100 130 110 120 Q 100 110 90 120'
+    },
+    {
+        name: 'sleepy',
+        eyes: () => {
+            vibeEyeLeft.setAttribute('ry', '1');
+            vibeEyeRight.setAttribute('ry', '1');
+            vibeEyeLeft.setAttribute('cy', '90');
+            vibeEyeRight.setAttribute('cy', '90');
+        },
+        mouth: 'M 80 118 Q 100 115 120 118'
+    },
+    {
+        name: 'dizzy',
+        eyes: () => {
+            vibeEyeLeft.setAttribute('cx', '80');
+            vibeEyeLeft.setAttribute('cy', '80');
+            vibeEyeRight.setAttribute('cx', '120');
+            vibeEyeRight.setAttribute('cy', '90');
+            vibeEyeLeft.setAttribute('r', '3');
+            vibeEyeRight.setAttribute('r', '5');
+        },
+        mouth: 'M 75 120 Q 85 110 100 120 Q 115 130 125 115'
     }
 ];
 
@@ -708,11 +747,11 @@ function playNote(freq, skipRecording = false) {
         setTimeout(() => playNote(freq), 100);
         return;
     }
-    
+
     if (audioContext.state === 'suspended') {
         audioContext.resume();
     }
-    
+
     const noteEntry = Object.entries(notes).find(([key, f]) => f === freq);
     if (noteEntry) {
         const [noteName] = noteEntry;
@@ -722,28 +761,71 @@ function playNote(freq, skipRecording = false) {
             setTimeout(() => keyEl.classList.remove('active'), 200);
         }
     }
-    
-    const osc = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    
+
     const wave = document.getElementById('waveType').value;
-    osc.type = wave;
-    osc.frequency.setValueAtTime(freq, audioContext.currentTime);
-    
     const now = audioContext.currentTime;
     const attack = attackTime / 1000;
     const release = releaseTime / 1000;
-    
+
+    const gain = audioContext.createGain();
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(0.3, now + attack);
     gain.gain.exponentialRampToValueAtTime(0.01, now + release);
-    
-    osc.connect(gain);
     gain.connect(masterGain);
-    
-    osc.start();
-    osc.stop(audioContext.currentTime + release);
-    
+
+    if (wave === 'noise') {
+        // White noise with pitch-based filter
+        const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * release, audioContext.sampleRate);
+        const noiseData = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < noiseBuffer.length; i++) {
+            noiseData[i] = Math.random() * 2 - 1;
+        }
+        const noiseSource = audioContext.createBufferSource();
+        noiseSource.buffer = noiseBuffer;
+
+        // Use frequency to control filter cutoff for tonal noise
+        const noiseFilter = audioContext.createBiquadFilter();
+        noiseFilter.type = 'bandpass';
+        noiseFilter.frequency.value = freq;
+        noiseFilter.Q.value = 10;
+
+        noiseSource.connect(noiseFilter);
+        noiseFilter.connect(gain);
+        noiseSource.start();
+        noiseSource.stop(now + release);
+    } else if (wave === 'pulse') {
+        // Pulse wave using two detuned sawtooths
+        const osc1 = audioContext.createOscillator();
+        const osc2 = audioContext.createOscillator();
+        const pulseGain = audioContext.createGain();
+
+        osc1.type = 'sawtooth';
+        osc2.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(freq, now);
+        osc2.frequency.setValueAtTime(freq, now);
+
+        // Phase offset creates pulse width effect
+        osc2.detune.setValueAtTime(1, now);
+        pulseGain.gain.value = -1;
+
+        osc1.connect(gain);
+        osc2.connect(pulseGain);
+        pulseGain.connect(gain);
+
+        osc1.start();
+        osc2.start();
+        osc1.stop(now + release);
+        osc2.stop(now + release);
+    } else {
+        // Standard oscillator waves
+        const osc = audioContext.createOscillator();
+        osc.type = wave;
+        osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+        osc.connect(gain);
+        osc.start();
+        osc.stop(audioContext.currentTime + release);
+    }
+
     if (!skipRecording && (isRecording || isOverdub)) {
         loopSlots[activeSlot].loop.push({
             type: 'synth',
@@ -822,16 +904,23 @@ function toggleSequencer() {
         sequencerInterval = setInterval(() => {
             const steps = document.querySelectorAll('.step');
             steps.forEach(s => s.classList.remove('playing'));
-            
+
             const currentSteps = document.querySelectorAll(`.step[data-index="${currentStep}"]`);
             currentSteps.forEach(s => s.classList.add('playing'));
-            
+
+            // Update beat indicator (4 beats per bar, 4 steps per beat)
+            const beatDots = document.querySelectorAll('.beat-dot');
+            beatDots.forEach(dot => dot.classList.remove('active'));
+            const currentBeat = Math.floor(currentStep / 4) + 1;
+            const activeDot = document.querySelector(`.beat-dot[data-beat="${currentBeat}"]`);
+            if (activeDot) activeDot.classList.add('active');
+
             drums.forEach(drum => {
                 if (sequencerSteps[drum][currentStep]) {
                     playDrum(drum);
                 }
             });
-            
+
             currentStep = (currentStep + 1) % 16;
         }, interval);
     } else {
@@ -844,6 +933,7 @@ function stopSequencer(shouldStopRecording = true) {
     isPlaying = false;
     currentStep = 0;
     document.querySelectorAll('.step').forEach(s => s.classList.remove('playing'));
+    document.querySelectorAll('.beat-dot').forEach(dot => dot.classList.remove('active'));
     document.getElementById('playSeq').textContent = 'play+rec';
     document.getElementById('playSeq').classList.remove('active');
     
@@ -1459,4 +1549,48 @@ themeToggle.addEventListener('click', () => {
     html.classList.toggle('dark-mode');
     // Update visualizer colors when theme changes
     updateVizColors();
+});
+
+// Tap Tempo
+let tapTimes = [];
+const TAP_TIMEOUT = 2000; // Reset after 2 seconds of no taps
+
+document.getElementById('tapTempoBtn').addEventListener('click', () => {
+    const now = Date.now();
+
+    // Reset if too long since last tap
+    if (tapTimes.length > 0 && now - tapTimes[tapTimes.length - 1] > TAP_TIMEOUT) {
+        tapTimes = [];
+    }
+
+    tapTimes.push(now);
+
+    // Keep only last 8 taps
+    if (tapTimes.length > 8) {
+        tapTimes.shift();
+    }
+
+    // Need at least 2 taps to calculate tempo
+    if (tapTimes.length >= 2) {
+        let totalInterval = 0;
+        for (let i = 1; i < tapTimes.length; i++) {
+            totalInterval += tapTimes[i] - tapTimes[i - 1];
+        }
+        const avgInterval = totalInterval / (tapTimes.length - 1);
+        let bpm = Math.round(60000 / avgInterval);
+
+        // Clamp to valid range
+        bpm = Math.max(60, Math.min(200, bpm));
+
+        // Update UI
+        document.getElementById('tempo').value = bpm;
+        document.getElementById('tempoVal').textContent = bpm;
+        document.getElementById('tempoStatus').textContent = bpm;
+
+        // If playing, restart sequencer with new tempo
+        if (isPlaying) {
+            stopSequencer(false);
+            setTimeout(() => toggleSequencer(), 50);
+        }
+    }
 });
