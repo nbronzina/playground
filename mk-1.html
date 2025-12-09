@@ -66,11 +66,17 @@
             </div>
             <div class="layout-selector">
                 <span>layout:</span>
-                <select id="keyboardLayout">
-                    <option value="qwerty">QWERTY</option>
-                    <option value="azerty">AZERTY</option>
-                    <option value="qwertz">QWERTZ</option>
-                </select>
+                <div class="custom-select" id="keyboardLayout" data-value="qwerty">
+                    <button class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="custom-select-value">QWERTY</span>
+                        <span class="custom-select-arrow">▼</span>
+                    </button>
+                    <ul class="custom-select-dropdown" role="listbox">
+                        <li class="custom-select-option selected" data-value="qwerty" role="option" tabindex="0">QWERTY</li>
+                        <li class="custom-select-option" data-value="azerty" role="option" tabindex="0">AZERTY</li>
+                        <li class="custom-select-option" data-value="qwertz" role="option" tabindex="0">QWERTZ</li>
+                    </ul>
+                </div>
             </div>
             <div class="shortcuts-grid">
                 <div class="shortcut">
@@ -283,14 +289,20 @@
                         <div class="control-label" style="margin-bottom: 0.5rem;">
                             <span>wave</span>
                         </div>
-                        <select id="waveType">
-                            <option value="sine">sine</option>
-                            <option value="square">square</option>
-                            <option value="sawtooth">saw</option>
-                            <option value="triangle">triangle</option>
-                            <option value="pulse">pulse</option>
-                            <option value="noise">noise</option>
-                        </select>
+                        <div class="custom-select" id="waveType" data-value="sine">
+                            <button class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                                <span class="custom-select-value">sine</span>
+                                <span class="custom-select-arrow">▼</span>
+                            </button>
+                            <ul class="custom-select-dropdown" role="listbox">
+                                <li class="custom-select-option selected" data-value="sine" role="option" tabindex="0">sine</li>
+                                <li class="custom-select-option" data-value="square" role="option" tabindex="0">square</li>
+                                <li class="custom-select-option" data-value="sawtooth" role="option" tabindex="0">saw</li>
+                                <li class="custom-select-option" data-value="triangle" role="option" tabindex="0">triangle</li>
+                                <li class="custom-select-option" data-value="pulse" role="option" tabindex="0">pulse</li>
+                                <li class="custom-select-option" data-value="noise" role="option" tabindex="0">noise</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
 

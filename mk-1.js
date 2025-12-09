@@ -1,4 +1,164 @@
 // ============================================
+// CUSTOM SELECT COMPONENT
+// ============================================
+class CustomSelect {
+    constructor(element) {
+        this.element = element;
+        this.trigger = element.querySelector('.custom-select-trigger');
+        this.dropdown = element.querySelector('.custom-select-dropdown');
+        this.options = element.querySelectorAll('.custom-select-option');
+        this.valueDisplay = element.querySelector('.custom-select-value');
+
+        this.init();
+    }
+
+    init() {
+        // Toggle dropdown
+        this.trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggle();
+        });
+
+        // Select option
+        this.options.forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.select(option);
+            });
+        });
+
+        // Close on outside click
+        document.addEventListener('click', () => {
+            this.close();
+        });
+
+        // Keyboard navigation
+        this.trigger.addEventListener('keydown', (e) => {
+            this.handleKeydown(e);
+        });
+
+        this.element.addEventListener('keydown', (e) => {
+            if (this.isOpen()) {
+                this.handleDropdownKeydown(e);
+            }
+        });
+    }
+
+    toggle() {
+        if (this.isOpen()) {
+            this.close();
+        } else {
+            this.open();
+        }
+    }
+
+    open() {
+        // Close any other open selects
+        document.querySelectorAll('.custom-select.open').forEach(select => {
+            if (select !== this.element) {
+                select.classList.remove('open');
+                select.querySelector('.custom-select-trigger').setAttribute('aria-expanded', 'false');
+            }
+        });
+        this.element.classList.add('open');
+        this.trigger.setAttribute('aria-expanded', 'true');
+    }
+
+    close() {
+        this.element.classList.remove('open');
+        this.trigger.setAttribute('aria-expanded', 'false');
+    }
+
+    isOpen() {
+        return this.element.classList.contains('open');
+    }
+
+    select(option) {
+        // Remove selected from all
+        this.options.forEach(opt => opt.classList.remove('selected'));
+
+        // Add selected to clicked
+        option.classList.add('selected');
+
+        // Update value
+        const value = option.dataset.value;
+        this.element.dataset.value = value;
+        this.valueDisplay.textContent = option.textContent;
+
+        // Close dropdown
+        this.close();
+
+        // Dispatch change event
+        this.element.dispatchEvent(new CustomEvent('change', {
+            detail: { value }
+        }));
+    }
+
+    // Get current value
+    get value() {
+        return this.element.dataset.value;
+    }
+
+    // Set value programmatically
+    set value(newValue) {
+        const option = Array.from(this.options).find(opt => opt.dataset.value === newValue);
+        if (option) {
+            this.select(option);
+        }
+    }
+
+    handleKeydown(e) {
+        switch(e.key) {
+            case 'Enter':
+            case ' ':
+            case 'ArrowDown':
+                e.preventDefault();
+                this.open();
+                break;
+            case 'Escape':
+                this.close();
+                break;
+        }
+    }
+
+    handleDropdownKeydown(e) {
+        const currentIndex = Array.from(this.options).findIndex(opt =>
+            opt.classList.contains('selected')
+        );
+
+        switch(e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                if (currentIndex < this.options.length - 1) {
+                    this.options[currentIndex + 1].focus();
+                }
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                if (currentIndex > 0) {
+                    this.options[currentIndex - 1].focus();
+                }
+                break;
+            case 'Enter':
+                e.preventDefault();
+                const focused = this.dropdown.querySelector(':focus');
+                if (focused) {
+                    this.select(focused);
+                }
+                break;
+            case 'Escape':
+                e.preventDefault();
+                this.close();
+                this.trigger.focus();
+                break;
+        }
+    }
+}
+
+// Store CustomSelect instances
+const customSelectInstances = {};
+
+// ============================================
 // CONSTANTS
 // ============================================
 const AUDIO_CONSTANTS = {
@@ -914,7 +1074,7 @@ function playNote(freq, skipRecording = false) {
         }
     }
 
-    const wave = document.getElementById('waveType').value;
+    const wave = document.getElementById('waveType').dataset.value;
     const now = audioContext.currentTime;
     const attack = attackTime / 1000;
     const release = releaseTime / 1000;
@@ -1462,14 +1622,31 @@ const keyboardLayouts = {
 let currentLayout = localStorage.getItem('playground-mk1-keyboard-layout') || 'qwerty';
 let keyMap = keyboardLayouts[currentLayout];
 
-// Initialize keyboard layout selector
-document.getElementById('keyboardLayout').value = currentLayout;
-document.getElementById('keyboardLayout').addEventListener('change', function() {
-    currentLayout = this.value;
+// Initialize keyboard layout custom select
+const keyboardLayoutElement = document.getElementById('keyboardLayout');
+customSelectInstances.keyboardLayout = new CustomSelect(keyboardLayoutElement);
+
+// Set initial value from localStorage
+if (currentLayout !== 'qwerty') {
+    const option = keyboardLayoutElement.querySelector(`[data-value="${currentLayout}"]`);
+    if (option) {
+        keyboardLayoutElement.querySelectorAll('.custom-select-option').forEach(opt => opt.classList.remove('selected'));
+        option.classList.add('selected');
+        keyboardLayoutElement.dataset.value = currentLayout;
+        keyboardLayoutElement.querySelector('.custom-select-value').textContent = option.textContent;
+    }
+}
+
+keyboardLayoutElement.addEventListener('change', function(e) {
+    currentLayout = e.detail.value;
     keyMap = keyboardLayouts[currentLayout];
     localStorage.setItem('playground-mk1-keyboard-layout', currentLayout);
     showMessage('layout: ' + currentLayout);
 });
+
+// Initialize wave type custom select
+const waveTypeElement = document.getElementById('waveType');
+customSelectInstances.waveType = new CustomSelect(waveTypeElement);
 
 document.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
@@ -1730,11 +1907,11 @@ document.getElementById('loadDemoBtn').addEventListener('click', () => {
     document.getElementById('tempo').value = 120;
     document.getElementById('tempoVal').textContent = '120';
     document.getElementById('tempoStatus').textContent = '120';
-    document.getElementById('waveType').value = 'sine';
-    
+    customSelectInstances.waveType.value = 'sine';
+
     updatePatternCount();
     updateSlotUI();
-    
+
     const heroP = document.querySelector('.hero p');
     const originalText = heroP.textContent;
     heroP.textContent = 'demo loaded! hit space to hear it';
@@ -1775,9 +1952,9 @@ document.getElementById('clearAllBtn').addEventListener('click', () => {
     document.getElementById('tempo').value = 120;
     document.getElementById('tempoVal').textContent = '120';
     document.getElementById('tempoStatus').textContent = '120';
-    
-    document.getElementById('waveType').value = 'sine';
-    
+
+    customSelectInstances.waveType.value = 'sine';
+
     document.getElementById('attack').value = 10;
     document.getElementById('attackVal').textContent = '10ms';
     
