@@ -27,8 +27,14 @@
     
     <!-- Apple Touch Icon -->
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%23f2f2f0'/%3E%3Ctext x='90' y='120' font-family='monospace' font-size='80' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
-    
+
+    <!-- Theme colors -->
+    <meta name="theme-color" content="#f2f2f0" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+
     <!-- Stylesheets -->
+    <link rel="preload" href="playground-core.css" as="style">
+    <link rel="preload" href="mk-1.css" as="style">
     <link rel="stylesheet" href="playground-core.css">
     <link rel="stylesheet" href="mk-1.css">
 </head>
@@ -39,19 +45,19 @@
             <div class="header-timestamp" id="timestamp"></div>
         </div>
         <div class="header-actions">
-            <button id="shortcutsBtn" class="header-btn">?</button>
-            <button id="themeToggle" class="header-btn">
-                <span id="themeIcon">◐</span>
+            <button id="shortcutsBtn" class="header-btn" aria-label="Show keyboard shortcuts">?</button>
+            <button id="themeToggle" class="header-btn" aria-label="Toggle dark mode">
+                <span id="themeIcon" aria-hidden="true">◐</span>
             </button>
         </div>
     </div>
 
     <!-- Shortcuts Modal -->
-    <div class="modal-overlay" id="shortcutsModal">
+    <div class="modal-overlay" id="shortcutsModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">keyboard shortcuts</h3>
-                <button class="modal-close" id="closeModal">esc</button>
+                <h3 class="modal-title" id="modalTitle">keyboard shortcuts</h3>
+                <button class="modal-close" id="closeModal" aria-label="Close modal">esc</button>
             </div>
             <div class="layout-selector">
                 <span>layout:</span>
@@ -165,7 +171,7 @@
                     <div class="module-desc">visual audio feedback</div>
                 </div>
                 <div class="visualizer" style="height: 60px;">
-                    <canvas id="viz"></canvas>
+                    <canvas id="viz" aria-label="Audio waveform visualization" role="img"></canvas>
                 </div>
             </div>
         </div>
@@ -481,6 +487,6 @@ if you find value, consider supporting:
     </div>
 
     <!-- JavaScript -->
-    <script src="mk-1.js"></script>
+    <script src="mk-1.js" defer></script>
 </body>
 </html>
