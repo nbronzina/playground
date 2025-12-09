@@ -538,12 +538,9 @@ a:hover {
     transform: rotate(180deg);
 }
 
-/* Dropdown */
+/* Dropdown (inline - pushes content down) */
 .custom-select-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
+    position: relative;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -551,7 +548,6 @@ a:hover {
     border: 1px solid rgba(0, 0, 0, 0.15);
     border-top: none;
     display: none;
-    z-index: 100;
     max-height: 240px;
     overflow-y: auto;
 }
