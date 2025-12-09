@@ -38,6 +38,19 @@ let masterGain;
 let analyser;
 let isActive = false;
 
+// Distortion curve generator
+function makeDistortionCurve(amount) {
+    const k = typeof amount === 'number' ? amount : 50;
+    const n_samples = 44100;
+    const curve = new Float32Array(n_samples);
+    const deg = Math.PI / 180;
+    for (let i = 0; i < n_samples; i++) {
+        const x = (i * 2) / n_samples - 1;
+        curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+    }
+    return curve;
+}
+
 let micStream = null;
 let micSource = null;
 let micGain = null;
@@ -480,10 +493,74 @@ function initSystem() {
         filterNode.connect(analyser);
         analyser.connect(audioContext.destination);
         
+        // Distortion
+        const distortionNode = audioContext.createWaveShaper();
+        distortionNode.curve = makeDistortionCurve(0);
+        distortionNode.oversample = '4x';
+        const distortionMix = audioContext.createGain();
+        distortionMix.gain.value = 0;
+
+        masterGain.connect(distortionNode);
+        distortionNode.connect(distortionMix);
+        distortionMix.connect(filterNode);
+
+        // Bitcrusher using ScriptProcessor (simple implementation)
+        let crushAmount = 0;
+        const bitcrusherNode = audioContext.createScriptProcessor(4096, 1, 1);
+        bitcrusherNode.onaudioprocess = function(e) {
+            const input = e.inputBuffer.getChannelData(0);
+            const output = e.outputBuffer.getChannelData(0);
+            if (crushAmount === 0) {
+                // No crushing - pass through
+                for (let i = 0; i < input.length; i++) {
+                    output[i] = input[i];
+                }
+            } else {
+                // Reduce bit depth
+                const step = Math.pow(0.5, 16 - crushAmount);
+                for (let i = 0; i < input.length; i++) {
+                    output[i] = Math.round(input[i] / step) * step;
+                }
+            }
+        };
+        const bitcrusherMix = audioContext.createGain();
+        bitcrusherMix.gain.value = 0;
+
+        masterGain.connect(bitcrusherNode);
+        bitcrusherNode.connect(bitcrusherMix);
+        bitcrusherMix.connect(filterNode);
+
+        // Chorus effect using modulated delay
+        const chorusDelay = audioContext.createDelay();
+        chorusDelay.delayTime.value = 0.03; // 30ms base delay
+        const chorusLFO = audioContext.createOscillator();
+        const chorusLFOGain = audioContext.createGain();
+        const chorusMix = audioContext.createGain();
+
+        chorusLFO.type = 'sine';
+        chorusLFO.frequency.value = 1.5; // 1.5 Hz modulation
+        chorusLFOGain.gain.value = 0.002; // Small modulation depth
+        chorusMix.gain.value = 0;
+
+        chorusLFO.connect(chorusLFOGain);
+        chorusLFOGain.connect(chorusDelay.delayTime);
+        chorusLFO.start();
+
+        masterGain.connect(chorusDelay);
+        chorusDelay.connect(chorusMix);
+        chorusMix.connect(filterNode);
+
         window.delayMix = delayMix;
         window.reverbMix = reverbMix;
         window.filterNode = filterNode;
-        
+        window.distortionNode = distortionNode;
+        window.distortionMix = distortionMix;
+        window.bitcrusherNode = bitcrusherNode;
+        window.bitcrusherMix = bitcrusherMix;
+        window.setCrushAmount = (val) => { crushAmount = val; };
+        window.chorusMix = chorusMix;
+        window.chorusLFOGain = chorusLFOGain;
+
         mediaStreamDestination = audioContext.createMediaStreamDestination();
         analyser.connect(mediaStreamDestination);
         
@@ -1264,6 +1341,38 @@ document.getElementById('filter').addEventListener('input', function() {
     }
 });
 
+document.getElementById('distort').addEventListener('input', function() {
+    const value = parseInt(this.value);
+    document.getElementById('distortVal').textContent = value + '%';
+    if (window.distortionNode && window.distortionMix) {
+        // Update distortion curve based on amount (0-100 maps to 0-400 for curve)
+        window.distortionNode.curve = makeDistortionCurve(value * 4);
+        // Mix in the distortion (0% = no effect, 100% = full effect)
+        window.distortionMix.gain.value = value / 100;
+    }
+});
+
+document.getElementById('crush').addEventListener('input', function() {
+    const value = parseInt(this.value);
+    document.getElementById('crushVal').textContent = value;
+    if (window.setCrushAmount && window.bitcrusherMix) {
+        window.setCrushAmount(value);
+        // Mix in the bitcrusher when active
+        window.bitcrusherMix.gain.value = value > 0 ? 1 : 0;
+    }
+});
+
+document.getElementById('chorus').addEventListener('input', function() {
+    const value = parseInt(this.value);
+    document.getElementById('chorusVal').textContent = value + '%';
+    if (window.chorusMix && window.chorusLFOGain) {
+        // Mix in the chorus effect
+        window.chorusMix.gain.value = value / 100;
+        // Increase modulation depth with intensity
+        window.chorusLFOGain.gain.value = 0.002 + (value / 100) * 0.003;
+    }
+});
+
 // Shortcuts Modal
 const modal = document.getElementById('shortcutsModal');
 const closeModalBtn = document.getElementById('closeModal');
@@ -1644,7 +1753,22 @@ document.getElementById('clearAllBtn').addEventListener('click', () => {
     document.getElementById('filter').value = 10000;
     document.getElementById('filterVal').textContent = '10000Hz';
     if (window.filterNode) window.filterNode.frequency.value = 10000;
-    
+
+    document.getElementById('chorus').value = 0;
+    document.getElementById('chorusVal').textContent = '0%';
+    if (window.chorusMix) window.chorusMix.gain.value = 0;
+    if (window.chorusLFOGain) window.chorusLFOGain.gain.value = 0.002;
+
+    document.getElementById('distort').value = 0;
+    document.getElementById('distortVal').textContent = '0%';
+    if (window.distortionNode) window.distortionNode.curve = makeDistortionCurve(0);
+    if (window.distortionMix) window.distortionMix.gain.value = 0;
+
+    document.getElementById('crush').value = 0;
+    document.getElementById('crushVal').textContent = '0';
+    if (window.setCrushAmount) window.setCrushAmount(0);
+    if (window.bitcrusherMix) window.bitcrusherMix.gain.value = 0;
+
     document.getElementById('masterVol').value = 70;
     document.getElementById('masterVolVal').textContent = '70%';
     if (masterGain) masterGain.gain.value = 0.7;
