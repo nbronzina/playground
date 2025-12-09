@@ -1187,22 +1187,23 @@ drums.forEach(drum => {
 
 document.getElementById('playSeq').addEventListener('click', toggleSequencer);
 
-function toggleSequencer() {
+function toggleSequencer(skipRecording = false) {
     if (!audioContext) {
         initSystem();
-        setTimeout(toggleSequencer, 100);
+        setTimeout(() => toggleSequencer(skipRecording), 100);
         return;
     }
-    
+
     if (!isPlaying) {
         isPlaying = true;
         const tempo = parseInt(document.getElementById('tempo').value);
         const interval = (60 / tempo) * 1000 / 4;
-        
+
         document.getElementById('playSeq').textContent = 'stop';
         document.getElementById('playSeq').classList.add('active');
-        
-        if (!isRecording && !isOverdub) {
+
+        // Only auto-record if not called from API (skipRecording = false)
+        if (!skipRecording && !isRecording && !isOverdub) {
             isRecording = true;
             recordingStart = audioContext.currentTime;
             loopSlots[activeSlot].loop = [];
@@ -2321,7 +2322,7 @@ window.MK1 = (function() {
                     if (!audioContext) {
                         initSystem();
                     }
-                    toggleSequencer();
+                    toggleSequencer(true); // skipRecording = true for API calls
                 }
             },
 
