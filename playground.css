@@ -369,3 +369,33 @@ html.dark-mode .status-badge.development {
         margin-bottom: 2.5rem;
     }
 }
+
+/* === ABOUT PAGE === */
+.about-content {
+    text-align: center;
+    max-width: 400px;
+    margin: 0 auto 3rem;
+    line-height: 1.8;
+}
+
+.about-content p {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+}
+
+.about-tagline {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-top: 2rem;
+}
+
+.about-signature {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-top: 2.5rem;
+    font-size: 0.8rem;
+    color: var(--text-tertiary);
+}
