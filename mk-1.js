@@ -72,6 +72,81 @@ let currentStep = 0;
 let isPlaying = false;
 let sequencerInterval;
 
+// Undo/Redo history for sequencer
+let sequencerHistory = [];
+let sequencerHistoryIndex = -1;
+const MAX_HISTORY = 50;
+
+function saveSequencerState() {
+    // Remove any future states if we're not at the end
+    if (sequencerHistoryIndex < sequencerHistory.length - 1) {
+        sequencerHistory = sequencerHistory.slice(0, sequencerHistoryIndex + 1);
+    }
+
+    // Deep copy current state
+    const state = {};
+    for (const drum in sequencerSteps) {
+        state[drum] = [...sequencerSteps[drum]];
+    }
+
+    sequencerHistory.push(state);
+
+    // Limit history size
+    if (sequencerHistory.length > MAX_HISTORY) {
+        sequencerHistory.shift();
+    } else {
+        sequencerHistoryIndex++;
+    }
+}
+
+function undoSequencer() {
+    if (sequencerHistoryIndex > 0) {
+        sequencerHistoryIndex--;
+        restoreSequencerState(sequencerHistory[sequencerHistoryIndex]);
+        showMessage('undo');
+    }
+}
+
+function redoSequencer() {
+    if (sequencerHistoryIndex < sequencerHistory.length - 1) {
+        sequencerHistoryIndex++;
+        restoreSequencerState(sequencerHistory[sequencerHistoryIndex]);
+        showMessage('redo');
+    }
+}
+
+function restoreSequencerState(state) {
+    for (const drum in state) {
+        sequencerSteps[drum] = [...state[drum]];
+    }
+    updateSequencerUI();
+    updatePatternCount();
+}
+
+function updateSequencerUI() {
+    document.querySelectorAll('.step').forEach(step => {
+        const drum = step.dataset.drum;
+        const index = parseInt(step.dataset.index);
+        if (sequencerSteps[drum][index]) {
+            step.classList.add('active');
+        } else {
+            step.classList.remove('active');
+        }
+    });
+}
+
+function showMessage(msg) {
+    const heroP = document.querySelector('.hero p');
+    const originalText = heroP.textContent;
+    heroP.textContent = msg;
+    setTimeout(() => {
+        heroP.textContent = originalText;
+    }, 1000);
+}
+
+// Initialize history with empty state
+saveSequencerState();
+
 let attackTime = SYNTH_DEFAULTS.ATTACK_MS;
 let releaseTime = SYNTH_DEFAULTS.RELEASE_MS;
 
@@ -864,6 +939,7 @@ drums.forEach(drum => {
         step.dataset.drum = drum;
         step.dataset.index = i;
         addTouchClick(step, function() {
+            saveSequencerState();
             sequencerSteps[drum][i] = !sequencerSteps[drum][i];
             this.classList.toggle('active');
             updatePatternCount();
@@ -1221,7 +1297,23 @@ const keyMap = {
 
 document.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
-    
+
+    // Undo/Redo shortcuts
+    if ((e.ctrlKey || e.metaKey) && key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+            redoSequencer();
+        } else {
+            undoSequencer();
+        }
+        return;
+    }
+    if ((e.ctrlKey || e.metaKey) && key === 'y') {
+        e.preventDefault();
+        redoSequencer();
+        return;
+    }
+
     if (e.key === '?' && !modal.classList.contains('active')) {
         e.preventDefault();
         openModal();
@@ -1594,3 +1686,161 @@ document.getElementById('tapTempoBtn').addEventListener('click', () => {
         }
     }
 });
+
+// Synth Presets (localStorage)
+const PRESETS_KEY = 'playground-mk1-synth-presets';
+
+function loadPresetsFromStorage() {
+    try {
+        const stored = localStorage.getItem(PRESETS_KEY);
+        return stored ? JSON.parse(stored) : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function savePresetsToStorage(presets) {
+    try {
+        localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+    } catch (e) {
+        console.error('Could not save presets:', e);
+    }
+}
+
+function updatePresetDropdown() {
+    const select = document.getElementById('synthPreset');
+    const presets = loadPresetsFromStorage();
+
+    // Clear and rebuild
+    select.innerHTML = '<option value="">--</option>';
+
+    Object.keys(presets).forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+    });
+}
+
+function getCurrentSynthSettings() {
+    return {
+        wave: document.getElementById('waveType').value,
+        attack: document.getElementById('attack').value,
+        release: document.getElementById('release').value
+    };
+}
+
+function applySynthSettings(settings) {
+    document.getElementById('waveType').value = settings.wave;
+    document.getElementById('attack').value = settings.attack;
+    document.getElementById('attackVal').textContent = settings.attack + 'ms';
+    attackTime = parseInt(settings.attack);
+    document.getElementById('release').value = settings.release;
+    document.getElementById('releaseVal').textContent = settings.release + 'ms';
+    releaseTime = parseInt(settings.release);
+}
+
+document.getElementById('savePresetBtn').addEventListener('click', () => {
+    const name = prompt('Preset name:');
+    if (!name || !name.trim()) return;
+
+    const presets = loadPresetsFromStorage();
+    presets[name.trim()] = getCurrentSynthSettings();
+    savePresetsToStorage(presets);
+    updatePresetDropdown();
+    document.getElementById('synthPreset').value = name.trim();
+    showMessage('preset saved');
+});
+
+document.getElementById('synthPreset').addEventListener('change', function() {
+    if (!this.value) return;
+
+    const presets = loadPresetsFromStorage();
+    const preset = presets[this.value];
+
+    if (preset) {
+        applySynthSettings(preset);
+        showMessage('preset loaded');
+    }
+});
+
+// Initialize preset dropdown
+updatePresetDropdown();
+
+// Pattern Presets (localStorage)
+const PATTERNS_KEY = 'playground-mk1-patterns';
+
+function loadPatternsFromStorage() {
+    try {
+        const stored = localStorage.getItem(PATTERNS_KEY);
+        return stored ? JSON.parse(stored) : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function savePatternsToStorage(patterns) {
+    try {
+        localStorage.setItem(PATTERNS_KEY, JSON.stringify(patterns));
+    } catch (e) {
+        console.error('Could not save patterns:', e);
+    }
+}
+
+function updatePatternDropdown() {
+    const select = document.getElementById('patternPreset');
+    const patterns = loadPatternsFromStorage();
+
+    select.innerHTML = '<option value="">patterns</option>';
+
+    Object.keys(patterns).forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+    });
+}
+
+function getCurrentPattern() {
+    const pattern = {};
+    for (const drum in sequencerSteps) {
+        pattern[drum] = [...sequencerSteps[drum]];
+    }
+    return pattern;
+}
+
+function applyPattern(pattern) {
+    for (const drum in pattern) {
+        sequencerSteps[drum] = [...pattern[drum]];
+    }
+    updateSequencerUI();
+    updatePatternCount();
+}
+
+document.getElementById('savePatternBtn').addEventListener('click', () => {
+    const name = prompt('Pattern name:');
+    if (!name || !name.trim()) return;
+
+    const patterns = loadPatternsFromStorage();
+    patterns[name.trim()] = getCurrentPattern();
+    savePatternsToStorage(patterns);
+    updatePatternDropdown();
+    document.getElementById('patternPreset').value = name.trim();
+    showMessage('pattern saved');
+});
+
+document.getElementById('patternPreset').addEventListener('change', function() {
+    if (!this.value) return;
+
+    const patterns = loadPatternsFromStorage();
+    const pattern = patterns[this.value];
+
+    if (pattern) {
+        saveSequencerState(); // For undo
+        applyPattern(pattern);
+        showMessage('pattern loaded');
+    }
+});
+
+// Initialize pattern dropdown
+updatePatternDropdown();

@@ -313,6 +313,31 @@ canvas {
     color: var(--text-secondary);
 }
 
+/* === SYNTH CONTROLS === */
+.synth-controls {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.synth-control-group {
+    flex: 1;
+}
+
+.preset-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.preset-controls select {
+    flex: 1;
+}
+
+.preset-btn {
+    padding: 0.5rem 0.8rem;
+    font-size: 0.7rem;
+}
+
 /* === KEYBOARD === */
 .keyboard {
     display: flex;
@@ -475,6 +500,20 @@ select:focus {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 0.5rem;
+}
+
+.pattern-save {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.pattern-save select {
+    flex: 1;
+    min-width: 0;
+}
+
+.pattern-save button {
+    flex-shrink: 0;
 }
 
 /* === MIC INDICATOR === */
