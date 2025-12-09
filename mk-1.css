@@ -324,23 +324,76 @@ canvas {
     flex: 1;
 }
 
-.preset-controls {
+/* === PRESET UI (Progressive) === */
+.preset-ui {
+    position: relative;
+}
+
+.preset-empty {
+    display: flex;
+}
+
+.preset-empty button {
+    flex: 1;
+}
+
+.preset-filled {
     display: flex;
     gap: 0.5rem;
     align-items: stretch;
 }
 
-.preset-controls select {
+.preset-filled .preset-select {
     flex: 1;
+    min-width: 0;
     padding: 0.6rem 2.2rem 0.6rem 0.8rem;
     font-size: 0.75rem;
     background-position: right 0.6rem center;
 }
 
-.preset-btn {
+.preset-filled .preset-add {
+    flex-shrink: 0;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.7rem;
+    min-width: 70px;
+}
+
+.preset-input {
+    display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+}
+
+.preset-input input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.75rem;
+    font-family: inherit;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    color: var(--text-primary);
+}
+
+.preset-input input[type="text"]:focus {
+    outline: none;
+    border-color: var(--border-secondary);
+}
+
+.preset-input input[type="text"]::placeholder {
+    color: var(--text-tertiary);
+}
+
+.preset-input button {
+    flex-shrink: 0;
     padding: 0.6rem 0.8rem;
     font-size: 0.7rem;
     min-width: 50px;
+}
+
+.preset-input button:last-child {
+    min-width: 36px;
+    padding: 0.6rem;
 }
 
 /* === KEYBOARD === */
@@ -489,27 +542,6 @@ select:focus {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 0.5rem;
-}
-
-.pattern-save {
-    display: flex;
-    gap: 0.5rem;
-    align-items: stretch;
-}
-
-.pattern-save select {
-    flex: 1;
-    min-width: 0;
-    padding: 0.6rem 2.2rem 0.6rem 0.8rem;
-    font-size: 0.75rem;
-    background-position: right 0.6rem center;
-}
-
-.pattern-save button {
-    flex-shrink: 0;
-    padding: 0.6rem 0.8rem;
-    font-size: 0.7rem;
-    min-width: 50px;
 }
 
 /* === MIC INDICATOR === */
