@@ -1838,50 +1838,6 @@ themeToggle.addEventListener('click', () => {
     updateVizColors();
 });
 
-// Tap Tempo
-let tapTimes = [];
-const TAP_TIMEOUT = 2000; // Reset after 2 seconds of no taps
-
-document.getElementById('tapTempoBtn').addEventListener('click', () => {
-    const now = Date.now();
-
-    // Reset if too long since last tap
-    if (tapTimes.length > 0 && now - tapTimes[tapTimes.length - 1] > TAP_TIMEOUT) {
-        tapTimes = [];
-    }
-
-    tapTimes.push(now);
-
-    // Keep only last 8 taps
-    if (tapTimes.length > 8) {
-        tapTimes.shift();
-    }
-
-    // Need at least 2 taps to calculate tempo
-    if (tapTimes.length >= 2) {
-        let totalInterval = 0;
-        for (let i = 1; i < tapTimes.length; i++) {
-            totalInterval += tapTimes[i] - tapTimes[i - 1];
-        }
-        const avgInterval = totalInterval / (tapTimes.length - 1);
-        let bpm = Math.round(60000 / avgInterval);
-
-        // Clamp to valid range
-        bpm = Math.max(60, Math.min(200, bpm));
-
-        // Update UI
-        document.getElementById('tempo').value = bpm;
-        document.getElementById('tempoVal').textContent = bpm;
-        document.getElementById('tempoStatus').textContent = bpm;
-
-        // If playing, restart sequencer with new tempo
-        if (isPlaying) {
-            stopSequencer(false);
-            setTimeout(() => toggleSequencer(), 50);
-        }
-    }
-});
-
 // Synth Presets (localStorage)
 const PRESETS_KEY = 'playground-mk1-synth-presets';
 
