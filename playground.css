@@ -193,6 +193,16 @@ html.dark-mode .status-badge.development {
     color: rgb(251, 191, 36);
 }
 
+.status-badge.airtist {
+    background: rgba(139, 92, 246, 0.15);
+    color: rgb(109, 62, 216);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+html.dark-mode .status-badge.airtist {
+    color: rgb(167, 139, 250);
+}
+
 /* === SUPPORT SECTION === */
 .support-card pre {
     background: transparent;
