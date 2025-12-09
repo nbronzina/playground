@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>playground mk-1 · create loop play</title>
     <meta name="description" content="browser-based music creation. drums, synth, looper, mic input. no install, no account. just play.">
     
@@ -27,8 +27,14 @@
     
     <!-- Apple Touch Icon -->
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%23f2f2f0'/%3E%3Ctext x='90' y='120' font-family='monospace' font-size='80' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
-    
+
+    <!-- Theme colors -->
+    <meta name="theme-color" content="#f2f2f0" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+
     <!-- Stylesheets -->
+    <link rel="preload" href="playground-core.css" as="style">
+    <link rel="preload" href="mk-1.css" as="style">
     <link rel="stylesheet" href="playground-core.css">
     <link rel="stylesheet" href="mk-1.css">
 </head>
@@ -39,19 +45,27 @@
             <div class="header-timestamp" id="timestamp"></div>
         </div>
         <div class="header-actions">
-            <button id="shortcutsBtn" class="header-btn">?</button>
-            <button id="themeToggle" class="header-btn">
-                <span id="themeIcon">◐</span>
+            <button id="shortcutsBtn" class="header-btn" aria-label="Show keyboard shortcuts">?</button>
+            <button id="themeToggle" class="header-btn" aria-label="Toggle dark mode">
+                <span id="themeIcon" aria-hidden="true">◐</span>
             </button>
         </div>
     </div>
 
     <!-- Shortcuts Modal -->
-    <div class="modal-overlay" id="shortcutsModal">
+    <div class="modal-overlay" id="shortcutsModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">keyboard shortcuts</h3>
-                <button class="modal-close" id="closeModal">esc</button>
+                <h3 class="modal-title" id="modalTitle">keyboard shortcuts</h3>
+                <button class="modal-close" id="closeModal" aria-label="Close modal">esc</button>
+            </div>
+            <div class="layout-selector">
+                <span>layout:</span>
+                <select id="keyboardLayout">
+                    <option value="qwerty">QWERTY</option>
+                    <option value="azerty">AZERTY</option>
+                    <option value="qwertz">QWERTZ</option>
+                </select>
             </div>
             <div class="shortcuts-grid">
                 <div class="shortcut">
@@ -92,7 +106,19 @@
                 </div>
                 <div class="shortcut">
                     <span class="shortcut-key">v</span>
-                    <span class="shortcut-desc">download</span>
+                    <span class="shortcut-desc">download slot</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">e</span>
+                    <span class="shortcut-desc">export all</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">ctrl+z</span>
+                    <span class="shortcut-desc">undo</span>
+                </div>
+                <div class="shortcut">
+                    <span class="shortcut-key">ctrl+shift+z</span>
+                    <span class="shortcut-desc">redo</span>
                 </div>
                 <div class="shortcut">
                     <span class="shortcut-key">x</span>
@@ -129,6 +155,12 @@
             <div class="status-item">rec: <span class="status-value" id="recStatus">off</span></div>
             <div class="status-item"><span class="status-value" id="tempoStatus">120</span> bpm</div>
             <div class="status-item">patterns: <span class="status-value" id="patternCount">0</span></div>
+            <div class="status-item beat-indicator">
+                <span class="beat-dot" data-beat="1"></span>
+                <span class="beat-dot" data-beat="2"></span>
+                <span class="beat-dot" data-beat="3"></span>
+                <span class="beat-dot" data-beat="4"></span>
+            </div>
         </div>
 
         <!-- Visualizer -->
@@ -139,7 +171,7 @@
                     <div class="module-desc">visual audio feedback</div>
                 </div>
                 <div class="visualizer" style="height: 60px;">
-                    <canvas id="viz"></canvas>
+                    <canvas id="viz" aria-label="Audio waveform visualization" role="img"></canvas>
                 </div>
             </div>
         </div>
@@ -230,6 +262,12 @@
                     <button class="btn-secondary" id="playSeq">play+rec</button>
                     <button class="btn-secondary" id="clearSeq">clear</button>
                 </div>
+                <div class="pattern-save" style="margin-top: 0.8rem;">
+                    <select id="patternPreset" style="flex: 1;">
+                        <option value="">patterns</option>
+                    </select>
+                    <button class="btn-secondary" id="savePatternBtn">save</button>
+                </div>
             </div>
         </div>
 
@@ -241,16 +279,31 @@
                     <div class="module-desc">play melodies with a-k keys</div>
                 </div>
                 
-                <div style="margin-bottom: 1.5rem;">
-                    <div class="control-label" style="margin-bottom: 0.5rem;">
-                        <span>wave</span>
+                <div class="synth-controls">
+                    <div class="synth-control-group">
+                        <div class="control-label" style="margin-bottom: 0.5rem;">
+                            <span>wave</span>
+                        </div>
+                        <select id="waveType">
+                            <option value="sine">sine</option>
+                            <option value="square">square</option>
+                            <option value="sawtooth">saw</option>
+                            <option value="triangle">triangle</option>
+                            <option value="pulse">pulse</option>
+                            <option value="noise">noise</option>
+                        </select>
                     </div>
-                    <select id="waveType">
-                        <option value="sine">sine</option>
-                        <option value="square">square</option>
-                        <option value="sawtooth">saw</option>
-                        <option value="triangle">triangle</option>
-                    </select>
+                    <div class="synth-control-group">
+                        <div class="control-label" style="margin-bottom: 0.5rem;">
+                            <span>preset</span>
+                        </div>
+                        <div class="preset-controls">
+                            <select id="synthPreset">
+                                <option value="">--</option>
+                            </select>
+                            <button class="btn-secondary preset-btn" id="savePresetBtn">save</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="keyboard">
@@ -319,6 +372,7 @@
                     <button class="btn-secondary" id="playAllBtn">play all</button>
                     <button class="btn-secondary" id="clearLoopBtn">clear</button>
                     <button class="btn" id="downloadBtn" style="display: none;">download</button>
+                    <button class="btn-secondary" id="exportAllBtn">export all</button>
                 </div>
                 
                 <div class="loop-bottom">
@@ -360,7 +414,10 @@
                         <span>tempo</span>
                         <span class="control-value" id="tempoVal">120</span>
                     </div>
-                    <input type="range" id="tempo" min="60" max="200" value="120">
+                    <div class="tempo-controls">
+                        <input type="range" id="tempo" min="60" max="200" value="120">
+                        <button class="btn-secondary tap-btn" id="tapTempoBtn">tap</button>
+                    </div>
                 </div>
                 <div class="control-group">
                     <div class="control-label">
@@ -382,6 +439,27 @@
                         <span class="control-value" id="filterVal">10000Hz</span>
                     </div>
                     <input type="range" id="filter" min="100" max="10000" value="10000">
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>chorus</span>
+                        <span class="control-value" id="chorusVal">0%</span>
+                    </div>
+                    <input type="range" id="chorus" min="0" max="100" value="0">
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>distort</span>
+                        <span class="control-value" id="distortVal">0%</span>
+                    </div>
+                    <input type="range" id="distort" min="0" max="100" value="0">
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>crush</span>
+                        <span class="control-value" id="crushVal">0</span>
+                    </div>
+                    <input type="range" id="crush" min="0" max="8" value="0">
                 </div>
             </div>
         </div>
@@ -409,6 +487,6 @@ if you find value, consider supporting:
     </div>
 
     <!-- JavaScript -->
-    <script src="mk-1.js"></script>
+    <script src="mk-1.js" defer></script>
 </body>
 </html>
