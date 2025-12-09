@@ -1237,21 +1237,59 @@ document.getElementById('clearLoopBtn').addEventListener('click', () => {
 document.getElementById('downloadBtn').addEventListener('click', () => {
     const blob = loopSlots[activeSlot].audioBlob;
     if (!blob) return;
-    
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = url;
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    a.download = `playground-mk1-slot-${activeSlot}-${timestamp}.webm`;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const tempo = document.getElementById('tempo').value;
+    a.download = `playground-mk1-${activeSlot}-${tempo}bpm-${timestamp}.webm`;
     document.body.appendChild(a);
     a.click();
-    
+
     setTimeout(() => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }, 100);
+
+    showMessage('exported slot ' + activeSlot);
 });
+
+// Export all non-empty slots
+function exportAllSlots() {
+    const slotsWithContent = Object.entries(loopSlots)
+        .filter(([key, slot]) => slot.audioBlob !== null);
+
+    if (slotsWithContent.length === 0) {
+        showMessage('no audio to export');
+        return;
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const tempo = document.getElementById('tempo').value;
+
+    slotsWithContent.forEach(([key, slot], index) => {
+        setTimeout(() => {
+            const url = URL.createObjectURL(slot.audioBlob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = `playground-mk1-${key}-${tempo}bpm-${timestamp}.webm`;
+            document.body.appendChild(a);
+            a.click();
+
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+        }, index * 300); // Stagger downloads to avoid browser blocking
+    });
+
+    showMessage('exporting ' + slotsWithContent.length + ' slots');
+}
+
+document.getElementById('exportAllBtn').addEventListener('click', exportAllSlots);
 
 document.querySelectorAll('.slot-btn').forEach(btn => {
     btn.addEventListener('click', function() {
@@ -1500,6 +1538,10 @@ document.addEventListener('keydown', (e) => {
     }
     if (key === 'v') {
         document.getElementById('downloadBtn').click();
+        return;
+    }
+    if (key === 'e') {
+        exportAllSlots();
         return;
     }
     if (key === 'm') {
