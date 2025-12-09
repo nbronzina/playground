@@ -327,15 +327,20 @@ canvas {
 .preset-controls {
     display: flex;
     gap: 0.5rem;
+    align-items: stretch;
 }
 
 .preset-controls select {
     flex: 1;
+    padding: 0.6rem 2.2rem 0.6rem 0.8rem;
+    font-size: 0.75rem;
+    background-position: right 0.6rem center;
 }
 
 .preset-btn {
-    padding: 0.5rem 0.8rem;
+    padding: 0.6rem 0.8rem;
     font-size: 0.7rem;
+    min-width: 50px;
 }
 
 /* === KEYBOARD === */
@@ -424,9 +429,13 @@ canvas {
 }
 
 .tap-btn {
-    padding: 0.4rem 0.6rem;
-    font-size: 0.65rem;
-    min-width: 40px;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.7rem;
+    min-width: 48px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 input[type="range"] {
@@ -505,15 +514,22 @@ select:focus {
 .pattern-save {
     display: flex;
     gap: 0.5rem;
+    align-items: stretch;
 }
 
 .pattern-save select {
     flex: 1;
     min-width: 0;
+    padding: 0.6rem 2.2rem 0.6rem 0.8rem;
+    font-size: 0.75rem;
+    background-position: right 0.6rem center;
 }
 
 .pattern-save button {
     flex-shrink: 0;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.7rem;
+    min-width: 50px;
 }
 
 /* === MIC INDICATOR === */
