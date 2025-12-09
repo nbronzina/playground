@@ -267,25 +267,6 @@
                     <button class="btn-secondary" id="playSeq">play+rec</button>
                     <button class="btn-secondary" id="clearSeq">clear</button>
                 </div>
-                <div class="preset-ui" id="patternPresetUI" style="margin-top: 0.8rem;">
-                    <!-- Estado inicial: solo botón save -->
-                    <div class="preset-empty">
-                        <button class="btn-secondary" id="savePatternBtn">save pattern</button>
-                    </div>
-                    <!-- Estado con presets: load + save -->
-                    <div class="preset-filled" style="display: none;">
-                        <select id="patternPreset" class="preset-select">
-                            <option value="">load pattern</option>
-                        </select>
-                        <button class="btn-secondary preset-add" id="addPatternBtn">+ save</button>
-                    </div>
-                    <!-- Input inline para nombrar -->
-                    <div class="preset-input" style="display: none;">
-                        <input type="text" id="patternNameInput" placeholder="pattern name" maxlength="20">
-                        <button class="btn-secondary" id="confirmPatternBtn">save</button>
-                        <button class="btn-secondary" id="cancelPatternBtn">×</button>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -343,26 +324,6 @@
                             <span class="control-value" id="releaseVal">300ms</span>
                         </div>
                         <input type="range" id="release" min="0" max="2000" value="300">
-                    </div>
-                </div>
-
-                <div class="preset-ui" id="synthPresetUI" style="margin-top: 1.5rem;">
-                    <!-- Estado inicial: solo botón save -->
-                    <div class="preset-empty">
-                        <button class="btn-secondary" id="savePresetBtn">save preset</button>
-                    </div>
-                    <!-- Estado con presets: load + save -->
-                    <div class="preset-filled" style="display: none;">
-                        <select id="synthPreset" class="preset-select">
-                            <option value="">load preset</option>
-                        </select>
-                        <button class="btn-secondary preset-add" id="addPresetBtn">+ save</button>
-                    </div>
-                    <!-- Input inline para nombrar -->
-                    <div class="preset-input" style="display: none;">
-                        <input type="text" id="presetNameInput" placeholder="preset name" maxlength="20">
-                        <button class="btn-secondary" id="confirmPresetBtn">save</button>
-                        <button class="btn-secondary" id="cancelPresetBtn">×</button>
                     </div>
                 </div>
             </div>
