@@ -78,13 +78,22 @@
 
 /* === BODY BASE === */
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Arial', sans-serif;
+    font-family: 'JetBrains Mono', monospace;
     background: var(--bg-primary);
     color: var(--text-primary);
     line-height: 1.6;
     position: relative;
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
+}
+
+/* === WORDMARK === */
+.wordmark {
+    font-weight: 500;
+}
+
+.wordmark .separator {
+    opacity: 0.4;
 }
 
 /* === GRAIN TEXTURE OVERLAY (FIXED) === */
