@@ -1997,3 +1997,111 @@ document.getElementById('patternPreset').addEventListener('change', function() {
 
 // Initialize pattern dropdown
 updatePatternDropdown();
+
+// ============================================
+// MIDI INPUT SUPPORT
+// ============================================
+let midiAccess = null;
+let midiInputs = [];
+
+// MIDI note to frequency mapping (MIDI note 60 = C4)
+function midiNoteToFreq(note) {
+    return 440 * Math.pow(2, (note - 69) / 12);
+}
+
+// MIDI note to our note name mapping
+function midiNoteToName(note) {
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const octave = Math.floor(note / 12) - 1;
+    const noteName = noteNames[note % 12];
+    return noteName + octave;
+}
+
+// MIDI drum mapping (GM standard drum kit on channel 10, notes 35-81)
+const midiDrumMap = {
+    36: 'kick',    // Bass Drum 1
+    35: 'kick',    // Acoustic Bass Drum
+    38: 'snare',   // Acoustic Snare
+    40: 'snare',   // Electric Snare
+    42: 'hihat',   // Closed Hi-Hat
+    44: 'hihat',   // Pedal Hi-Hat
+    46: 'hihat',   // Open Hi-Hat
+    39: 'clap',    // Hand Clap
+    45: 'tom1',    // Low Tom
+    47: 'tom1',    // Low-Mid Tom
+    48: 'tom1',    // Hi-Mid Tom
+    37: 'rim',     // Side Stick
+    56: 'perc',    // Cowbell
+    51: 'cymbal',  // Ride Cymbal
+    49: 'cymbal',  // Crash Cymbal 1
+    57: 'cymbal',  // Crash Cymbal 2
+};
+
+function handleMIDIMessage(event) {
+    const [status, data1, data2] = event.data;
+    const command = status >> 4;
+    const channel = status & 0xf;
+
+    // Note On (command = 9) with velocity > 0
+    if (command === 9 && data2 > 0) {
+        const note = data1;
+        const velocity = data2 / 127;
+
+        // Channel 10 (index 9) is drums in GM
+        if (channel === 9) {
+            const drumSound = midiDrumMap[note];
+            if (drumSound) {
+                playDrum(drumSound);
+            }
+        } else {
+            // Play synth note
+            const freq = midiNoteToFreq(note);
+            playNote(freq);
+        }
+    }
+    // Note Off (command = 8) or Note On with velocity 0
+    // (Currently notes are one-shot, no sustain handling needed)
+}
+
+function onMIDISuccess(access) {
+    midiAccess = access;
+
+    // Get all inputs
+    const inputs = midiAccess.inputs.values();
+    midiInputs = [];
+
+    for (let input of inputs) {
+        midiInputs.push(input);
+        input.onmidimessage = handleMIDIMessage;
+    }
+
+    // Listen for new devices
+    midiAccess.onstatechange = (event) => {
+        if (event.port.type === 'input') {
+            if (event.port.state === 'connected') {
+                event.port.onmidimessage = handleMIDIMessage;
+                midiInputs.push(event.port);
+                showMessage('midi: ' + event.port.name);
+            } else if (event.port.state === 'disconnected') {
+                midiInputs = midiInputs.filter(i => i.id !== event.port.id);
+                showMessage('midi disconnected');
+            }
+        }
+    };
+
+    if (midiInputs.length > 0) {
+        showMessage('midi ready');
+        console.log('MIDI inputs:', midiInputs.map(i => i.name));
+    }
+}
+
+function onMIDIFailure(error) {
+    console.log('MIDI access denied or not supported:', error);
+}
+
+// Initialize MIDI on page load
+if (navigator.requestMIDIAccess) {
+    navigator.requestMIDIAccess({ sysex: false })
+        .then(onMIDISuccess)
+        .catch(onMIDIFailure);
+}
