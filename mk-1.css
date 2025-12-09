@@ -903,12 +903,130 @@ select:focus {
     }
 
     input[type="range"]::-webkit-slider-thumb {
-        width: 20px;
-        height: 20px;
+        width: 24px;
+        height: 24px;
     }
 
     input[type="range"]::-moz-range-thumb {
-        width: 20px;
-        height: 20px;
+        width: 24px;
+        height: 24px;
+    }
+
+    /* Better touch targets for buttons */
+    .btn, .btn-secondary {
+        min-height: 44px;
+    }
+
+    /* Synth controls stack on touch */
+    .synth-controls {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    /* Larger tap targets for slot buttons */
+    .slot-btn {
+        min-height: 44px;
+    }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .container {
+        padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+    }
+
+    .footer {
+        padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    }
+}
+
+/* Landscape optimizations */
+@media (max-height: 600px) and (orientation: landscape) {
+    .hero {
+        margin-bottom: 1rem;
+        padding: 0.5rem 0;
+    }
+
+    .hero h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.3rem;
+    }
+
+    .hero p {
+        font-size: 0.7rem;
+    }
+
+    .hero-actions {
+        margin-top: 0.5rem;
+    }
+
+    .status-bar {
+        padding: 0.5rem 1rem;
+        margin-bottom: 0.8rem;
+    }
+
+    .module-header {
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.3rem;
+    }
+
+    .workspace {
+        margin-bottom: 0.8rem;
+    }
+
+    .workspace-three-cols {
+        grid-template-columns: repeat(3, 1fr);
+        margin-bottom: 0.8rem;
+    }
+
+    .keyboard {
+        height: 80px;
+    }
+
+    .vibe-circle {
+        width: 150px;
+        height: 150px;
+    }
+
+    .vibe-container-vertical {
+        padding: 0.5rem 0;
+    }
+
+    .control-group {
+        margin-bottom: 0.6rem;
+    }
+
+    .pad-grid {
+        gap: 0.5rem;
+    }
+}
+
+/* Prevent overscroll bounce on iOS */
+html {
+    overscroll-behavior: none;
+}
+
+/* GPU acceleration for animated elements */
+.pad, .key, .step, .beat-dot {
+    will-change: transform, background-color;
+    transform: translateZ(0);
+}
+
+.vibe-circle {
+    will-change: transform;
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    .pad, .key, .step, .btn, .btn-secondary {
+        transition: none;
+    }
+
+    .beat-dot {
+        transition: none;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
     }
 }
