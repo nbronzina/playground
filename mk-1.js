@@ -2122,3 +2122,372 @@ if (navigator.requestMIDIAccess) {
         .then(onMIDISuccess)
         .catch(onMIDIFailure);
 }
+
+// ============================================
+// MK1 CONTROL API
+// External automation interface for n0body performer
+// ============================================
+window.MK1 = (function() {
+    // Drum pad mapping (1-8 to internal names)
+    const drumMap = ['kick', 'snare', 'hihat', 'clap', 'tom1', 'perc', 'cymbal', 'rim'];
+
+    // Extended note frequencies (C2-C7)
+    const noteFrequencies = {
+        'C2': 65.41, 'C#2': 69.30, 'D2': 73.42, 'D#2': 77.78,
+        'E2': 82.41, 'F2': 87.31, 'F#2': 92.50, 'G2': 98.00,
+        'G#2': 103.83, 'A2': 110.00, 'A#2': 116.54, 'B2': 123.47,
+        'C3': 130.81, 'C#3': 138.59, 'D3': 146.83, 'D#3': 155.56,
+        'E3': 164.81, 'F3': 174.61, 'F#3': 185.00, 'G3': 196.00,
+        'G#3': 207.65, 'A3': 220.00, 'A#3': 233.08, 'B3': 246.94,
+        'C4': 261.63, 'C#4': 277.18, 'D4': 293.66, 'D#4': 311.13,
+        'E4': 329.63, 'F4': 349.23, 'F#4': 369.99, 'G4': 392.00,
+        'G#4': 415.30, 'A4': 440.00, 'A#4': 466.16, 'B4': 493.88,
+        'C5': 523.25, 'C#5': 554.37, 'D5': 587.33, 'D#5': 622.25,
+        'E5': 659.25, 'F5': 698.46, 'F#5': 739.99, 'G5': 783.99,
+        'G#5': 830.61, 'A5': 880.00, 'A#5': 932.33, 'B5': 987.77,
+        'C6': 1046.50, 'C#6': 1108.73, 'D6': 1174.66, 'D#6': 1244.51,
+        'E6': 1318.51, 'F6': 1396.91, 'F#6': 1479.98, 'G6': 1567.98,
+        'G#6': 1661.22, 'A6': 1760.00, 'A#6': 1864.66, 'B6': 1975.53,
+        'C7': 2093.00
+    };
+
+    // Waveform mapping (API names to internal names)
+    const waveformMap = {
+        'sine': 'sine',
+        'square': 'square',
+        'saw': 'sawtooth',
+        'sawtooth': 'sawtooth',
+        'triangle': 'triangle',
+        'pulse': 'pulse',
+        'noise': 'noise'
+    };
+
+    // Track active synth note for stop functionality
+    let activeSynthNodes = [];
+
+    // Helper: clamp value to range
+    function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    // Helper: validate pad number (1-8)
+    function isValidPad(pad) {
+        return Number.isInteger(pad) && pad >= 1 && pad <= 8;
+    }
+
+    // Helper: validate track number (1-8)
+    function isValidTrack(track) {
+        return Number.isInteger(track) && track >= 1 && track <= 8;
+    }
+
+    // Helper: validate step number (1-16)
+    function isValidStep(step) {
+        return Number.isInteger(step) && step >= 1 && step <= 16;
+    }
+
+    return {
+        // === DRUMS ===
+        drums: {
+            hit: function(pad) {
+                if (!isValidPad(pad)) return;
+                const drumType = drumMap[pad - 1];
+                playDrum(drumType, true); // skipRecording = true for API calls
+            }
+        },
+
+        // === SYNTH ===
+        synth: {
+            play: function(note, duration) {
+                // Ensure audio system is initialized
+                if (!audioContext) {
+                    initSystem();
+                }
+
+                // Get frequency from note name
+                const freq = noteFrequencies[note];
+                if (!freq) return;
+
+                // Duration in seconds, default to current release time
+                const durationMs = duration ? duration * 1000 : releaseTime;
+
+                // Store original release
+                const originalRelease = releaseTime;
+
+                // Temporarily set release to match duration
+                releaseTime = Math.max(50, durationMs);
+
+                // Play the note
+                playNote(freq, true); // skipRecording = true for API calls
+
+                // Restore original release after a tick
+                setTimeout(() => {
+                    releaseTime = originalRelease;
+                }, 10);
+            },
+
+            stop: function() {
+                // Future: implement note cutoff if needed
+                // Currently notes auto-release based on envelope
+            },
+
+            setWaveform: function(type) {
+                const internalType = waveformMap[type];
+                if (!internalType) return;
+
+                // Update the custom select
+                if (customSelectInstances.waveType) {
+                    customSelectInstances.waveType.value = internalType === 'sawtooth' ? 'saw' : internalType;
+                }
+            },
+
+            setAttack: function(value) {
+                // 0-1 maps to 0-500ms
+                const ms = Math.round(clamp(value, 0, 1) * 500);
+                attackTime = ms;
+
+                // Update UI
+                const slider = document.getElementById('attack');
+                const display = document.getElementById('attackVal');
+                if (slider) slider.value = ms;
+                if (display) display.textContent = ms + 'ms';
+            },
+
+            setRelease: function(value) {
+                // 0-1 maps to 50-2000ms
+                const ms = Math.round(50 + clamp(value, 0, 1) * 1950);
+                releaseTime = ms;
+
+                // Update UI
+                const slider = document.getElementById('release');
+                const display = document.getElementById('releaseVal');
+                if (slider) slider.value = ms;
+                if (display) display.textContent = ms + 'ms';
+            }
+        },
+
+        // === SEQUENCER ===
+        sequencer: {
+            setStep: function(track, step, active) {
+                if (!isValidTrack(track) || !isValidStep(step)) return;
+
+                const drumType = drumMap[track - 1];
+                const stepIndex = step - 1;
+
+                sequencerSteps[drumType][stepIndex] = !!active;
+
+                // Update UI
+                const stepEl = document.querySelector(`.step[data-drum="${drumType}"][data-index="${stepIndex}"]`);
+                if (stepEl) {
+                    if (active) {
+                        stepEl.classList.add('active');
+                    } else {
+                        stepEl.classList.remove('active');
+                    }
+                }
+                updatePatternCount();
+            },
+
+            getStep: function(track, step) {
+                if (!isValidTrack(track) || !isValidStep(step)) return false;
+
+                const drumType = drumMap[track - 1];
+                return sequencerSteps[drumType][step - 1];
+            },
+
+            clearTrack: function(track) {
+                if (!isValidTrack(track)) return;
+
+                const drumType = drumMap[track - 1];
+                sequencerSteps[drumType] = Array(16).fill(false);
+
+                // Update UI
+                document.querySelectorAll(`.step[data-drum="${drumType}"]`).forEach(s => {
+                    s.classList.remove('active');
+                });
+                updatePatternCount();
+            },
+
+            clearAll: function() {
+                drums.forEach(drum => {
+                    sequencerSteps[drum] = Array(16).fill(false);
+                });
+                document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+                updatePatternCount();
+            },
+
+            start: function() {
+                if (!isPlaying) {
+                    // Initialize audio if needed
+                    if (!audioContext) {
+                        initSystem();
+                    }
+                    toggleSequencer();
+                }
+            },
+
+            stop: function() {
+                if (isPlaying) {
+                    stopSequencer();
+                }
+            },
+
+            isPlaying: function() {
+                return isPlaying;
+            }
+        },
+
+        // === FX ===
+        fx: {
+            setReverb: function(value) {
+                const v = clamp(value, 0, 1);
+                if (window.reverbMix) {
+                    window.reverbMix.gain.value = v;
+                }
+
+                // Update UI
+                const slider = document.getElementById('reverb');
+                const display = document.getElementById('reverbVal');
+                if (slider) slider.value = Math.round(v * 100);
+                if (display) display.textContent = Math.round(v * 100) + '%';
+            },
+
+            setDelay: function(value) {
+                const v = clamp(value, 0, 1);
+                if (window.delayMix) {
+                    window.delayMix.gain.value = v;
+                }
+
+                // Update UI
+                const slider = document.getElementById('delay');
+                const display = document.getElementById('delayVal');
+                if (slider) slider.value = Math.round(v * 100);
+                if (display) display.textContent = Math.round(v * 100) + '%';
+            },
+
+            setFilter: function(value) {
+                // 0-1 maps to 100-20000Hz (logarithmic would be better but linear is simpler)
+                const freq = Math.round(100 + clamp(value, 0, 1) * 19900);
+                if (window.filterNode && audioContext) {
+                    window.filterNode.frequency.setValueAtTime(freq, audioContext.currentTime);
+                }
+
+                // Update UI
+                const slider = document.getElementById('filter');
+                const display = document.getElementById('filterVal');
+                if (slider) slider.value = freq;
+                if (display) display.textContent = freq + 'Hz';
+            },
+
+            setDistortion: function(value) {
+                const v = clamp(value, 0, 1);
+                if (window.distortionNode && window.distortionMix) {
+                    window.distortionNode.curve = makeDistortionCurve(v * 400);
+                    window.distortionMix.gain.value = v;
+                }
+
+                // Update UI
+                const slider = document.getElementById('distort');
+                const display = document.getElementById('distortVal');
+                if (slider) slider.value = Math.round(v * 100);
+                if (display) display.textContent = Math.round(v * 100) + '%';
+            },
+
+            setChorus: function(value) {
+                const v = clamp(value, 0, 1);
+                if (window.chorusMix && window.chorusLFOGain) {
+                    window.chorusMix.gain.value = v;
+                    window.chorusLFOGain.gain.value = 0.002 + v * 0.003;
+                }
+
+                // Update UI
+                const slider = document.getElementById('chorus');
+                const display = document.getElementById('chorusVal');
+                if (slider) slider.value = Math.round(v * 100);
+                if (display) display.textContent = Math.round(v * 100) + '%';
+            },
+
+            setCrush: function(value) {
+                // 0-1 maps to 0-16 bit reduction
+                const crushVal = Math.round(clamp(value, 0, 1) * 16);
+                if (window.setCrushAmount && window.bitcrusherMix) {
+                    window.setCrushAmount(crushVal);
+                    window.bitcrusherMix.gain.value = crushVal > 0 ? 1 : 0;
+                }
+
+                // Update UI
+                const slider = document.getElementById('crush');
+                const display = document.getElementById('crushVal');
+                if (slider) slider.value = crushVal;
+                if (display) display.textContent = crushVal;
+            }
+        },
+
+        // === TEMPO ===
+        tempo: {
+            setBPM: function(value) {
+                const bpm = Math.round(clamp(value, 60, 200));
+
+                // Update UI and trigger tempo change
+                const slider = document.getElementById('tempo');
+                if (slider) {
+                    slider.value = bpm;
+                    slider.dispatchEvent(new Event('input'));
+                }
+            },
+
+            getBPM: function() {
+                const slider = document.getElementById('tempo');
+                return slider ? parseInt(slider.value) : 120;
+            }
+        },
+
+        // === MASTER ===
+        master: {
+            setVolume: function(value) {
+                const v = clamp(value, 0, 1);
+                if (masterGain) {
+                    masterGain.gain.value = v;
+                }
+
+                // Update UI
+                const slider = document.getElementById('masterVol');
+                const display = document.getElementById('masterVolVal');
+                if (slider) slider.value = Math.round(v * 100);
+                if (display) display.textContent = Math.round(v * 100) + '%';
+            },
+
+            getVolume: function() {
+                return masterGain ? masterGain.gain.value : 0.7;
+            }
+        },
+
+        // === UTILITY ===
+        utils: {
+            getState: function() {
+                return {
+                    isActive: isActive,
+                    isPlaying: isPlaying,
+                    currentStep: currentStep,
+                    tempo: MK1.tempo.getBPM(),
+                    volume: MK1.master.getVolume(),
+                    waveform: document.getElementById('waveType')?.dataset.value || 'sine',
+                    attack: attackTime,
+                    release: releaseTime,
+                    fx: {
+                        reverb: window.reverbMix?.gain.value || 0,
+                        delay: window.delayMix?.gain.value || 0,
+                        filter: window.filterNode?.frequency.value || 10000,
+                        distortion: window.distortionMix?.gain.value || 0,
+                        chorus: window.chorusMix?.gain.value || 0
+                    },
+                    sequencer: JSON.parse(JSON.stringify(sequencerSteps)),
+                    activeSlot: activeSlot
+                };
+            },
+
+            init: function() {
+                initSystem();
+            }
+        }
+    };
+})();
