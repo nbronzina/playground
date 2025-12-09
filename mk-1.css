@@ -661,6 +661,22 @@ select:focus {
 }
 
 /* === SHORTCUTS MODAL === */
+.layout-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-primary);
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+}
+
+.layout-selector select {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.7rem;
+}
+
 .shortcuts-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

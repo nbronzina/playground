@@ -1287,13 +1287,42 @@ modal.addEventListener('click', (e) => {
 
 closeModalBtn.addEventListener('click', closeModal);
 
-const keyMap = {
-    '1': 'kick', '2': 'snare', '3': 'hihat', '4': 'clap',
-    '5': 'tom1', '6': 'perc', '7': 'cymbal', '8': 'rim',
-    'a': 'C4', 'w': 'C#4', 's': 'D4', 'e': 'D#4',
-    'd': 'E4', 'f': 'F4', 't': 'F#4', 'g': 'G4',
-    'y': 'G#4', 'h': 'A4', 'u': 'A#4', 'j': 'B4', 'k': 'C5'
+// Keyboard layouts for different keyboard types
+const keyboardLayouts = {
+    qwerty: {
+        '1': 'kick', '2': 'snare', '3': 'hihat', '4': 'clap',
+        '5': 'tom1', '6': 'perc', '7': 'cymbal', '8': 'rim',
+        'a': 'C4', 'w': 'C#4', 's': 'D4', 'e': 'D#4',
+        'd': 'E4', 'f': 'F4', 't': 'F#4', 'g': 'G4',
+        'y': 'G#4', 'h': 'A4', 'u': 'A#4', 'j': 'B4', 'k': 'C5'
+    },
+    azerty: {
+        '1': 'kick', '2': 'snare', '3': 'hihat', '4': 'clap',
+        '5': 'tom1', '6': 'perc', '7': 'cymbal', '8': 'rim',
+        'q': 'C4', 'z': 'C#4', 's': 'D4', 'e': 'D#4',
+        'd': 'E4', 'f': 'F4', 't': 'F#4', 'g': 'G4',
+        'y': 'G#4', 'h': 'A4', 'u': 'A#4', 'j': 'B4', 'k': 'C5'
+    },
+    qwertz: {
+        '1': 'kick', '2': 'snare', '3': 'hihat', '4': 'clap',
+        '5': 'tom1', '6': 'perc', '7': 'cymbal', '8': 'rim',
+        'a': 'C4', 'w': 'C#4', 's': 'D4', 'e': 'D#4',
+        'd': 'E4', 'f': 'F4', 't': 'F#4', 'g': 'G4',
+        'z': 'G#4', 'h': 'A4', 'u': 'A#4', 'j': 'B4', 'k': 'C5'
+    }
 };
+
+let currentLayout = localStorage.getItem('playground-mk1-keyboard-layout') || 'qwerty';
+let keyMap = keyboardLayouts[currentLayout];
+
+// Initialize keyboard layout selector
+document.getElementById('keyboardLayout').value = currentLayout;
+document.getElementById('keyboardLayout').addEventListener('change', function() {
+    currentLayout = this.value;
+    keyMap = keyboardLayouts[currentLayout];
+    localStorage.setItem('playground-mk1-keyboard-layout', currentLayout);
+    showMessage('layout: ' + currentLayout);
+});
 
 document.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
