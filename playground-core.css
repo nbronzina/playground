@@ -94,7 +94,7 @@ body {
 }
 
 .wordmark .separator {
-    opacity: 0.7;
+    opacity: 0.85;
     margin: 0;
     padding: 0;
 }
@@ -548,8 +548,7 @@ a:hover {
     border: 1px solid rgba(0, 0, 0, 0.15);
     border-top: none;
     display: none;
-    max-height: 240px;
-    overflow-y: auto;
+    overflow: hidden;
 }
 
 :root.dark-mode .custom-select-dropdown {
@@ -569,6 +568,7 @@ a:hover {
     display: flex;
     align-items: center;
     gap: 8px;
+    background: transparent;
 }
 
 .custom-select-option:hover {
