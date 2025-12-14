@@ -664,31 +664,65 @@ function initSystem() {
         distortionNode.connect(distortionMix);
         distortionMix.connect(filterNode);
 
-        // Bitcrusher using ScriptProcessor (simple implementation)
+        // Bitcrusher - try AudioWorklet first, fallback to ScriptProcessor
         let crushAmount = 0;
-        const bitcrusherNode = audioContext.createScriptProcessor(4096, 1, 1);
-        bitcrusherNode.onaudioprocess = function(e) {
-            const input = e.inputBuffer.getChannelData(0);
-            const output = e.outputBuffer.getChannelData(0);
-            if (crushAmount === 0) {
-                // No crushing - pass through
-                for (let i = 0; i < input.length; i++) {
-                    output[i] = input[i];
-                }
-            } else {
-                // Reduce bit depth
-                const step = Math.pow(0.5, 16 - crushAmount);
-                for (let i = 0; i < input.length; i++) {
-                    output[i] = Math.round(input[i] / step) * step;
-                }
-            }
-        };
+        let bitcrusherNode;
         const bitcrusherMix = audioContext.createGain();
         bitcrusherMix.gain.value = 0;
 
-        masterGain.connect(bitcrusherNode);
-        bitcrusherNode.connect(bitcrusherMix);
-        bitcrusherMix.connect(filterNode);
+        // Async setup for AudioWorklet with fallback
+        async function setupBitcrusher() {
+            if (audioContext.audioWorklet) {
+                try {
+                    await audioContext.audioWorklet.addModule('bitcrusher-processor.js');
+                    bitcrusherNode = new AudioWorkletNode(audioContext, 'bitcrusher-processor');
+
+                    window.setCrushAmount = (val) => {
+                        crushAmount = val;
+                        bitcrusherNode.port.postMessage({ crushAmount: val });
+                    };
+
+                    masterGain.connect(bitcrusherNode);
+                    bitcrusherNode.connect(bitcrusherMix);
+                    bitcrusherMix.connect(filterNode);
+
+                    console.log('Bitcrusher: using AudioWorklet');
+                    return;
+                } catch (e) {
+                    console.warn('AudioWorklet failed, falling back to ScriptProcessor:', e);
+                }
+            }
+
+            // Fallback to ScriptProcessorNode
+            bitcrusherNode = audioContext.createScriptProcessor(4096, 1, 1);
+            bitcrusherNode.onaudioprocess = function(e) {
+                const input = e.inputBuffer.getChannelData(0);
+                const output = e.outputBuffer.getChannelData(0);
+                if (crushAmount === 0) {
+                    for (let i = 0; i < input.length; i++) {
+                        output[i] = input[i];
+                    }
+                } else {
+                    const step = Math.pow(0.5, 16 - crushAmount);
+                    for (let i = 0; i < input.length; i++) {
+                        output[i] = Math.round(input[i] / step) * step;
+                    }
+                }
+            };
+
+            window.setCrushAmount = (val) => { crushAmount = val; };
+
+            masterGain.connect(bitcrusherNode);
+            bitcrusherNode.connect(bitcrusherMix);
+            bitcrusherMix.connect(filterNode);
+
+            console.log('Bitcrusher: using ScriptProcessor (fallback)');
+        }
+
+        // Start async setup (connects when ready)
+        setupBitcrusher();
+
+        window.bitcrusherMix = bitcrusherMix;
 
         // Chorus effect using modulated delay
         const chorusDelay = audioContext.createDelay();
@@ -715,9 +749,7 @@ function initSystem() {
         window.filterNode = filterNode;
         window.distortionNode = distortionNode;
         window.distortionMix = distortionMix;
-        window.bitcrusherNode = bitcrusherNode;
-        window.bitcrusherMix = bitcrusherMix;
-        window.setCrushAmount = (val) => { crushAmount = val; };
+        // bitcrusherNode and setCrushAmount are set in setupBitcrusher()
         window.chorusMix = chorusMix;
         window.chorusLFOGain = chorusLFOGain;
 
