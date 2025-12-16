@@ -953,3 +953,13 @@ html {
         0%, 100% { opacity: 1; }
     }
 }
+
+/* === VOCODER MIC HINT === */
+@keyframes blink-hint {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; background: var(--accent); color: var(--bg); }
+}
+
+.blink {
+    animation: blink-hint 0.3s ease-in-out 3;
+}

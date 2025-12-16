@@ -1498,6 +1498,274 @@ function playNote(freq, skipRecording = false) {
         osc1.stop(now + release);
         osc2.stop(now + release);
         subOsc.stop(now + release);
+    } else if (wave === 'string') {
+        // === STRING: Karplus-Strong plucked string synthesis ===
+        const sampleRate = audioContext.sampleRate;
+        const period = Math.round(sampleRate / freq);
+        const duration = Math.max(release, 1.5); // Strings ring out
+
+        // Create buffer for the delay line
+        const bufferSize = Math.ceil(sampleRate * duration);
+        const buffer = audioContext.createBuffer(1, bufferSize, sampleRate);
+        const data = buffer.getChannelData(0);
+
+        // Initialize delay line with noise burst (pluck excitation)
+        const delayLine = new Float32Array(period);
+        for (let i = 0; i < period; i++) {
+            // Shaped noise burst - brighter attack
+            delayLine[i] = (Math.random() * 2 - 1) * 0.8;
+        }
+
+        // Karplus-Strong algorithm with damping
+        let readIndex = 0;
+        const damping = 0.996; // Controls decay time
+        const brightness = 0.5; // Lowpass blend factor
+
+        for (let i = 0; i < bufferSize; i++) {
+            // Read from delay line
+            const sample = delayLine[readIndex];
+            data[i] = sample;
+
+            // Lowpass filter (average of current and next sample)
+            const nextIndex = (readIndex + 1) % period;
+            const filtered = brightness * delayLine[readIndex] + (1 - brightness) * delayLine[nextIndex];
+
+            // Write back with damping
+            delayLine[readIndex] = filtered * damping;
+
+            readIndex = nextIndex;
+        }
+
+        // Play the buffer
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+
+        // Body resonance filter
+        const bodyFilter = audioContext.createBiquadFilter();
+        bodyFilter.type = 'peaking';
+        bodyFilter.frequency.value = freq * 2;
+        bodyFilter.Q.value = 1;
+        bodyFilter.gain.value = 3;
+
+        // Envelope
+        const stringGain = audioContext.createGain();
+        stringGain.gain.setValueAtTime(0.6, now);
+        stringGain.gain.setValueAtTime(0.55, now + 0.1);
+        stringGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        source.connect(bodyFilter);
+        bodyFilter.connect(stringGain);
+        stringGain.connect(saturator);
+        source.start(now);
+        source.stop(now + duration);
+
+    } else if (wave === 'formant') {
+        // === FORMANT: Kraftwerk-style vocal synthesis ===
+        // Vowel formant frequencies (F1, F2, F3)
+        const vowels = {
+            a: [800, 1200, 2500],
+            e: [400, 2200, 2800],
+            i: [300, 2300, 3000],
+            o: [500, 900, 2500],
+            u: [350, 700, 2500]
+        };
+
+        // Cycle through vowels based on note frequency
+        const vowelKeys = Object.keys(vowels);
+        const vowelIndex = Math.floor((freq % 500) / 100) % vowelKeys.length;
+        const currentVowel = vowels[vowelKeys[vowelIndex]];
+
+        // Source: pulse wave (rich harmonics for formants to shape)
+        const source = audioContext.createOscillator();
+        source.type = 'sawtooth';
+        source.frequency.setValueAtTime(freq, now);
+
+        // Second source slightly detuned
+        const source2 = audioContext.createOscillator();
+        source2.type = 'sawtooth';
+        source2.frequency.setValueAtTime(freq, now);
+        source2.detune.setValueAtTime(5, now);
+
+        // Mix sources
+        const sourceMix = audioContext.createGain();
+        sourceMix.gain.value = 0.5;
+        source.connect(sourceMix);
+        source2.connect(sourceMix);
+
+        // Create parallel formant filters
+        const formantGains = [];
+        const formantFilters = [];
+        const formantMix = audioContext.createGain();
+        formantMix.gain.value = 0.4;
+
+        currentVowel.forEach((formantFreq, i) => {
+            const filter = audioContext.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = formantFreq;
+            filter.Q.value = 10 + i * 5; // Higher Q for higher formants
+
+            const gain = audioContext.createGain();
+            // F1 loudest, F2 medium, F3 quieter
+            gain.gain.value = 1 / (i + 1);
+
+            sourceMix.connect(filter);
+            filter.connect(gain);
+            gain.connect(formantMix);
+
+            formantFilters.push(filter);
+            formantGains.push(gain);
+        });
+
+        // Slight formant movement (more natural)
+        const lfo = audioContext.createOscillator();
+        const lfoGain = audioContext.createGain();
+        lfo.frequency.value = 4 + Math.random() * 2;
+        lfoGain.gain.value = 30;
+        lfo.connect(lfoGain);
+        formantFilters.forEach(f => lfoGain.connect(f.frequency));
+
+        // Nasal resonance
+        const nasalFilter = audioContext.createBiquadFilter();
+        nasalFilter.type = 'peaking';
+        nasalFilter.frequency.value = 2500;
+        nasalFilter.Q.value = 3;
+        nasalFilter.gain.value = 4;
+
+        formantMix.connect(nasalFilter);
+        nasalFilter.connect(saturator);
+
+        source.start(now);
+        source2.start(now);
+        lfo.start(now);
+        source.stop(now + release);
+        source2.stop(now + release);
+        lfo.stop(now + release);
+
+    } else if (wave === 'vocoder') {
+        // === VOCODER: Mic modulates carrier oscillators ===
+
+        // Check if mic is active, if not show hint
+        if (!isMicActive || !micSource) {
+            // Play a hint tone and show message
+            const hintOsc = audioContext.createOscillator();
+            const hintGain = audioContext.createGain();
+            hintOsc.frequency.value = 440;
+            hintGain.gain.setValueAtTime(0.1, now);
+            hintGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+            hintOsc.connect(hintGain);
+            hintGain.connect(masterGain);
+            hintOsc.start(now);
+            hintOsc.stop(now + 0.3);
+
+            // Blink mic button
+            const micBtn = document.getElementById('micBtn');
+            if (micBtn) {
+                micBtn.classList.add('blink');
+                setTimeout(() => micBtn.classList.remove('blink'), 1500);
+            }
+            return;
+        }
+
+        // Vocoder band frequencies (16 bands)
+        const bandFreqs = [100, 180, 280, 400, 550, 750, 1000, 1400, 1900, 2600, 3500, 4800, 6400, 8500, 11000, 14000];
+        const bandCount = bandFreqs.length;
+
+        // Create carrier (sawtooth rich in harmonics)
+        const carrier = audioContext.createOscillator();
+        const carrier2 = audioContext.createOscillator();
+        carrier.type = 'sawtooth';
+        carrier2.type = 'sawtooth';
+        carrier.frequency.setValueAtTime(freq, now);
+        carrier2.frequency.setValueAtTime(freq, now);
+        carrier2.detune.setValueAtTime(7, now);
+
+        const carrierMix = audioContext.createGain();
+        carrierMix.gain.value = 0.5;
+        carrier.connect(carrierMix);
+        carrier2.connect(carrierMix);
+
+        // Create analysis and synthesis filter banks
+        const vocoderMix = audioContext.createGain();
+        vocoderMix.gain.value = 0.6;
+
+        // Create a temporary gain node to tap into mic signal
+        const micTap = audioContext.createGain();
+        micTap.gain.value = 1;
+        micSource.connect(micTap);
+
+        bandFreqs.forEach((bandFreq, i) => {
+            // Analysis filter (for mic/modulator)
+            const analysisFilter = audioContext.createBiquadFilter();
+            analysisFilter.type = 'bandpass';
+            analysisFilter.frequency.value = bandFreq;
+            analysisFilter.Q.value = 6;
+
+            // Envelope follower using gain node
+            const followerGain = audioContext.createGain();
+            followerGain.gain.value = 2;
+
+            // Synthesis filter (for carrier)
+            const synthFilter = audioContext.createBiquadFilter();
+            synthFilter.type = 'bandpass';
+            synthFilter.frequency.value = bandFreq;
+            synthFilter.Q.value = 8;
+
+            // VCA (voltage controlled amplifier)
+            const vca = audioContext.createGain();
+            vca.gain.value = 0;
+
+            // Connect analysis chain
+            micTap.connect(analysisFilter);
+            analysisFilter.connect(followerGain);
+
+            // Use analyser for envelope following
+            const analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = 0.3;
+            followerGain.connect(analyser);
+
+            // Connect synthesis chain
+            carrierMix.connect(synthFilter);
+            synthFilter.connect(vca);
+            vca.connect(vocoderMix);
+
+            // Envelope follower update (uses requestAnimationFrame for real-time)
+            const dataArray = new Float32Array(analyser.fftSize);
+            let animationId;
+
+            const updateEnvelope = () => {
+                analyser.getFloatTimeDomainData(dataArray);
+                // Calculate RMS
+                let sum = 0;
+                for (let j = 0; j < dataArray.length; j++) {
+                    sum += dataArray[j] * dataArray[j];
+                }
+                const rms = Math.sqrt(sum / dataArray.length);
+                const envelope = Math.min(rms * 8, 1); // Scale and limit
+
+                vca.gain.setTargetAtTime(envelope, audioContext.currentTime, 0.01);
+
+                if (audioContext.currentTime < now + release) {
+                    animationId = requestAnimationFrame(updateEnvelope);
+                }
+            };
+
+            updateEnvelope();
+
+            // Cleanup after release
+            setTimeout(() => {
+                cancelAnimationFrame(animationId);
+                micTap.disconnect(analysisFilter);
+            }, release * 1000);
+        });
+
+        vocoderMix.connect(saturator);
+
+        carrier.start(now);
+        carrier2.start(now);
+        carrier.stop(now + release);
+        carrier2.stop(now + release);
+
     } else {
         // === STANDARD WAVES: 5-voice unison with analog modeling ===
 
@@ -2585,7 +2853,11 @@ window.MK1 = (function() {
         'sawtooth': 'sawtooth',
         'triangle': 'triangle',
         'pulse': 'pulse',
-        'noise': 'noise'
+        'noise': 'noise',
+        'string': 'string',
+        'voice': 'formant',
+        'formant': 'formant',
+        'vocoder': 'vocoder'
     };
 
     // Track active synth note for stop functionality
@@ -2688,6 +2960,14 @@ window.MK1 = (function() {
                 const display = document.getElementById('releaseVal');
                 if (slider) slider.value = ms;
                 if (display) display.textContent = ms + 'ms';
+            },
+
+            getWaveTypes: function() {
+                return ['sine', 'square', 'saw', 'triangle', 'pulse', 'noise', 'string', 'voice', 'vocoder'];
+            },
+
+            getWaveType: function() {
+                return document.getElementById('waveType')?.dataset.value || 'sine';
             }
         },
 
