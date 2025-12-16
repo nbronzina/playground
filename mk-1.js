@@ -859,101 +859,154 @@ function playDrum(type, skipRecording = false) {
 
     switch(type) {
         case 'kick': {
-            // === KICK: 808-style with click, body, and sub ===
+            // === KICK: Professional 808 with compression character ===
 
-            // Click/transient layer
+            // Transient click (sharp attack)
             const clickOsc = audioContext.createOscillator();
             const clickGain = audioContext.createGain();
-            clickOsc.type = 'sine';
-            clickOsc.frequency.setValueAtTime(1500, now);
-            clickOsc.frequency.exponentialRampToValueAtTime(100, now + 0.02);
-            clickGain.gain.setValueAtTime(0.8, now);
-            clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
-            clickOsc.connect(clickGain);
+            const clickDist = audioContext.createWaveShaper();
+            clickOsc.type = 'triangle';
+            clickOsc.frequency.setValueAtTime(4500, now);
+            clickOsc.frequency.exponentialRampToValueAtTime(150, now + 0.008);
+
+            // Hard clip for punch
+            const clipCurve = new Float32Array(256);
+            for (let i = 0; i < 256; i++) {
+                const x = (i / 128) - 1;
+                clipCurve[i] = Math.max(-0.8, Math.min(0.8, x * 3));
+            }
+            clickDist.curve = clipCurve;
+
+            clickGain.gain.setValueAtTime(0.9, now);
+            clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
+            clickOsc.connect(clickDist);
+            clickDist.connect(clickGain);
             clickGain.connect(masterGain);
             clickOsc.start(now);
-            clickOsc.stop(now + 0.03);
+            clickOsc.stop(now + 0.015);
 
-            // Body layer
+            // Body layer with tight pitch envelope
             const bodyOsc = audioContext.createOscillator();
             const bodyGain = audioContext.createGain();
             const bodyDist = audioContext.createWaveShaper();
+            const bodyComp = audioContext.createDynamicsCompressor();
             bodyOsc.type = 'sine';
-            bodyOsc.frequency.setValueAtTime(150, now);
-            bodyOsc.frequency.exponentialRampToValueAtTime(50, now + 0.08);
-            bodyOsc.frequency.exponentialRampToValueAtTime(35, now + 0.3);
+            bodyOsc.frequency.setValueAtTime(160, now);
+            bodyOsc.frequency.exponentialRampToValueAtTime(55, now + 0.035);
+            bodyOsc.frequency.exponentialRampToValueAtTime(40, now + 0.15);
+            bodyOsc.frequency.setValueAtTime(40, now + 0.35);
 
-            // Soft saturation for warmth
-            const curve = new Float32Array(256);
+            // Warm saturation
+            const bodyCurve = new Float32Array(256);
             for (let i = 0; i < 256; i++) {
                 const x = (i / 128) - 1;
-                curve[i] = Math.tanh(x * 2);
+                bodyCurve[i] = Math.tanh(x * 2.5);
             }
-            bodyDist.curve = curve;
+            bodyDist.curve = bodyCurve;
 
-            bodyGain.gain.setValueAtTime(1.2, now);
-            bodyGain.gain.setValueAtTime(1.2, now + 0.05);
-            bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+            // Compressor for punch
+            bodyComp.threshold.value = -12;
+            bodyComp.knee.value = 6;
+            bodyComp.ratio.value = 4;
+            bodyComp.attack.value = 0.001;
+            bodyComp.release.value = 0.1;
+
+            bodyGain.gain.setValueAtTime(1.4, now);
+            bodyGain.gain.setValueAtTime(1.4, now + 0.03);
+            bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
             bodyOsc.connect(bodyDist);
-            bodyDist.connect(bodyGain);
+            bodyDist.connect(bodyComp);
+            bodyComp.connect(bodyGain);
             bodyGain.connect(masterGain);
             bodyOsc.start(now);
-            bodyOsc.stop(now + 0.5);
+            bodyOsc.stop(now + 0.45);
 
-            // Sub layer
+            // Sub layer with sustain
             const subOsc = audioContext.createOscillator();
             const subGain = audioContext.createGain();
             const subFilter = audioContext.createBiquadFilter();
             subOsc.type = 'sine';
-            subOsc.frequency.setValueAtTime(60, now);
-            subOsc.frequency.exponentialRampToValueAtTime(30, now + 0.4);
+            subOsc.frequency.setValueAtTime(55, now);
+            subOsc.frequency.exponentialRampToValueAtTime(35, now + 0.25);
             subFilter.type = 'lowpass';
-            subFilter.frequency.value = 80;
-            subGain.gain.setValueAtTime(0.9, now);
-            subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+            subFilter.frequency.value = 60;
+            subFilter.Q.value = 1;
+            subGain.gain.setValueAtTime(1.0, now);
+            subGain.gain.setValueAtTime(0.95, now + 0.1);
+            subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
             subOsc.connect(subFilter);
             subFilter.connect(subGain);
             subGain.connect(masterGain);
             subOsc.start(now);
-            subOsc.stop(now + 0.6);
+            subOsc.stop(now + 0.55);
             break;
         }
 
         case 'snare': {
-            // === SNARE: Punchy body + snappy noise + transient ===
+            // === SNARE: Tight crack with controlled resonance ===
 
-            // Body (tuned resonance)
+            // Transient crack (initial snap)
+            const crackOsc = audioContext.createOscillator();
+            const crackGain = audioContext.createGain();
+            const crackDist = audioContext.createWaveShaper();
+            crackOsc.type = 'triangle';
+            crackOsc.frequency.setValueAtTime(1200, now);
+            crackOsc.frequency.exponentialRampToValueAtTime(300, now + 0.003);
+
+            const crackCurve = new Float32Array(256);
+            for (let i = 0; i < 256; i++) {
+                const x = (i / 128) - 1;
+                crackCurve[i] = Math.tanh(x * 4);
+            }
+            crackDist.curve = crackCurve;
+
+            crackGain.gain.setValueAtTime(0.7, now);
+            crackGain.gain.exponentialRampToValueAtTime(0.001, now + 0.012);
+            crackOsc.connect(crackDist);
+            crackDist.connect(crackGain);
+            crackGain.connect(masterGain);
+            crackOsc.start(now);
+            crackOsc.stop(now + 0.012);
+
+            // Body (two tuned oscillators)
             const bodyOsc = audioContext.createOscillator();
             const bodyOsc2 = audioContext.createOscillator();
             const bodyGain = audioContext.createGain();
             const bodyFilter = audioContext.createBiquadFilter();
+            const bodyComp = audioContext.createDynamicsCompressor();
 
             bodyOsc.type = 'triangle';
-            bodyOsc.frequency.setValueAtTime(220, now);
-            bodyOsc.frequency.exponentialRampToValueAtTime(120, now + 0.05);
+            bodyOsc.frequency.setValueAtTime(240, now);
+            bodyOsc.frequency.exponentialRampToValueAtTime(150, now + 0.025);
             bodyOsc2.type = 'sine';
-            bodyOsc2.frequency.setValueAtTime(180, now);
-            bodyOsc2.frequency.exponentialRampToValueAtTime(90, now + 0.08);
+            bodyOsc2.frequency.setValueAtTime(185, now);
+            bodyOsc2.frequency.exponentialRampToValueAtTime(110, now + 0.04);
 
             bodyFilter.type = 'peaking';
-            bodyFilter.frequency.value = 200;
-            bodyFilter.Q.value = 2;
-            bodyFilter.gain.value = 4;
+            bodyFilter.frequency.value = 220;
+            bodyFilter.Q.value = 3;
+            bodyFilter.gain.value = 6;
 
-            bodyGain.gain.setValueAtTime(0.6, now);
-            bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+            bodyComp.threshold.value = -15;
+            bodyComp.ratio.value = 6;
+            bodyComp.attack.value = 0.0003;
+            bodyComp.release.value = 0.08;
+
+            bodyGain.gain.setValueAtTime(0.65, now);
+            bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
 
             bodyOsc.connect(bodyFilter);
             bodyOsc2.connect(bodyFilter);
-            bodyFilter.connect(bodyGain);
+            bodyFilter.connect(bodyComp);
+            bodyComp.connect(bodyGain);
             bodyGain.connect(masterGain);
             bodyOsc.start(now);
             bodyOsc2.start(now);
-            bodyOsc.stop(now + 0.15);
-            bodyOsc2.stop(now + 0.15);
+            bodyOsc.stop(now + 0.12);
+            bodyOsc2.stop(now + 0.12);
 
-            // Noise layer (snare wires)
-            const noiseLen = 0.2;
+            // Noise layer (snare wires) - tighter and snappier
+            const noiseLen = 0.15;
             const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * noiseLen, audioContext.sampleRate);
             const noiseData = noiseBuffer.getChannelData(0);
             for (let i = 0; i < noiseBuffer.length; i++) {
@@ -965,21 +1018,22 @@ function playDrum(type, skipRecording = false) {
 
             const noiseHP = audioContext.createBiquadFilter();
             noiseHP.type = 'highpass';
-            noiseHP.frequency.value = 2000;
+            noiseHP.frequency.value = 2500;
 
             const noiseLP = audioContext.createBiquadFilter();
             noiseLP.type = 'lowpass';
-            noiseLP.frequency.value = 9000;
+            noiseLP.frequency.setValueAtTime(12000, now);
+            noiseLP.frequency.exponentialRampToValueAtTime(5000, now + 0.08);
 
             const noisePeak = audioContext.createBiquadFilter();
             noisePeak.type = 'peaking';
-            noisePeak.frequency.value = 4500;
-            noisePeak.Q.value = 1;
-            noisePeak.gain.value = 6;
+            noisePeak.frequency.value = 5500;
+            noisePeak.Q.value = 1.5;
+            noisePeak.gain.value = 8;
 
             const noiseGain = audioContext.createGain();
-            noiseGain.gain.setValueAtTime(0.9, now);
-            noiseGain.gain.setValueAtTime(0.9, now + 0.01);
+            noiseGain.gain.setValueAtTime(1.0, now);
+            noiseGain.gain.setValueAtTime(0.9, now + 0.008);
             noiseGain.gain.exponentialRampToValueAtTime(0.001, now + noiseLen);
 
             noise.connect(noiseHP);
@@ -992,32 +1046,43 @@ function playDrum(type, skipRecording = false) {
         }
 
         case 'hihat': {
-            // === HI-HAT: Metallic harmonics + filtered noise ===
+            // === HI-HAT: Realistic metallic with shimmer ===
 
-            // Metallic harmonics (6 detuned square waves)
-            const fundamentals = [320, 430, 532, 615, 827, 1050];
+            // Metallic harmonics (inharmonic ratios for realism)
+            const fundamentals = [298, 366, 441, 528, 634, 748, 891, 1103];
             const metalGain = audioContext.createGain();
             const metalHP = audioContext.createBiquadFilter();
+            const metalBell = audioContext.createBiquadFilter();
             metalHP.type = 'highpass';
-            metalHP.frequency.value = 5500;
+            metalHP.frequency.value = 6000;
+            metalBell.type = 'peaking';
+            metalBell.frequency.value = 8500;
+            metalBell.Q.value = 2;
+            metalBell.gain.value = 6;
 
-            metalGain.gain.setValueAtTime(0.15, now);
-            metalGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+            metalGain.gain.setValueAtTime(0.18, now);
+            metalGain.gain.exponentialRampToValueAtTime(0.08, now + 0.015);
+            metalGain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
 
-            fundamentals.forEach(freq => {
+            fundamentals.forEach((freq, i) => {
                 const osc = audioContext.createOscillator();
                 osc.type = 'square';
-                osc.frequency.value = freq * (1 + Math.random() * 0.02);
-                osc.connect(metalHP);
+                // Inharmonic relationship for metallic quality
+                osc.frequency.value = freq * (1 + Math.random() * 0.025);
+                const oscGain = audioContext.createGain();
+                oscGain.gain.value = 1 / (i + 1) * 0.6; // Higher partials quieter
+                osc.connect(oscGain);
+                oscGain.connect(metalHP);
                 osc.start(now);
-                osc.stop(now + 0.06);
+                osc.stop(now + 0.055);
             });
 
-            metalHP.connect(metalGain);
+            metalHP.connect(metalBell);
+            metalBell.connect(metalGain);
             metalGain.connect(masterGain);
 
-            // Noise layer
-            const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.08, audioContext.sampleRate);
+            // High-freq noise layer (sizzle)
+            const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.06, audioContext.sampleRate);
             const noiseData = noiseBuffer.getChannelData(0);
             for (let i = 0; i < noiseBuffer.length; i++) {
                 noiseData[i] = Math.random() * 2 - 1;
@@ -1027,13 +1092,19 @@ function playDrum(type, skipRecording = false) {
             noise.buffer = noiseBuffer;
             const noiseHP = audioContext.createBiquadFilter();
             noiseHP.type = 'highpass';
-            noiseHP.frequency.value = 8000;
+            noiseHP.frequency.value = 9000;
+            const noiseBell = audioContext.createBiquadFilter();
+            noiseBell.type = 'peaking';
+            noiseBell.frequency.value = 12000;
+            noiseBell.Q.value = 1;
+            noiseBell.gain.value = 4;
             const noiseGain = audioContext.createGain();
-            noiseGain.gain.setValueAtTime(0.25, now);
-            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+            noiseGain.gain.setValueAtTime(0.3, now);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
 
             noise.connect(noiseHP);
-            noiseHP.connect(noiseGain);
+            noiseHP.connect(noiseBell);
+            noiseBell.connect(noiseGain);
             noiseGain.connect(masterGain);
             noise.start(now);
             break;
@@ -1340,21 +1411,33 @@ function playNote(freq, skipRecording = false) {
     // Main output gain with ADSR
     const outputGain = audioContext.createGain();
     outputGain.gain.setValueAtTime(0, now);
-    outputGain.gain.linearRampToValueAtTime(0.25, now + attack);
+    outputGain.gain.linearRampToValueAtTime(0.28, now + attack);
     // Sustain at 70% for a bit before release
     const sustainTime = Math.min(release * 0.3, 0.2);
-    outputGain.gain.setValueAtTime(0.18, now + attack + sustainTime);
+    outputGain.gain.setValueAtTime(0.2, now + attack + sustainTime);
     outputGain.gain.exponentialRampToValueAtTime(0.001, now + release);
+
+    // Filter with envelope (opens on attack, closes on release)
+    const filter = audioContext.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 2;
+    const filterBase = Math.min(freq * 1.5, 800);
+    const filterPeak = Math.min(freq * 8, 12000);
+    filter.frequency.setValueAtTime(filterBase, now);
+    filter.frequency.linearRampToValueAtTime(filterPeak, now + attack * 0.8);
+    filter.frequency.setValueAtTime(filterPeak * 0.7, now + attack + sustainTime * 0.5);
+    filter.frequency.exponentialRampToValueAtTime(filterBase, now + release * 0.8);
 
     // Soft saturation for analog warmth
     const saturator = audioContext.createWaveShaper();
     const satCurve = new Float32Array(256);
     for (let i = 0; i < 256; i++) {
         const x = (i / 128) - 1;
-        satCurve[i] = Math.tanh(x * 1.5);
+        satCurve[i] = Math.tanh(x * 1.8);
     }
     saturator.curve = satCurve;
-    saturator.connect(outputGain);
+    saturator.connect(filter);
+    filter.connect(outputGain);
     outputGain.connect(masterGain);
 
     if (wave === 'noise') {
@@ -1416,62 +1499,66 @@ function playNote(freq, skipRecording = false) {
         osc2.stop(now + release);
         subOsc.stop(now + release);
     } else {
-        // === STANDARD WAVES: With detune, sub, and analog drift ===
+        // === STANDARD WAVES: 5-voice unison with analog modeling ===
 
-        // Main oscillator
-        const osc1 = audioContext.createOscillator();
-        osc1.type = wave;
-        osc1.frequency.setValueAtTime(freq, now);
+        // Unison spread (cents) - wider = fatter
+        const unisonDetune = [0, -12, 12, -6, 6];
+        const unisonPan = [0, -0.4, 0.4, -0.2, 0.2]; // stereo spread
+        const oscillators = [];
 
-        // Second oscillator (detuned for thickness)
-        const osc2 = audioContext.createOscillator();
-        osc2.type = wave;
-        osc2.frequency.setValueAtTime(freq, now);
-        osc2.detune.setValueAtTime(7, now); // +7 cents
+        // Create mixer for all voices
+        const oscMix = audioContext.createGain();
+        oscMix.gain.value = 0.18; // Compensate for 5 voices
 
-        // Third oscillator (detuned opposite)
-        const osc3 = audioContext.createOscillator();
-        osc3.type = wave;
-        osc3.frequency.setValueAtTime(freq, now);
-        osc3.detune.setValueAtTime(-7, now); // -7 cents
+        unisonDetune.forEach((detune, i) => {
+            const osc = audioContext.createOscillator();
+            osc.type = wave;
+            osc.frequency.setValueAtTime(freq, now);
+            osc.detune.setValueAtTime(detune, now);
 
-        // Sub oscillator (one octave down, sine)
+            // Stereo panning for width
+            const panner = audioContext.createStereoPanner();
+            panner.pan.value = unisonPan[i];
+
+            osc.connect(panner);
+            panner.connect(oscMix);
+            oscillators.push(osc);
+        });
+
+        oscMix.connect(saturator);
+
+        // Sub oscillator (one octave down, pure sine)
         const subOsc = audioContext.createOscillator();
         subOsc.type = 'sine';
         subOsc.frequency.setValueAtTime(freq / 2, now);
         const subGain = audioContext.createGain();
-        subGain.gain.value = 0.25;
+        subGain.gain.value = 0.22;
         subOsc.connect(subGain);
         subGain.connect(saturator);
 
-        // Mix the main oscillators
-        const oscMix = audioContext.createGain();
-        oscMix.gain.value = 0.35;
-        osc1.connect(oscMix);
-        osc2.connect(oscMix);
-        osc3.connect(oscMix);
-        oscMix.connect(saturator);
-
-        // Analog drift (subtle pitch wobble)
+        // Analog drift LFO (affects all voices slightly differently)
         const driftLFO = audioContext.createOscillator();
         const driftGain = audioContext.createGain();
         driftLFO.type = 'sine';
-        driftLFO.frequency.value = 0.3 + Math.random() * 0.4; // 0.3-0.7 Hz
-        driftGain.gain.value = 2; // ±2 cents drift
+        driftLFO.frequency.value = 0.2 + Math.random() * 0.5; // 0.2-0.7 Hz
+        driftGain.gain.value = 3; // ±3 cents drift
         driftLFO.connect(driftGain);
-        driftGain.connect(osc1.detune);
-        driftGain.connect(osc2.detune);
-        driftGain.connect(osc3.detune);
 
-        osc1.start(now);
-        osc2.start(now);
-        osc3.start(now);
+        // Apply drift to each oscillator with slight variation
+        oscillators.forEach((osc, i) => {
+            const variation = audioContext.createGain();
+            variation.gain.value = 0.7 + Math.random() * 0.6; // Each voice drifts differently
+            driftGain.connect(variation);
+            variation.connect(osc.detune);
+        });
+
+        // Start all oscillators
+        oscillators.forEach(osc => {
+            osc.start(now);
+            osc.stop(now + release);
+        });
         subOsc.start(now);
         driftLFO.start(now);
-
-        osc1.stop(now + release);
-        osc2.stop(now + release);
-        osc3.stop(now + release);
         subOsc.stop(now + release);
         driftLFO.stop(now + release);
     }
