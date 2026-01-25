@@ -198,6 +198,187 @@ let masterGain;
 let analyser;
 let isActive = false;
 
+// ============================================
+// VOICE MANAGEMENT (Memory Leak Prevention)
+// ============================================
+const VOICE_LIMITS = {
+    MAX_DRUM_VOICES: 8,
+    MAX_SYNTH_VOICES: 16,
+    CLEANUP_INTERVAL: 30000 // 30 seconds
+};
+
+// Active voice tracking
+let activeDrumVoices = [];
+let activeSynthVoices = [];
+let cleanupIntervalId = null;
+
+// Pre-generated curves (reused instead of creating new ones each time)
+let sharedCurves = null;
+
+function initSharedCurves() {
+    if (sharedCurves) return sharedCurves;
+
+    sharedCurves = {
+        // Tanh curves for saturation
+        tanh15: createTanhCurve(1.5),
+        tanh18: createTanhCurve(1.8),
+        tanh20: createTanhCurve(2.0),
+        tanh25: createTanhCurve(2.5),
+        tanh40: createTanhCurve(4.0),
+        // Hard clip curve
+        hardClip: createHardClipCurve(0.8, 3)
+    };
+
+    return sharedCurves;
+}
+
+function createTanhCurve(drive) {
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+        const x = (i / 128) - 1;
+        curve[i] = Math.tanh(x * drive);
+    }
+    return curve;
+}
+
+function createHardClipCurve(limit, gain) {
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+        const x = (i / 128) - 1;
+        curve[i] = Math.max(-limit, Math.min(limit, x * gain));
+    }
+    return curve;
+}
+
+// Voice cleanup helper - disconnects all nodes in a voice
+function cleanupVoice(voice) {
+    if (!voice || !voice.nodes) return;
+
+    voice.nodes.forEach(node => {
+        try {
+            if (node.stop && typeof node.stop === 'function') {
+                try { node.stop(); } catch(e) {}
+            }
+            if (node.disconnect && typeof node.disconnect === 'function') {
+                node.disconnect();
+            }
+            // Clear buffer references
+            if (node.buffer) {
+                node.buffer = null;
+            }
+        } catch(e) {
+            // Node may already be disconnected
+        }
+    });
+
+    // Cancel any animation frames
+    if (voice.animationIds) {
+        voice.animationIds.forEach(id => cancelAnimationFrame(id));
+    }
+
+    voice.nodes = null;
+    voice.animationIds = null;
+}
+
+// Register a new drum voice and limit active voices
+function registerDrumVoice(nodes, duration) {
+    const voice = {
+        nodes: nodes,
+        endTime: audioContext.currentTime + duration,
+        animationIds: []
+    };
+
+    activeDrumVoices.push(voice);
+
+    // If over limit, cleanup oldest voice
+    while (activeDrumVoices.length > VOICE_LIMITS.MAX_DRUM_VOICES) {
+        const oldest = activeDrumVoices.shift();
+        cleanupVoice(oldest);
+    }
+
+    // Schedule cleanup
+    setTimeout(() => {
+        const index = activeDrumVoices.indexOf(voice);
+        if (index > -1) {
+            activeDrumVoices.splice(index, 1);
+            cleanupVoice(voice);
+        }
+    }, duration * 1000 + 100);
+
+    return voice;
+}
+
+// Register a new synth voice and limit active voices
+function registerSynthVoice(nodes, duration) {
+    const voice = {
+        nodes: nodes,
+        endTime: audioContext.currentTime + duration,
+        animationIds: []
+    };
+
+    activeSynthVoices.push(voice);
+
+    // If over limit, cleanup oldest voice
+    while (activeSynthVoices.length > VOICE_LIMITS.MAX_SYNTH_VOICES) {
+        const oldest = activeSynthVoices.shift();
+        cleanupVoice(oldest);
+    }
+
+    // Schedule cleanup
+    setTimeout(() => {
+        const index = activeSynthVoices.indexOf(voice);
+        if (index > -1) {
+            activeSynthVoices.splice(index, 1);
+            cleanupVoice(voice);
+        }
+    }, duration * 1000 + 100);
+
+    return voice;
+}
+
+// Periodic cleanup of any orphaned voices
+function startVoiceCleanup() {
+    if (cleanupIntervalId) return;
+
+    cleanupIntervalId = setInterval(() => {
+        if (!audioContext) return;
+
+        const now = audioContext.currentTime;
+
+        // Cleanup expired drum voices
+        activeDrumVoices = activeDrumVoices.filter(voice => {
+            if (voice.endTime < now) {
+                cleanupVoice(voice);
+                return false;
+            }
+            return true;
+        });
+
+        // Cleanup expired synth voices
+        activeSynthVoices = activeSynthVoices.filter(voice => {
+            if (voice.endTime < now) {
+                cleanupVoice(voice);
+                return false;
+            }
+            return true;
+        });
+
+        // Check AudioContext health
+        if (audioContext.state === 'suspended') {
+            audioContext.resume().catch(() => {});
+        }
+
+    }, VOICE_LIMITS.CLEANUP_INTERVAL);
+}
+
+// Stop voice cleanup (for cleanup on page unload)
+function stopVoiceCleanup() {
+    if (cleanupIntervalId) {
+        clearInterval(cleanupIntervalId);
+        cleanupIntervalId = null;
+    }
+}
+
 // Distortion curve generator
 function makeDistortionCurve(amount) {
     const k = typeof amount === 'number' ? amount : 50;
@@ -760,11 +941,15 @@ function initSystem() {
         document.getElementById('sysStatus').textContent = 'active';
         document.getElementById('initBtn').textContent = 'active';
         document.getElementById('initBtn').classList.add('active');
-        
+
+        // Initialize voice management
+        initSharedCurves();
+        startVoiceCleanup();
+
         if (audioContext.state === 'suspended') {
             audioContext.resume();
         }
-        
+
         drawViz();
     } else if (audioContext.state === 'suspended') {
         audioContext.resume();
@@ -856,27 +1041,22 @@ function playDrum(type, skipRecording = false) {
     }
 
     const now = audioContext.currentTime;
+    const nodes = []; // Track all nodes for cleanup
+    const curves = initSharedCurves(); // Use shared curves
+    let maxDuration = 0.5; // Default duration
 
     switch(type) {
         case 'kick': {
-            // === KICK: Professional 808 with compression character ===
+            maxDuration = 0.6;
 
-            // Transient click (sharp attack)
+            // Transient click
             const clickOsc = audioContext.createOscillator();
             const clickGain = audioContext.createGain();
             const clickDist = audioContext.createWaveShaper();
             clickOsc.type = 'triangle';
             clickOsc.frequency.setValueAtTime(4500, now);
             clickOsc.frequency.exponentialRampToValueAtTime(150, now + 0.008);
-
-            // Hard clip for punch
-            const clipCurve = new Float32Array(256);
-            for (let i = 0; i < 256; i++) {
-                const x = (i / 128) - 1;
-                clipCurve[i] = Math.max(-0.8, Math.min(0.8, x * 3));
-            }
-            clickDist.curve = clipCurve;
-
+            clickDist.curve = curves.hardClip;
             clickGain.gain.setValueAtTime(0.9, now);
             clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
             clickOsc.connect(clickDist);
@@ -884,44 +1064,27 @@ function playDrum(type, skipRecording = false) {
             clickGain.connect(masterGain);
             clickOsc.start(now);
             clickOsc.stop(now + 0.015);
+            nodes.push(clickOsc, clickGain, clickDist);
 
-            // Body layer with tight pitch envelope
+            // Body layer
             const bodyOsc = audioContext.createOscillator();
             const bodyGain = audioContext.createGain();
             const bodyDist = audioContext.createWaveShaper();
-            const bodyComp = audioContext.createDynamicsCompressor();
             bodyOsc.type = 'sine';
             bodyOsc.frequency.setValueAtTime(160, now);
             bodyOsc.frequency.exponentialRampToValueAtTime(55, now + 0.035);
             bodyOsc.frequency.exponentialRampToValueAtTime(40, now + 0.15);
-            bodyOsc.frequency.setValueAtTime(40, now + 0.35);
-
-            // Warm saturation
-            const bodyCurve = new Float32Array(256);
-            for (let i = 0; i < 256; i++) {
-                const x = (i / 128) - 1;
-                bodyCurve[i] = Math.tanh(x * 2.5);
-            }
-            bodyDist.curve = bodyCurve;
-
-            // Compressor for punch
-            bodyComp.threshold.value = -12;
-            bodyComp.knee.value = 6;
-            bodyComp.ratio.value = 4;
-            bodyComp.attack.value = 0.001;
-            bodyComp.release.value = 0.1;
-
+            bodyDist.curve = curves.tanh25;
             bodyGain.gain.setValueAtTime(1.4, now);
-            bodyGain.gain.setValueAtTime(1.4, now + 0.03);
             bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
             bodyOsc.connect(bodyDist);
-            bodyDist.connect(bodyComp);
-            bodyComp.connect(bodyGain);
+            bodyDist.connect(bodyGain);
             bodyGain.connect(masterGain);
             bodyOsc.start(now);
             bodyOsc.stop(now + 0.45);
+            nodes.push(bodyOsc, bodyGain, bodyDist);
 
-            // Sub layer with sustain
+            // Sub layer
             const subOsc = audioContext.createOscillator();
             const subGain = audioContext.createGain();
             const subFilter = audioContext.createBiquadFilter();
@@ -930,36 +1093,28 @@ function playDrum(type, skipRecording = false) {
             subOsc.frequency.exponentialRampToValueAtTime(35, now + 0.25);
             subFilter.type = 'lowpass';
             subFilter.frequency.value = 60;
-            subFilter.Q.value = 1;
             subGain.gain.setValueAtTime(1.0, now);
-            subGain.gain.setValueAtTime(0.95, now + 0.1);
             subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
             subOsc.connect(subFilter);
             subFilter.connect(subGain);
             subGain.connect(masterGain);
             subOsc.start(now);
             subOsc.stop(now + 0.55);
+            nodes.push(subOsc, subGain, subFilter);
             break;
         }
 
         case 'snare': {
-            // === SNARE: Tight crack with controlled resonance ===
+            maxDuration = 0.2;
 
-            // Transient crack (initial snap)
+            // Transient crack
             const crackOsc = audioContext.createOscillator();
             const crackGain = audioContext.createGain();
             const crackDist = audioContext.createWaveShaper();
             crackOsc.type = 'triangle';
             crackOsc.frequency.setValueAtTime(1200, now);
             crackOsc.frequency.exponentialRampToValueAtTime(300, now + 0.003);
-
-            const crackCurve = new Float32Array(256);
-            for (let i = 0; i < 256; i++) {
-                const x = (i / 128) - 1;
-                crackCurve[i] = Math.tanh(x * 4);
-            }
-            crackDist.curve = crackCurve;
-
+            crackDist.curve = curves.tanh40;
             crackGain.gain.setValueAtTime(0.7, now);
             crackGain.gain.exponentialRampToValueAtTime(0.001, now + 0.012);
             crackOsc.connect(crackDist);
@@ -967,151 +1122,111 @@ function playDrum(type, skipRecording = false) {
             crackGain.connect(masterGain);
             crackOsc.start(now);
             crackOsc.stop(now + 0.012);
+            nodes.push(crackOsc, crackGain, crackDist);
 
-            // Body (two tuned oscillators)
+            // Body
             const bodyOsc = audioContext.createOscillator();
             const bodyOsc2 = audioContext.createOscillator();
             const bodyGain = audioContext.createGain();
             const bodyFilter = audioContext.createBiquadFilter();
-            const bodyComp = audioContext.createDynamicsCompressor();
-
             bodyOsc.type = 'triangle';
             bodyOsc.frequency.setValueAtTime(240, now);
             bodyOsc.frequency.exponentialRampToValueAtTime(150, now + 0.025);
             bodyOsc2.type = 'sine';
             bodyOsc2.frequency.setValueAtTime(185, now);
             bodyOsc2.frequency.exponentialRampToValueAtTime(110, now + 0.04);
-
             bodyFilter.type = 'peaking';
             bodyFilter.frequency.value = 220;
             bodyFilter.Q.value = 3;
             bodyFilter.gain.value = 6;
-
-            bodyComp.threshold.value = -15;
-            bodyComp.ratio.value = 6;
-            bodyComp.attack.value = 0.0003;
-            bodyComp.release.value = 0.08;
-
             bodyGain.gain.setValueAtTime(0.65, now);
             bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-
             bodyOsc.connect(bodyFilter);
             bodyOsc2.connect(bodyFilter);
-            bodyFilter.connect(bodyComp);
-            bodyComp.connect(bodyGain);
+            bodyFilter.connect(bodyGain);
             bodyGain.connect(masterGain);
             bodyOsc.start(now);
             bodyOsc2.start(now);
             bodyOsc.stop(now + 0.12);
             bodyOsc2.stop(now + 0.12);
+            nodes.push(bodyOsc, bodyOsc2, bodyGain, bodyFilter);
 
-            // Noise layer (snare wires) - tighter and snappier
+            // Noise
             const noiseLen = 0.15;
             const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * noiseLen, audioContext.sampleRate);
             const noiseData = noiseBuffer.getChannelData(0);
-            for (let i = 0; i < noiseBuffer.length; i++) {
-                noiseData[i] = Math.random() * 2 - 1;
-            }
-
+            for (let i = 0; i < noiseBuffer.length; i++) noiseData[i] = Math.random() * 2 - 1;
             const noise = audioContext.createBufferSource();
             noise.buffer = noiseBuffer;
-
             const noiseHP = audioContext.createBiquadFilter();
             noiseHP.type = 'highpass';
             noiseHP.frequency.value = 2500;
-
             const noiseLP = audioContext.createBiquadFilter();
             noiseLP.type = 'lowpass';
             noiseLP.frequency.setValueAtTime(12000, now);
             noiseLP.frequency.exponentialRampToValueAtTime(5000, now + 0.08);
-
-            const noisePeak = audioContext.createBiquadFilter();
-            noisePeak.type = 'peaking';
-            noisePeak.frequency.value = 5500;
-            noisePeak.Q.value = 1.5;
-            noisePeak.gain.value = 8;
-
             const noiseGain = audioContext.createGain();
             noiseGain.gain.setValueAtTime(1.0, now);
-            noiseGain.gain.setValueAtTime(0.9, now + 0.008);
             noiseGain.gain.exponentialRampToValueAtTime(0.001, now + noiseLen);
-
             noise.connect(noiseHP);
             noiseHP.connect(noiseLP);
-            noiseLP.connect(noisePeak);
-            noisePeak.connect(noiseGain);
+            noiseLP.connect(noiseGain);
             noiseGain.connect(masterGain);
             noise.start(now);
+            nodes.push(noise, noiseHP, noiseLP, noiseGain);
             break;
         }
 
         case 'hihat': {
-            // === HI-HAT: Realistic metallic with shimmer ===
+            maxDuration = 0.1;
 
-            // Metallic harmonics (inharmonic ratios for realism)
             const fundamentals = [298, 366, 441, 528, 634, 748, 891, 1103];
             const metalGain = audioContext.createGain();
             const metalHP = audioContext.createBiquadFilter();
-            const metalBell = audioContext.createBiquadFilter();
             metalHP.type = 'highpass';
             metalHP.frequency.value = 6000;
-            metalBell.type = 'peaking';
-            metalBell.frequency.value = 8500;
-            metalBell.Q.value = 2;
-            metalBell.gain.value = 6;
-
             metalGain.gain.setValueAtTime(0.18, now);
-            metalGain.gain.exponentialRampToValueAtTime(0.08, now + 0.015);
             metalGain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
 
             fundamentals.forEach((freq, i) => {
                 const osc = audioContext.createOscillator();
                 osc.type = 'square';
-                // Inharmonic relationship for metallic quality
                 osc.frequency.value = freq * (1 + Math.random() * 0.025);
                 const oscGain = audioContext.createGain();
-                oscGain.gain.value = 1 / (i + 1) * 0.6; // Higher partials quieter
+                oscGain.gain.value = 1 / (i + 1) * 0.6;
                 osc.connect(oscGain);
                 oscGain.connect(metalHP);
                 osc.start(now);
                 osc.stop(now + 0.055);
+                nodes.push(osc, oscGain);
             });
 
-            metalHP.connect(metalBell);
-            metalBell.connect(metalGain);
+            metalHP.connect(metalGain);
             metalGain.connect(masterGain);
+            nodes.push(metalHP, metalGain);
 
-            // High-freq noise layer (sizzle)
+            // Noise sizzle
             const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.06, audioContext.sampleRate);
             const noiseData = noiseBuffer.getChannelData(0);
-            for (let i = 0; i < noiseBuffer.length; i++) {
-                noiseData[i] = Math.random() * 2 - 1;
-            }
-
+            for (let i = 0; i < noiseBuffer.length; i++) noiseData[i] = Math.random() * 2 - 1;
             const noise = audioContext.createBufferSource();
             noise.buffer = noiseBuffer;
             const noiseHP = audioContext.createBiquadFilter();
             noiseHP.type = 'highpass';
             noiseHP.frequency.value = 9000;
-            const noiseBell = audioContext.createBiquadFilter();
-            noiseBell.type = 'peaking';
-            noiseBell.frequency.value = 12000;
-            noiseBell.Q.value = 1;
-            noiseBell.gain.value = 4;
             const noiseGain = audioContext.createGain();
             noiseGain.gain.setValueAtTime(0.3, now);
             noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
-
             noise.connect(noiseHP);
-            noiseHP.connect(noiseBell);
-            noiseBell.connect(noiseGain);
+            noiseHP.connect(noiseGain);
             noiseGain.connect(masterGain);
             noise.start(now);
+            nodes.push(noise, noiseHP, noiseGain);
             break;
         }
 
         case 'clap': {
-            // === CLAP: Layered bursts with room verb ===
+            maxDuration = 0.25;
             const burstCount = 4;
             const spacing = 0.012;
 
@@ -1119,46 +1234,32 @@ function playDrum(type, skipRecording = false) {
                 const delay = i * spacing + Math.random() * 0.005;
                 const burstBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.03, audioContext.sampleRate);
                 const burstData = burstBuffer.getChannelData(0);
-                for (let j = 0; j < burstBuffer.length; j++) {
-                    burstData[j] = Math.random() * 2 - 1;
-                }
-
+                for (let j = 0; j < burstBuffer.length; j++) burstData[j] = Math.random() * 2 - 1;
                 const burst = audioContext.createBufferSource();
                 burst.buffer = burstBuffer;
-
                 const burstBP = audioContext.createBiquadFilter();
                 burstBP.type = 'bandpass';
                 burstBP.frequency.value = 1200 + Math.random() * 400;
                 burstBP.Q.value = 2;
-
-                const burstHP = audioContext.createBiquadFilter();
-                burstHP.type = 'highpass';
-                burstHP.frequency.value = 600;
-
                 const burstGain = audioContext.createGain();
-                const vol = i === burstCount - 1 ? 0.7 : 0.4;
-                burstGain.gain.setValueAtTime(vol, now + delay);
+                burstGain.gain.setValueAtTime(i === burstCount - 1 ? 0.7 : 0.4, now + delay);
                 burstGain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.08);
-
                 burst.connect(burstBP);
-                burstBP.connect(burstHP);
-                burstHP.connect(burstGain);
+                burstBP.connect(burstGain);
                 burstGain.connect(masterGain);
                 burst.start(now + delay);
+                nodes.push(burst, burstBP, burstGain);
             }
 
-            // Tail noise
+            // Tail
             const tailBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.15, audioContext.sampleRate);
             const tailData = tailBuffer.getChannelData(0);
-            for (let i = 0; i < tailBuffer.length; i++) {
-                tailData[i] = Math.random() * 2 - 1;
-            }
+            for (let i = 0; i < tailBuffer.length; i++) tailData[i] = Math.random() * 2 - 1;
             const tail = audioContext.createBufferSource();
             tail.buffer = tailBuffer;
             const tailBP = audioContext.createBiquadFilter();
             tailBP.type = 'bandpass';
             tailBP.frequency.value = 1000;
-            tailBP.Q.value = 1;
             const tailGain = audioContext.createGain();
             tailGain.gain.setValueAtTime(0.3, now + 0.04);
             tailGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
@@ -1166,36 +1267,30 @@ function playDrum(type, skipRecording = false) {
             tailBP.connect(tailGain);
             tailGain.connect(masterGain);
             tail.start(now + 0.04);
+            nodes.push(tail, tailBP, tailGain);
             break;
         }
 
         case 'tom1': {
-            // === TOM: Resonant body with punch ===
+            maxDuration = 0.45;
 
-            // Main body
             const bodyOsc = audioContext.createOscillator();
             const bodyGain = audioContext.createGain();
             const bodyFilter = audioContext.createBiquadFilter();
-
             bodyOsc.type = 'sine';
             bodyOsc.frequency.setValueAtTime(280, now);
-            bodyOsc.frequency.exponentialRampToValueAtTime(140, now + 0.04);
             bodyOsc.frequency.exponentialRampToValueAtTime(110, now + 0.3);
-
             bodyFilter.type = 'lowpass';
             bodyFilter.frequency.value = 600;
-            bodyFilter.Q.value = 2;
-
             bodyGain.gain.setValueAtTime(1.0, now);
             bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-
             bodyOsc.connect(bodyFilter);
             bodyFilter.connect(bodyGain);
             bodyGain.connect(masterGain);
             bodyOsc.start(now);
             bodyOsc.stop(now + 0.4);
+            nodes.push(bodyOsc, bodyGain, bodyFilter);
 
-            // Overtone
             const overOsc = audioContext.createOscillator();
             const overGain = audioContext.createGain();
             overOsc.type = 'triangle';
@@ -1207,108 +1302,83 @@ function playDrum(type, skipRecording = false) {
             overGain.connect(masterGain);
             overOsc.start(now);
             overOsc.stop(now + 0.1);
+            nodes.push(overOsc, overGain);
 
-            // Attack click
-            const clickNoise = audioContext.createBufferSource();
             const clickBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.01, audioContext.sampleRate);
             const clickData = clickBuffer.getChannelData(0);
-            for (let i = 0; i < clickBuffer.length; i++) {
-                clickData[i] = Math.random() * 2 - 1;
-            }
+            for (let i = 0; i < clickBuffer.length; i++) clickData[i] = Math.random() * 2 - 1;
+            const clickNoise = audioContext.createBufferSource();
             clickNoise.buffer = clickBuffer;
             const clickGain = audioContext.createGain();
-            const clickBP = audioContext.createBiquadFilter();
-            clickBP.type = 'bandpass';
-            clickBP.frequency.value = 3000;
-            clickBP.Q.value = 1;
             clickGain.gain.setValueAtTime(0.25, now);
             clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
-            clickNoise.connect(clickBP);
-            clickBP.connect(clickGain);
+            clickNoise.connect(clickGain);
             clickGain.connect(masterGain);
             clickNoise.start(now);
+            nodes.push(clickNoise, clickGain);
             break;
         }
 
         case 'perc': {
-            // === PERC: FM synthesis clave/block ===
-            const carrierFreq = 1800;
-            const modFreq = 2400;
+            maxDuration = 0.15;
 
             const carrier = audioContext.createOscillator();
             const modulator = audioContext.createOscillator();
             const modGain = audioContext.createGain();
             const outputGain = audioContext.createGain();
             const filter = audioContext.createBiquadFilter();
-
             carrier.type = 'sine';
-            carrier.frequency.value = carrierFreq;
+            carrier.frequency.value = 1800;
             modulator.type = 'sine';
-            modulator.frequency.value = modFreq;
-
-            // FM depth envelope
+            modulator.frequency.value = 2400;
             modGain.gain.setValueAtTime(800, now);
-            modGain.gain.exponentialRampToValueAtTime(100, now + 0.03);
             modGain.gain.exponentialRampToValueAtTime(10, now + 0.1);
-
             filter.type = 'bandpass';
             filter.frequency.value = 2000;
             filter.Q.value = 3;
-
             outputGain.gain.setValueAtTime(0.4, now);
             outputGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-
             modulator.connect(modGain);
             modGain.connect(carrier.frequency);
             carrier.connect(filter);
             filter.connect(outputGain);
             outputGain.connect(masterGain);
-
             carrier.start(now);
             modulator.start(now);
             carrier.stop(now + 0.1);
             modulator.stop(now + 0.1);
+            nodes.push(carrier, modulator, modGain, outputGain, filter);
             break;
         }
 
         case 'cymbal': {
-            // === CYMBAL: Rich metallic harmonics ===
+            maxDuration = 1.1;
 
-            // Metallic partials
             const partials = [205, 295, 375, 505, 625, 835, 1015, 1205, 1555, 2015];
             const metalGain = audioContext.createGain();
             const metalHP = audioContext.createBiquadFilter();
             metalHP.type = 'highpass';
             metalHP.frequency.value = 4000;
-            const metalPeak = audioContext.createBiquadFilter();
-            metalPeak.type = 'peaking';
-            metalPeak.frequency.value = 7500;
-            metalPeak.Q.value = 1;
-            metalPeak.gain.value = 4;
-
             metalGain.gain.setValueAtTime(0.12, now);
-            metalGain.gain.exponentialRampToValueAtTime(0.06, now + 0.1);
             metalGain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
 
-            partials.forEach((freq, i) => {
+            partials.forEach(freq => {
                 const osc = audioContext.createOscillator();
                 osc.type = 'square';
                 osc.frequency.value = freq * (1 + Math.random() * 0.03);
                 osc.connect(metalHP);
                 osc.start(now);
                 osc.stop(now + 1.0);
+                nodes.push(osc);
             });
 
-            metalHP.connect(metalPeak);
-            metalPeak.connect(metalGain);
+            metalHP.connect(metalGain);
             metalGain.connect(masterGain);
+            nodes.push(metalHP, metalGain);
 
-            // Noise shimmer
-            const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 1.0, audioContext.sampleRate);
+            const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.8, audioContext.sampleRate);
             const noiseData = noiseBuffer.getChannelData(0);
-            for (let i = 0; i < noiseBuffer.length; i++) {
-                noiseData[i] = Math.random() * 2 - 1;
-            }
+            for (let i = 0; i < noiseBuffer.length; i++) noiseData[i] = Math.random() * 2 - 1;
             const noise = audioContext.createBufferSource();
             noise.buffer = noiseBuffer;
             const noiseHP = audioContext.createBiquadFilter();
@@ -1321,56 +1391,54 @@ function playDrum(type, skipRecording = false) {
             noiseHP.connect(noiseGain);
             noiseGain.connect(masterGain);
             noise.start(now);
+            nodes.push(noise, noiseHP, noiseGain);
             break;
         }
 
         case 'rim': {
-            // === RIM: Sharp sidestick ===
+            maxDuration = 0.1;
 
-            // High click
             const clickOsc = audioContext.createOscillator();
             const clickGain = audioContext.createGain();
             const clickHP = audioContext.createBiquadFilter();
-
             clickOsc.type = 'square';
             clickOsc.frequency.setValueAtTime(1800, now);
             clickOsc.frequency.exponentialRampToValueAtTime(800, now + 0.005);
-
             clickHP.type = 'highpass';
             clickHP.frequency.value = 1500;
-
             clickGain.gain.setValueAtTime(0.5, now);
             clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
-
             clickOsc.connect(clickHP);
             clickHP.connect(clickGain);
             clickGain.connect(masterGain);
             clickOsc.start(now);
             clickOsc.stop(now + 0.025);
+            nodes.push(clickOsc, clickGain, clickHP);
 
-            // Body resonance
             const bodyOsc = audioContext.createOscillator();
             const bodyGain = audioContext.createGain();
             const bodyBP = audioContext.createBiquadFilter();
-
             bodyOsc.type = 'triangle';
             bodyOsc.frequency.setValueAtTime(400, now);
             bodyOsc.frequency.exponentialRampToValueAtTime(200, now + 0.01);
-
             bodyBP.type = 'bandpass';
             bodyBP.frequency.value = 350;
             bodyBP.Q.value = 8;
-
             bodyGain.gain.setValueAtTime(0.4, now);
             bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-
             bodyOsc.connect(bodyBP);
             bodyBP.connect(bodyGain);
             bodyGain.connect(masterGain);
             bodyOsc.start(now);
             bodyOsc.stop(now + 0.05);
+            nodes.push(bodyOsc, bodyGain, bodyBP);
             break;
         }
+    }
+
+    // Register voice for cleanup
+    if (nodes.length > 0) {
+        registerDrumVoice(nodes, maxDuration);
     }
 
     if (!skipRecording && (isRecording || isOverdub)) {
@@ -1407,17 +1475,20 @@ function playNote(freq, skipRecording = false) {
     const now = audioContext.currentTime;
     const attack = attackTime / 1000;
     const release = releaseTime / 1000;
+    const nodes = []; // Track all nodes for cleanup
+    const curves = initSharedCurves();
+    let voiceAnimationIds = []; // Track animation frames for vocoder
 
     // Main output gain with ADSR
     const outputGain = audioContext.createGain();
     outputGain.gain.setValueAtTime(0, now);
     outputGain.gain.linearRampToValueAtTime(0.28, now + attack);
-    // Sustain at 70% for a bit before release
     const sustainTime = Math.min(release * 0.3, 0.2);
     outputGain.gain.setValueAtTime(0.2, now + attack + sustainTime);
     outputGain.gain.exponentialRampToValueAtTime(0.001, now + release);
+    nodes.push(outputGain);
 
-    // Filter with envelope (opens on attack, closes on release)
+    // Filter with envelope
     const filter = audioContext.createBiquadFilter();
     filter.type = 'lowpass';
     filter.Q.value = 2;
@@ -1425,228 +1496,145 @@ function playNote(freq, skipRecording = false) {
     const filterPeak = Math.min(freq * 8, 12000);
     filter.frequency.setValueAtTime(filterBase, now);
     filter.frequency.linearRampToValueAtTime(filterPeak, now + attack * 0.8);
-    filter.frequency.setValueAtTime(filterPeak * 0.7, now + attack + sustainTime * 0.5);
     filter.frequency.exponentialRampToValueAtTime(filterBase, now + release * 0.8);
+    nodes.push(filter);
 
-    // Soft saturation for analog warmth
+    // Soft saturation (use shared curve)
     const saturator = audioContext.createWaveShaper();
-    const satCurve = new Float32Array(256);
-    for (let i = 0; i < 256; i++) {
-        const x = (i / 128) - 1;
-        satCurve[i] = Math.tanh(x * 1.8);
-    }
-    saturator.curve = satCurve;
+    saturator.curve = curves.tanh18;
     saturator.connect(filter);
     filter.connect(outputGain);
     outputGain.connect(masterGain);
+    nodes.push(saturator);
 
     if (wave === 'noise') {
-        // === NOISE: Filtered noise with resonance ===
         const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * release, audioContext.sampleRate);
         const noiseData = noiseBuffer.getChannelData(0);
-        for (let i = 0; i < noiseBuffer.length; i++) {
-            noiseData[i] = Math.random() * 2 - 1;
-        }
+        for (let i = 0; i < noiseBuffer.length; i++) noiseData[i] = Math.random() * 2 - 1;
         const noiseSource = audioContext.createBufferSource();
         noiseSource.buffer = noiseBuffer;
-
         const noiseFilter = audioContext.createBiquadFilter();
         noiseFilter.type = 'bandpass';
         noiseFilter.frequency.value = freq;
         noiseFilter.Q.value = 15;
-
-        // Filter envelope
         noiseFilter.frequency.setValueAtTime(freq * 2, now);
         noiseFilter.frequency.exponentialRampToValueAtTime(freq, now + release * 0.3);
-
         noiseSource.connect(noiseFilter);
         noiseFilter.connect(saturator);
         noiseSource.start();
         noiseSource.stop(now + release);
+        nodes.push(noiseSource, noiseFilter);
+
     } else if (wave === 'pulse') {
-        // === PULSE: PWM effect with sub ===
         const osc1 = audioContext.createOscillator();
         const osc2 = audioContext.createOscillator();
         const pulseGain = audioContext.createGain();
-
         osc1.type = 'sawtooth';
         osc2.type = 'sawtooth';
         osc1.frequency.setValueAtTime(freq, now);
         osc2.frequency.setValueAtTime(freq, now);
-
-        // Slight detune for movement
         osc1.detune.setValueAtTime(3, now);
         osc2.detune.setValueAtTime(-3, now);
         pulseGain.gain.value = -0.9;
-
         osc1.connect(saturator);
         osc2.connect(pulseGain);
         pulseGain.connect(saturator);
-
-        // Sub oscillator
         const subOsc = audioContext.createOscillator();
         const subGain = audioContext.createGain();
         subOsc.type = 'sine';
         subOsc.frequency.setValueAtTime(freq / 2, now);
-        subGain.gain.setValueAtTime(0.3, now);
+        subGain.gain.value = 0.3;
         subOsc.connect(subGain);
         subGain.connect(saturator);
-
         osc1.start();
         osc2.start();
         subOsc.start();
         osc1.stop(now + release);
         osc2.stop(now + release);
         subOsc.stop(now + release);
+        nodes.push(osc1, osc2, pulseGain, subOsc, subGain);
+
     } else if (wave === 'string') {
-        // === STRING: Karplus-Strong plucked string synthesis ===
         const sampleRate = audioContext.sampleRate;
         const period = Math.round(sampleRate / freq);
-        const duration = Math.max(release, 1.5); // Strings ring out
-
-        // Create buffer for the delay line
+        const duration = Math.max(release, 1.5);
         const bufferSize = Math.ceil(sampleRate * duration);
         const buffer = audioContext.createBuffer(1, bufferSize, sampleRate);
         const data = buffer.getChannelData(0);
-
-        // Initialize delay line with noise burst (pluck excitation)
         const delayLine = new Float32Array(period);
-        for (let i = 0; i < period; i++) {
-            // Shaped noise burst - brighter attack
-            delayLine[i] = (Math.random() * 2 - 1) * 0.8;
-        }
-
-        // Karplus-Strong algorithm with damping
+        for (let i = 0; i < period; i++) delayLine[i] = (Math.random() * 2 - 1) * 0.8;
         let readIndex = 0;
-        const damping = 0.996; // Controls decay time
-        const brightness = 0.5; // Lowpass blend factor
-
+        const damping = 0.996;
+        const brightness = 0.5;
         for (let i = 0; i < bufferSize; i++) {
-            // Read from delay line
-            const sample = delayLine[readIndex];
-            data[i] = sample;
-
-            // Lowpass filter (average of current and next sample)
+            data[i] = delayLine[readIndex];
             const nextIndex = (readIndex + 1) % period;
-            const filtered = brightness * delayLine[readIndex] + (1 - brightness) * delayLine[nextIndex];
-
-            // Write back with damping
-            delayLine[readIndex] = filtered * damping;
-
+            delayLine[readIndex] = (brightness * delayLine[readIndex] + (1 - brightness) * delayLine[nextIndex]) * damping;
             readIndex = nextIndex;
         }
-
-        // Play the buffer
         const source = audioContext.createBufferSource();
         source.buffer = buffer;
-
-        // Body resonance filter
         const bodyFilter = audioContext.createBiquadFilter();
         bodyFilter.type = 'peaking';
         bodyFilter.frequency.value = freq * 2;
         bodyFilter.Q.value = 1;
         bodyFilter.gain.value = 3;
-
-        // Envelope
         const stringGain = audioContext.createGain();
         stringGain.gain.setValueAtTime(0.6, now);
-        stringGain.gain.setValueAtTime(0.55, now + 0.1);
         stringGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
         source.connect(bodyFilter);
         bodyFilter.connect(stringGain);
         stringGain.connect(saturator);
         source.start(now);
         source.stop(now + duration);
+        nodes.push(source, bodyFilter, stringGain);
 
     } else if (wave === 'formant') {
-        // === FORMANT: Kraftwerk-style vocal synthesis ===
-        // Vowel formant frequencies (F1, F2, F3)
-        const vowels = {
-            a: [800, 1200, 2500],
-            e: [400, 2200, 2800],
-            i: [300, 2300, 3000],
-            o: [500, 900, 2500],
-            u: [350, 700, 2500]
-        };
-
-        // Cycle through vowels based on note frequency
+        const vowels = { a: [800, 1200, 2500], e: [400, 2200, 2800], i: [300, 2300, 3000], o: [500, 900, 2500], u: [350, 700, 2500] };
         const vowelKeys = Object.keys(vowels);
-        const vowelIndex = Math.floor((freq % 500) / 100) % vowelKeys.length;
-        const currentVowel = vowels[vowelKeys[vowelIndex]];
-
-        // Source: pulse wave (rich harmonics for formants to shape)
+        const currentVowel = vowels[vowelKeys[Math.floor((freq % 500) / 100) % vowelKeys.length]];
         const source = audioContext.createOscillator();
         source.type = 'sawtooth';
         source.frequency.setValueAtTime(freq, now);
-
-        // Second source slightly detuned
         const source2 = audioContext.createOscillator();
         source2.type = 'sawtooth';
         source2.frequency.setValueAtTime(freq, now);
         source2.detune.setValueAtTime(5, now);
-
-        // Mix sources
         const sourceMix = audioContext.createGain();
         sourceMix.gain.value = 0.5;
         source.connect(sourceMix);
         source2.connect(sourceMix);
-
-        // Create parallel formant filters
-        const formantGains = [];
-        const formantFilters = [];
         const formantMix = audioContext.createGain();
         formantMix.gain.value = 0.4;
-
+        nodes.push(source, source2, sourceMix, formantMix);
         currentVowel.forEach((formantFreq, i) => {
-            const filter = audioContext.createBiquadFilter();
-            filter.type = 'bandpass';
-            filter.frequency.value = formantFreq;
-            filter.Q.value = 10 + i * 5; // Higher Q for higher formants
-
+            const filt = audioContext.createBiquadFilter();
+            filt.type = 'bandpass';
+            filt.frequency.value = formantFreq;
+            filt.Q.value = 10 + i * 5;
             const gain = audioContext.createGain();
-            // F1 loudest, F2 medium, F3 quieter
             gain.gain.value = 1 / (i + 1);
-
-            sourceMix.connect(filter);
-            filter.connect(gain);
+            sourceMix.connect(filt);
+            filt.connect(gain);
             gain.connect(formantMix);
-
-            formantFilters.push(filter);
-            formantGains.push(gain);
+            nodes.push(filt, gain);
         });
-
-        // Slight formant movement (more natural)
         const lfo = audioContext.createOscillator();
         const lfoGain = audioContext.createGain();
         lfo.frequency.value = 4 + Math.random() * 2;
         lfoGain.gain.value = 30;
         lfo.connect(lfoGain);
-        formantFilters.forEach(f => lfoGain.connect(f.frequency));
-
-        // Nasal resonance
-        const nasalFilter = audioContext.createBiquadFilter();
-        nasalFilter.type = 'peaking';
-        nasalFilter.frequency.value = 2500;
-        nasalFilter.Q.value = 3;
-        nasalFilter.gain.value = 4;
-
-        formantMix.connect(nasalFilter);
-        nasalFilter.connect(saturator);
-
+        formantMix.connect(saturator);
         source.start(now);
         source2.start(now);
         lfo.start(now);
         source.stop(now + release);
         source2.stop(now + release);
         lfo.stop(now + release);
+        nodes.push(lfo, lfoGain);
 
     } else if (wave === 'vocoder') {
-        // === VOCODER: Mic modulates carrier oscillators ===
-
-        // Check if mic is active, if not show hint
         if (!isMicActive || !micSource) {
-            // Play a hint tone and show message
             const hintOsc = audioContext.createOscillator();
             const hintGain = audioContext.createGain();
             hintOsc.frequency.value = 440;
@@ -1656,8 +1644,7 @@ function playNote(freq, skipRecording = false) {
             hintGain.connect(masterGain);
             hintOsc.start(now);
             hintOsc.stop(now + 0.3);
-
-            // Blink mic button
+            registerSynthVoice([hintOsc, hintGain], 0.4);
             const micBtn = document.getElementById('micBtn');
             if (micBtn) {
                 micBtn.classList.add('blink');
@@ -1665,12 +1652,8 @@ function playNote(freq, skipRecording = false) {
             }
             return;
         }
-
-        // Vocoder band frequencies (16 bands)
-        const bandFreqs = [100, 180, 280, 400, 550, 750, 1000, 1400, 1900, 2600, 3500, 4800, 6400, 8500, 11000, 14000];
-        const bandCount = bandFreqs.length;
-
-        // Create carrier (sawtooth rich in harmonics)
+        // Simplified vocoder - fewer bands for performance
+        const bandFreqs = [200, 400, 800, 1600, 3200, 6400];
         const carrier = audioContext.createOscillator();
         const carrier2 = audioContext.createOscillator();
         carrier.type = 'sawtooth';
@@ -1678,124 +1661,74 @@ function playNote(freq, skipRecording = false) {
         carrier.frequency.setValueAtTime(freq, now);
         carrier2.frequency.setValueAtTime(freq, now);
         carrier2.detune.setValueAtTime(7, now);
-
         const carrierMix = audioContext.createGain();
         carrierMix.gain.value = 0.5;
         carrier.connect(carrierMix);
         carrier2.connect(carrierMix);
-
-        // Create analysis and synthesis filter banks
         const vocoderMix = audioContext.createGain();
         vocoderMix.gain.value = 0.6;
-
-        // Create a temporary gain node to tap into mic signal
         const micTap = audioContext.createGain();
         micTap.gain.value = 1;
         micSource.connect(micTap);
-
-        bandFreqs.forEach((bandFreq, i) => {
-            // Analysis filter (for mic/modulator)
+        nodes.push(carrier, carrier2, carrierMix, vocoderMix, micTap);
+        bandFreqs.forEach(bandFreq => {
             const analysisFilter = audioContext.createBiquadFilter();
             analysisFilter.type = 'bandpass';
             analysisFilter.frequency.value = bandFreq;
-            analysisFilter.Q.value = 6;
-
-            // Envelope follower using gain node
-            const followerGain = audioContext.createGain();
-            followerGain.gain.value = 2;
-
-            // Synthesis filter (for carrier)
+            analysisFilter.Q.value = 4;
             const synthFilter = audioContext.createBiquadFilter();
             synthFilter.type = 'bandpass';
             synthFilter.frequency.value = bandFreq;
-            synthFilter.Q.value = 8;
-
-            // VCA (voltage controlled amplifier)
+            synthFilter.Q.value = 6;
             const vca = audioContext.createGain();
             vca.gain.value = 0;
-
-            // Connect analysis chain
-            micTap.connect(analysisFilter);
-            analysisFilter.connect(followerGain);
-
-            // Use analyser for envelope following
             const analyser = audioContext.createAnalyser();
-            analyser.fftSize = 256;
-            analyser.smoothingTimeConstant = 0.3;
-            followerGain.connect(analyser);
-
-            // Connect synthesis chain
+            analyser.fftSize = 128;
+            analyser.smoothingTimeConstant = 0.5;
+            micTap.connect(analysisFilter);
+            analysisFilter.connect(analyser);
             carrierMix.connect(synthFilter);
             synthFilter.connect(vca);
             vca.connect(vocoderMix);
-
-            // Envelope follower update (uses requestAnimationFrame for real-time)
+            nodes.push(analysisFilter, synthFilter, vca, analyser);
             const dataArray = new Float32Array(analyser.fftSize);
-            let animationId;
-
             const updateEnvelope = () => {
+                if (audioContext.currentTime > now + release) return;
                 analyser.getFloatTimeDomainData(dataArray);
-                // Calculate RMS
                 let sum = 0;
-                for (let j = 0; j < dataArray.length; j++) {
-                    sum += dataArray[j] * dataArray[j];
-                }
-                const rms = Math.sqrt(sum / dataArray.length);
-                const envelope = Math.min(rms * 8, 1); // Scale and limit
-
-                vca.gain.setTargetAtTime(envelope, audioContext.currentTime, 0.01);
-
-                if (audioContext.currentTime < now + release) {
-                    animationId = requestAnimationFrame(updateEnvelope);
-                }
+                for (let j = 0; j < dataArray.length; j++) sum += dataArray[j] * dataArray[j];
+                vca.gain.setTargetAtTime(Math.min(Math.sqrt(sum / dataArray.length) * 6, 1), audioContext.currentTime, 0.02);
+                voiceAnimationIds.push(requestAnimationFrame(updateEnvelope));
             };
-
-            updateEnvelope();
-
-            // Cleanup after release
-            setTimeout(() => {
-                cancelAnimationFrame(animationId);
-                micTap.disconnect(analysisFilter);
-            }, release * 1000);
+            voiceAnimationIds.push(requestAnimationFrame(updateEnvelope));
         });
-
         vocoderMix.connect(saturator);
-
         carrier.start(now);
         carrier2.start(now);
         carrier.stop(now + release);
         carrier2.stop(now + release);
 
     } else {
-        // === STANDARD WAVES: 5-voice unison with analog modeling ===
-
-        // Unison spread (cents) - wider = fatter
+        // Standard waves with 5-voice unison
         const unisonDetune = [0, -12, 12, -6, 6];
-        const unisonPan = [0, -0.4, 0.4, -0.2, 0.2]; // stereo spread
-        const oscillators = [];
-
-        // Create mixer for all voices
+        const unisonPan = [0, -0.4, 0.4, -0.2, 0.2];
         const oscMix = audioContext.createGain();
-        oscMix.gain.value = 0.18; // Compensate for 5 voices
-
+        oscMix.gain.value = 0.18;
+        nodes.push(oscMix);
         unisonDetune.forEach((detune, i) => {
             const osc = audioContext.createOscillator();
             osc.type = wave;
             osc.frequency.setValueAtTime(freq, now);
             osc.detune.setValueAtTime(detune, now);
-
-            // Stereo panning for width
             const panner = audioContext.createStereoPanner();
             panner.pan.value = unisonPan[i];
-
             osc.connect(panner);
             panner.connect(oscMix);
-            oscillators.push(osc);
+            osc.start(now);
+            osc.stop(now + release);
+            nodes.push(osc, panner);
         });
-
         oscMix.connect(saturator);
-
-        // Sub oscillator (one octave down, pure sine)
         const subOsc = audioContext.createOscillator();
         subOsc.type = 'sine';
         subOsc.frequency.setValueAtTime(freq / 2, now);
@@ -1803,33 +1736,22 @@ function playNote(freq, skipRecording = false) {
         subGain.gain.value = 0.22;
         subOsc.connect(subGain);
         subGain.connect(saturator);
-
-        // Analog drift LFO (affects all voices slightly differently)
         const driftLFO = audioContext.createOscillator();
         const driftGain = audioContext.createGain();
         driftLFO.type = 'sine';
-        driftLFO.frequency.value = 0.2 + Math.random() * 0.5; // 0.2-0.7 Hz
-        driftGain.gain.value = 3; // ±3 cents drift
+        driftLFO.frequency.value = 0.2 + Math.random() * 0.5;
+        driftGain.gain.value = 3;
         driftLFO.connect(driftGain);
-
-        // Apply drift to each oscillator with slight variation
-        oscillators.forEach((osc, i) => {
-            const variation = audioContext.createGain();
-            variation.gain.value = 0.7 + Math.random() * 0.6; // Each voice drifts differently
-            driftGain.connect(variation);
-            variation.connect(osc.detune);
-        });
-
-        // Start all oscillators
-        oscillators.forEach(osc => {
-            osc.start(now);
-            osc.stop(now + release);
-        });
         subOsc.start(now);
         driftLFO.start(now);
         subOsc.stop(now + release);
         driftLFO.stop(now + release);
+        nodes.push(subOsc, subGain, driftLFO, driftGain);
     }
+
+    // Register voice for cleanup
+    const voice = registerSynthVoice(nodes, release + 0.2);
+    voice.animationIds = voiceAnimationIds;
 
     if (!skipRecording && (isRecording || isOverdub)) {
         loopSlots[activeSlot].loop.push({
@@ -3427,6 +3349,37 @@ window.MK1 = (function() {
 
             init: function() {
                 initSystem();
+            },
+
+            // Audio health monitoring
+            getHealth: function() {
+                return {
+                    contextState: audioContext ? audioContext.state : 'not initialized',
+                    sampleRate: audioContext ? audioContext.sampleRate : 0,
+                    currentTime: audioContext ? audioContext.currentTime : 0,
+                    activeDrumVoices: activeDrumVoices.length,
+                    activeSynthVoices: activeSynthVoices.length,
+                    limits: VOICE_LIMITS,
+                    healthy: audioContext && audioContext.state === 'running'
+                };
+            },
+
+            // Force cleanup of all voices (emergency)
+            forceCleanup: function() {
+                activeDrumVoices.forEach(voice => cleanupVoice(voice));
+                activeSynthVoices.forEach(voice => cleanupVoice(voice));
+                activeDrumVoices = [];
+                activeSynthVoices = [];
+                console.log('[MK1] Force cleanup completed');
+            },
+
+            // Resume audio context if suspended
+            resume: function() {
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume();
+                    return true;
+                }
+                return false;
             }
         }
     };
