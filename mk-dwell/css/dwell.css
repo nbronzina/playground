@@ -140,6 +140,25 @@ html, body {
     }
 }
 
+/* Back link */
+.back-link {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    font-size: 0.8rem;
+    font-weight: 300;
+    color: var(--dwell-text);
+    text-decoration: none;
+    letter-spacing: 0.05em;
+    z-index: 200;
+    transition: color 0.3s ease;
+    cursor: pointer;
+}
+
+.back-link:hover {
+    color: var(--dwell-text-hover);
+}
+
 /* Prevent text selection */
 .entry-screen, .sound-space {
     user-select: none;

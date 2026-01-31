@@ -1,5 +1,6 @@
 // ============================================
-// MK-DWELL - Generative Audio Engine
+// MK-DWELL - Generative Audio Engine v2
+// Positioned sources + global atmosphere
 // ============================================
 
 const DwellAudio = (function() {
@@ -7,7 +8,7 @@ const DwellAudio = (function() {
     let masterGain = null;
     let isRunning = false;
 
-    // Spatial processing nodes
+    // Spatial processing nodes (for global atmosphere)
     let reverbNode = null;
     let reverbGain = null;
     let delayNode = null;
@@ -16,16 +17,18 @@ const DwellAudio = (function() {
     let filterNode = null;
     let pannerNode = null;
 
-    // Layer nodes
+    // Global atmosphere layers
     let droneNodes = [];
     let textureNode = null;
     let eventTimeout = null;
 
-    // Current position (0-1)
-    let position = { x: 0.5, y: 0.5 };
+    // Positioned sources
+    let sources = [];
+    const SOURCE_GAIN_MAX = 0.35; // Max gain for individual sources (lower than atmosphere)
+    const DISTANCE_FACTOR = 4;    // How quickly volume falls with distance
 
-    // Smoothing factor - higher = faster response
-    const SMOOTHING = 0.15;
+    // Current cursor position (0-1)
+    let position = { x: 0.5, y: 0.5 };
 
     // Seeded random
     let seed = Date.now();
@@ -35,7 +38,7 @@ const DwellAudio = (function() {
         return seed / 233280;
     }
 
-    // Scales for melodic content (pentatonic for consonance)
+    // Scales for melodic content
     const SCALE = [0, 2, 4, 7, 9]; // C pentatonic
     const BASE_FREQ = 65.41; // C2
 
@@ -72,7 +75,7 @@ const DwellAudio = (function() {
         masterGain.gain.value = 0;
         masterGain.connect(audioContext.destination);
 
-        // Panner
+        // Panner (for global atmosphere)
         pannerNode = audioContext.createStereoPanner();
         pannerNode.pan.value = 0;
 
@@ -102,7 +105,7 @@ const DwellAudio = (function() {
 
         reverbNode.connect(reverbGain);
 
-        // Connect chain
+        // Connect global atmosphere chain
         pannerNode.connect(filterNode);
         filterNode.connect(delayNode);
         filterNode.connect(reverbNode);
@@ -116,32 +119,335 @@ const DwellAudio = (function() {
         param.setTargetAtTime(value, audioContext.currentTime, time);
     }
 
+    // ============================================
+    // POSITIONED SOURCES SYSTEM
+    // ============================================
+
+    // Source definitions - each with unique timbre
+    const SOURCE_DEFINITIONS = [
+        {
+            // 1. Sustained tonal - warm sine pad
+            name: 'warm-pad',
+            x: 0.15, y: 0.2,
+            create: function(ctx, output) {
+                const gain = ctx.createGain();
+                gain.gain.value = 0;
+
+                const osc1 = ctx.createOscillator();
+                const osc2 = ctx.createOscillator();
+                osc1.type = 'sine';
+                osc2.type = 'sine';
+                osc1.frequency.value = noteToFreq(12); // C3
+                osc2.frequency.value = noteToFreq(12) * 1.002; // Slight detune for warmth
+
+                const oscGain = ctx.createGain();
+                oscGain.gain.value = 0.3;
+
+                osc1.connect(oscGain);
+                osc2.connect(oscGain);
+                oscGain.connect(gain);
+                gain.connect(output);
+
+                osc1.start();
+                osc2.start();
+
+                return { gain, nodes: [osc1, osc2] };
+            }
+        },
+        {
+            // 2. Granular/noisy - filtered noise with slow sweep
+            name: 'dust',
+            x: 0.8, y: 0.15,
+            create: function(ctx, output) {
+                const gain = ctx.createGain();
+                gain.gain.value = 0;
+
+                const bufferSize = ctx.sampleRate * 2;
+                const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                const data = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = seededRandom() * 2 - 1;
+                }
+
+                const noise = ctx.createBufferSource();
+                noise.buffer = noiseBuffer;
+                noise.loop = true;
+
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.value = 2000;
+                filter.Q.value = 8;
+
+                // LFO for filter sweep
+                const lfo = ctx.createOscillator();
+                const lfoGain = ctx.createGain();
+                lfo.frequency.value = 0.08;
+                lfoGain.gain.value = 1500;
+                lfo.connect(lfoGain);
+                lfoGain.connect(filter.frequency);
+                lfo.start();
+
+                const noiseGain = ctx.createGain();
+                noiseGain.gain.value = 0.15;
+
+                noise.connect(filter);
+                filter.connect(noiseGain);
+                noiseGain.connect(gain);
+                gain.connect(output);
+
+                noise.start();
+
+                return { gain, nodes: [noise, lfo] };
+            }
+        },
+        {
+            // 3. Pulsing - slow tremolo
+            name: 'pulse',
+            x: 0.5, y: 0.85,
+            create: function(ctx, output) {
+                const gain = ctx.createGain();
+                gain.gain.value = 0;
+
+                const osc = ctx.createOscillator();
+                osc.type = 'triangle';
+                osc.frequency.value = noteToFreq(7); // G2
+
+                // Tremolo
+                const tremolo = ctx.createGain();
+                tremolo.gain.value = 0.5;
+
+                const lfo = ctx.createOscillator();
+                const lfoGain = ctx.createGain();
+                lfo.frequency.value = 0.3; // Slow pulse
+                lfoGain.gain.value = 0.5;
+                lfo.connect(lfoGain);
+                lfoGain.connect(tremolo.gain);
+                lfo.start();
+
+                osc.connect(tremolo);
+                tremolo.connect(gain);
+                gain.connect(output);
+
+                osc.start();
+
+                return { gain, nodes: [osc, lfo] };
+            }
+        },
+        {
+            // 4. Crystal high - bright sine with reverb character
+            name: 'crystal',
+            x: 0.85, y: 0.7,
+            create: function(ctx, output) {
+                const gain = ctx.createGain();
+                gain.gain.value = 0;
+
+                const osc = ctx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.value = noteToFreq(36); // C5
+
+                // Subtle vibrato
+                const vibrato = ctx.createOscillator();
+                const vibGain = ctx.createGain();
+                vibrato.frequency.value = 4;
+                vibGain.gain.value = 3;
+                vibrato.connect(vibGain);
+                vibGain.connect(osc.frequency);
+                vibrato.start();
+
+                const oscGain = ctx.createGain();
+                oscGain.gain.value = 0.12;
+
+                osc.connect(oscGain);
+                oscGain.connect(gain);
+                gain.connect(output);
+
+                osc.start();
+
+                return { gain, nodes: [osc, vibrato] };
+            }
+        },
+        {
+            // 5. Deep bass - sub frequencies
+            name: 'abyss',
+            x: 0.2, y: 0.75,
+            create: function(ctx, output) {
+                const gain = ctx.createGain();
+                gain.gain.value = 0;
+
+                const osc = ctx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.value = noteToFreq(-12); // C1 (very low)
+
+                // Very slow pitch drift
+                const lfo = ctx.createOscillator();
+                const lfoGain = ctx.createGain();
+                lfo.frequency.value = 0.02;
+                lfoGain.gain.value = 2;
+                lfo.connect(lfoGain);
+                lfoGain.connect(osc.frequency);
+                lfo.start();
+
+                const oscGain = ctx.createGain();
+                oscGain.gain.value = 0.4;
+
+                osc.connect(oscGain);
+                oscGain.connect(gain);
+                gain.connect(output);
+
+                osc.start();
+
+                return { gain, nodes: [osc, lfo] };
+            }
+        },
+        {
+            // 6. Clicks/pops - irregular percussive
+            name: 'static',
+            x: 0.4, y: 0.3,
+            create: function(ctx, output) {
+                const gain = ctx.createGain();
+                gain.gain.value = 0;
+
+                // We'll use a noise burst approach with scheduling
+                const clickGain = ctx.createGain();
+                clickGain.gain.value = 0;
+                clickGain.connect(gain);
+                gain.connect(output);
+
+                // Schedule random clicks
+                let clickTimeout;
+                function scheduleClick() {
+                    if (!isRunning) return;
+
+                    const interval = 200 + seededRandom() * 2000;
+                    clickTimeout = setTimeout(() => {
+                        if (!isRunning || !ctx) return;
+
+                        const now = ctx.currentTime;
+                        const clickOsc = ctx.createOscillator();
+                        const clickEnv = ctx.createGain();
+
+                        clickOsc.type = 'square';
+                        clickOsc.frequency.value = 100 + seededRandom() * 400;
+
+                        clickEnv.gain.setValueAtTime(0.3, now);
+                        clickEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+
+                        clickOsc.connect(clickEnv);
+                        clickEnv.connect(clickGain);
+                        clickGain.gain.value = 1;
+
+                        clickOsc.start(now);
+                        clickOsc.stop(now + 0.03);
+
+                        scheduleClick();
+                    }, interval);
+                }
+
+                scheduleClick();
+
+                return {
+                    gain,
+                    nodes: [],
+                    cleanup: function() { clearTimeout(clickTimeout); }
+                };
+            }
+        },
+        {
+            // 7. Beating/textural - two detuned oscillators
+            name: 'interference',
+            x: 0.65, y: 0.45,
+            create: function(ctx, output) {
+                const gain = ctx.createGain();
+                gain.gain.value = 0;
+
+                const osc1 = ctx.createOscillator();
+                const osc2 = ctx.createOscillator();
+                osc1.type = 'sawtooth';
+                osc2.type = 'sawtooth';
+                osc1.frequency.value = noteToFreq(19); // G3
+                osc2.frequency.value = noteToFreq(19) * 1.008; // Beating
+
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 800;
+                filter.Q.value = 2;
+
+                const oscGain = ctx.createGain();
+                oscGain.gain.value = 0.15;
+
+                osc1.connect(filter);
+                osc2.connect(filter);
+                filter.connect(oscGain);
+                oscGain.connect(gain);
+                gain.connect(output);
+
+                osc1.start();
+                osc2.start();
+
+                return { gain, nodes: [osc1, osc2] };
+            }
+        }
+    ];
+
+    function createSources() {
+        sources = [];
+
+        SOURCE_DEFINITIONS.forEach(def => {
+            const source = def.create(audioContext, masterGain);
+            sources.push({
+                name: def.name,
+                x: def.x,
+                y: def.y,
+                gain: source.gain,
+                nodes: source.nodes,
+                cleanup: source.cleanup
+            });
+        });
+    }
+
+    function updateSourceGains() {
+        sources.forEach(source => {
+            const dx = position.x - source.x;
+            const dy = position.y - source.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // Inverse distance attenuation
+            const gain = SOURCE_GAIN_MAX / (1 + distance * DISTANCE_FACTOR);
+
+            smoothParam(source.gain.gain, gain, 0.1);
+        });
+    }
+
+    // ============================================
+    // GLOBAL ATMOSPHERE (existing system)
+    // ============================================
+
     // Update spatial parameters based on position
     function updateSpatial() {
         if (!audioContext || !isRunning) return;
 
-        // X = panning (-1 to 1) - direct, fast response
+        // X = panning (-1 to 1) - for global atmosphere
         const pan = (position.x - 0.5) * 2;
         smoothParam(pannerNode.pan, pan, 0.05);
 
         // Y = depth (0 = close/bright, 1 = far/muffled)
         const depth = position.y;
 
-        // Filter: dramatic sweep - close = very bright, far = muffled
-        // Range: 400 Hz (far) to 12000 Hz (close)
+        // Filter: dramatic sweep
         const filterFreq = 400 + (1 - depth) * 11600;
         smoothParam(filterNode.frequency, filterFreq, 0.08);
 
         // Reverb: always some, more when far
-        // Range: 0.15 (close) to 0.7 (far)
         const reverbAmount = 0.15 + depth * 0.55;
         smoothParam(reverbGain.gain, reverbAmount, 0.1);
 
         // Delay: subtle when close, prominent when far
-        // Range: 0.05 (close) to 0.5 (far)
         const delayAmount = 0.05 + depth * 0.45;
         smoothParam(delayGain.gain, delayAmount, 0.1);
         smoothParam(delayFeedback.gain, 0.15 + depth * 0.45, 0.1);
+
+        // Update positioned sources
+        updateSourceGains();
 
         requestAnimationFrame(updateSpatial);
     }
@@ -152,11 +458,10 @@ const DwellAudio = (function() {
         droneGain.gain.value = 0;
         droneGain.connect(pannerNode);
 
-        // Multiple low oscillators with stereo spread
         const voices = [
-            { freq: noteToFreq(0), type: 'sine', pan: -0.3 },       // C2 left
-            { freq: noteToFreq(0) * 2, type: 'triangle', pan: 0 }, // C3 center
-            { freq: noteToFreq(7), type: 'triangle', pan: 0.3 },   // G2 right
+            { freq: noteToFreq(0), type: 'sine', pan: -0.3 },
+            { freq: noteToFreq(0) * 2, type: 'triangle', pan: 0 },
+            { freq: noteToFreq(7), type: 'triangle', pan: 0.3 },
         ];
 
         voices.forEach((voice, i) => {
@@ -164,7 +469,6 @@ const DwellAudio = (function() {
             osc.type = voice.type;
             osc.frequency.value = voice.freq;
 
-            // Subtle drift
             const lfo = audioContext.createOscillator();
             const lfoGain = audioContext.createGain();
             lfo.frequency.value = 0.05 + seededRandom() * 0.1;
@@ -173,12 +477,11 @@ const DwellAudio = (function() {
             lfoGain.connect(osc.frequency);
             lfo.start();
 
-            // Individual panner for stereo width
             const voicePan = audioContext.createStereoPanner();
             voicePan.pan.value = voice.pan;
 
             const oscGain = audioContext.createGain();
-            oscGain.gain.value = 0.15 / (i + 1);
+            oscGain.gain.value = 0.12 / (i + 1); // Slightly lower for balance with sources
 
             osc.connect(oscGain);
             oscGain.connect(voicePan);
@@ -188,7 +491,6 @@ const DwellAudio = (function() {
             droneNodes.push({ osc, lfo, oscGain, pan: voicePan });
         });
 
-        // Fade in
         droneGain.gain.setTargetAtTime(1, audioContext.currentTime, 3);
 
         return droneGain;
@@ -200,17 +502,14 @@ const DwellAudio = (function() {
         textureGain.gain.value = 0;
         textureGain.connect(pannerNode);
 
-        // Stereo filtered noise - two independent noise sources
         const bufferSize = audioContext.sampleRate * 4;
 
-        // Left channel noise
         const noiseBufferL = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
         const dataL = noiseBufferL.getChannelData(0);
         for (let i = 0; i < bufferSize; i++) {
             dataL[i] = seededRandom() * 2 - 1;
         }
 
-        // Right channel noise (different random values)
         const noiseBufferR = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
         const dataR = noiseBufferR.getChannelData(0);
         for (let i = 0; i < bufferSize; i++) {
@@ -225,7 +524,6 @@ const DwellAudio = (function() {
         noiseR.buffer = noiseBufferR;
         noiseR.loop = true;
 
-        // Bandpass filters with slightly different frequencies for width
         const bpL = audioContext.createBiquadFilter();
         bpL.type = 'bandpass';
         bpL.frequency.value = 350;
@@ -236,7 +534,6 @@ const DwellAudio = (function() {
         bpR.frequency.value = 450;
         bpR.Q.value = 2;
 
-        // Slow modulation of filters
         const lfoL = audioContext.createOscillator();
         const lfoGainL = audioContext.createGain();
         lfoL.frequency.value = 0.03;
@@ -247,13 +544,12 @@ const DwellAudio = (function() {
 
         const lfoR = audioContext.createOscillator();
         const lfoGainR = audioContext.createGain();
-        lfoR.frequency.value = 0.04; // Slightly different rate
+        lfoR.frequency.value = 0.04;
         lfoGainR.gain.value = 300;
         lfoR.connect(lfoGainR);
         lfoGainR.connect(bpR.frequency);
         lfoR.start();
 
-        // Stereo panners
         const panL = audioContext.createStereoPanner();
         panL.pan.value = -0.6;
         const panR = audioContext.createStereoPanner();
@@ -270,8 +566,7 @@ const DwellAudio = (function() {
         noiseL.start();
         noiseR.start();
 
-        // Subtle but present
-        textureGain.gain.setTargetAtTime(0.1, audioContext.currentTime, 4);
+        textureGain.gain.setTargetAtTime(0.08, audioContext.currentTime, 4);
 
         return { noiseL, noiseR, lfoL, lfoR, bpL, bpR, gain: textureGain };
     }
@@ -280,7 +575,6 @@ const DwellAudio = (function() {
     function scheduleEvent() {
         if (!isRunning) return;
 
-        // Random interval (5-20 seconds)
         const interval = 5000 + seededRandom() * 15000;
 
         eventTimeout = setTimeout(() => {
@@ -291,42 +585,36 @@ const DwellAudio = (function() {
     }
 
     function playEvent() {
-        // Random note from scale
-        const octave = Math.floor(seededRandom() * 3) + 2; // Octaves 2-4
+        const octave = Math.floor(seededRandom() * 3) + 2;
         const scaleNote = SCALE[Math.floor(seededRandom() * SCALE.length)];
         const note = scaleNote + octave * 12;
         const freq = noteToFreq(note);
 
-        // Create event sound
         const osc = audioContext.createOscillator();
         const oscGain = audioContext.createGain();
 
         osc.type = seededRandom() > 0.5 ? 'sine' : 'triangle';
         osc.frequency.value = freq;
 
-        // Envelope
         const now = audioContext.currentTime;
         const attack = 0.5 + seededRandom() * 1;
         const hold = 1 + seededRandom() * 3;
         const release = 2 + seededRandom() * 4;
 
         oscGain.gain.setValueAtTime(0, now);
-        oscGain.gain.linearRampToValueAtTime(0.1, now + attack);
-        oscGain.gain.setValueAtTime(0.1, now + attack + hold);
+        oscGain.gain.linearRampToValueAtTime(0.08, now + attack);
+        oscGain.gain.setValueAtTime(0.08, now + attack + hold);
         oscGain.gain.exponentialRampToValueAtTime(0.001, now + attack + hold + release);
 
+        const eventPan = audioContext.createStereoPanner();
+        eventPan.pan.value = (seededRandom() - 0.5) * 1.5;
+
         osc.connect(oscGain);
-        oscGain.connect(pannerNode);
+        oscGain.connect(eventPan);
+        eventPan.connect(pannerNode);
 
         osc.start(now);
         osc.stop(now + attack + hold + release + 0.1);
-
-        // Random panning for the event
-        const eventPan = audioContext.createStereoPanner();
-        eventPan.pan.value = (seededRandom() - 0.5) * 1.5;
-        oscGain.disconnect();
-        oscGain.connect(eventPan);
-        eventPan.connect(pannerNode);
     }
 
     // === PUBLIC API ===
@@ -342,10 +630,13 @@ const DwellAudio = (function() {
 
             isRunning = true;
 
-            // Start layers
+            // Start global atmosphere
             createDrone();
             textureNode = createTexture();
             scheduleEvent();
+
+            // Start positioned sources
+            createSources();
 
             // Start spatial update loop
             updateSpatial();
@@ -358,19 +649,21 @@ const DwellAudio = (function() {
             if (!isRunning) return;
             isRunning = false;
 
-            // Clear event timer
             if (eventTimeout) {
                 clearTimeout(eventTimeout);
             }
 
-            // Fade out and cleanup
+            // Cleanup positioned sources
+            sources.forEach(source => {
+                if (source.cleanup) source.cleanup();
+            });
+
             if (masterGain) {
                 masterGain.gain.setTargetAtTime(0, audioContext.currentTime, 1);
             }
         },
 
         setPosition: function(x, y) {
-            // Direct update - smoothing handled in updateSpatial via setTargetAtTime
             position.x = Math.max(0, Math.min(1, x));
             position.y = Math.max(0, Math.min(1, y));
         },
