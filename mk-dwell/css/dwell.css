@@ -145,18 +145,22 @@ html, body {
     position: fixed;
     bottom: 1.5rem;
     left: 1.5rem;
-    font-size: 0.8rem;
-    font-weight: 300;
-    color: #2a2a2a;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: #555;
     text-decoration: none;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.1em;
+    padding: 0.6rem 1rem;
+    border: 1px solid #333;
+    border-radius: 2px;
     z-index: 200;
-    transition: color 0.3s ease;
+    transition: all 0.2s ease;
     cursor: pointer;
 }
 
 .back-link:hover {
-    color: #444;
+    color: #888;
+    border-color: #555;
 }
 
 /* Prevent text selection */
