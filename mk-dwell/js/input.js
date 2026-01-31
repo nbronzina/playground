@@ -4,6 +4,7 @@
 
 const DwellInput = (function() {
     let cursor = null;
+    let soundSpace = null;
     let isActive = false;
     let lastPosition = { x: 0.5, y: 0.5 };
     let velocity = 0;
@@ -13,6 +14,51 @@ const DwellInput = (function() {
     const VELOCITY_SMOOTHING = 0.1;
     const VELOCITY_DECAY = 0.95;
 
+    // Zone colors (very subtle tints) - RGB values
+    // Base is #0a0a0a (10, 10, 10)
+    const ZONE_COLORS = {
+        topLeft:     { r: 10, g: 10, b: 15 },  // Blue tint (bell)
+        topRight:    { r: 15, g: 10, b: 10 },  // Red tint (harsh)
+        bottomLeft:  { r: 10, g: 15, b: 10 },  // Green tint (sub)
+        bottomRight: { r: 13, g: 10, b: 15 },  // Purple tint (clicks)
+        center:      { r: 10, g: 10, b: 10 }   // Neutral (breath)
+    };
+
+    // Interpolate color based on position
+    function getZoneColor(x, y) {
+        // Bilinear interpolation between corners
+        const tl = ZONE_COLORS.topLeft;
+        const tr = ZONE_COLORS.topRight;
+        const bl = ZONE_COLORS.bottomLeft;
+        const br = ZONE_COLORS.bottomRight;
+
+        // Interpolate top edge
+        const top = {
+            r: tl.r + (tr.r - tl.r) * x,
+            g: tl.g + (tr.g - tl.g) * x,
+            b: tl.b + (tr.b - tl.b) * x
+        };
+
+        // Interpolate bottom edge
+        const bottom = {
+            r: bl.r + (br.r - bl.r) * x,
+            g: bl.g + (br.g - bl.g) * x,
+            b: bl.b + (br.b - bl.b) * x
+        };
+
+        // Interpolate between top and bottom
+        const r = Math.round(top.r + (bottom.r - top.r) * y);
+        const g = Math.round(top.g + (bottom.g - top.g) * y);
+        const b = Math.round(top.b + (bottom.b - top.b) * y);
+
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    function updateBackgroundColor(x, y) {
+        if (!soundSpace) return;
+        soundSpace.style.backgroundColor = getZoneColor(x, y);
+    }
+
     function init() {
         cursor = document.querySelector('.cursor');
         if (!cursor) {
@@ -20,6 +66,8 @@ const DwellInput = (function() {
             cursor.className = 'cursor hidden';
             document.body.appendChild(cursor);
         }
+
+        soundSpace = document.getElementById('space');
 
         // Mouse events
         document.addEventListener('mousemove', handleMove);
@@ -85,6 +133,9 @@ const DwellInput = (function() {
         if (typeof DwellAudio !== 'undefined') {
             DwellAudio.setPosition(x, y);
         }
+
+        // Update background color
+        updateBackgroundColor(x, y);
     }
 
     function updateVelocity() {
