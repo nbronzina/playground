@@ -78,11 +78,20 @@ html, body {
     color: #aaa;
 }
 
+.entry-hint {
+    margin-top: 2rem;
+    font-size: 0.65rem;
+    font-weight: 300;
+    color: #1a1a1a;
+    letter-spacing: 0.15em;
+}
+
 /* Sound Space */
 .sound-space {
     position: fixed;
     inset: 0;
     background: var(--dwell-bg);
+    transition: background-color 2.5s ease-out;
 }
 
 .sound-space.hidden {
