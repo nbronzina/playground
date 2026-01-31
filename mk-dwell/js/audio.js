@@ -268,41 +268,47 @@ const DwellAudio = (function() {
             }
         },
         {
-            // 5. WOBBLING MID - center
-            name: 'wobble',
+            // 5. BREATHING PAD - center (calm, ambient)
+            name: 'breath',
             x: 0.5, y: 0.5,
             create: function(ctx, output) {
                 const gain = ctx.createGain();
                 gain.gain.value = 0;
 
-                const osc = ctx.createOscillator();
-                osc.type = 'sawtooth';
-                osc.frequency.value = 220; // A3
+                // Soft chord: C + E + G (major triad, high register)
+                const osc1 = ctx.createOscillator();
+                const osc2 = ctx.createOscillator();
+                const osc3 = ctx.createOscillator();
+                osc1.type = 'sine';
+                osc2.type = 'sine';
+                osc3.type = 'sine';
+                osc1.frequency.value = 523; // C5
+                osc2.frequency.value = 659; // E5
+                osc3.frequency.value = 784; // G5
 
-                // Fast wobble
+                // Very slow volume breathing
                 const lfo = ctx.createOscillator();
                 const lfoGain = ctx.createGain();
-                lfo.frequency.value = 3; // 3Hz wobble
-                lfoGain.gain.value = 50;
-                lfo.connect(lfoGain);
-                lfoGain.connect(osc.frequency);
+                lfo.frequency.value = 0.1; // Very slow breath
+                lfoGain.gain.value = 0.15;
                 lfo.start();
 
-                const filter = ctx.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.value = 600;
+                const chordGain = ctx.createGain();
+                chordGain.gain.value = 0.2;
+                lfo.connect(lfoGain);
+                lfoGain.connect(chordGain.gain);
 
-                const oscGain = ctx.createGain();
-                oscGain.gain.value = 0.5;
-
-                osc.connect(filter);
-                filter.connect(oscGain);
-                oscGain.connect(gain);
+                osc1.connect(chordGain);
+                osc2.connect(chordGain);
+                osc3.connect(chordGain);
+                chordGain.connect(gain);
                 gain.connect(output);
 
-                osc.start();
+                osc1.start();
+                osc2.start();
+                osc3.start();
 
-                return { gain, nodes: [osc, lfo] };
+                return { gain, nodes: [osc1, osc2, osc3, lfo] };
             }
         }
     ];
