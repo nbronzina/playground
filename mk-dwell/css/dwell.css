@@ -50,31 +50,32 @@ html, body {
 .entry-title {
     font-size: 1.2rem;
     font-weight: 300;
-    color: var(--dwell-text);
+    color: #555;
     letter-spacing: 0.1em;
     margin-bottom: 3rem;
-    transition: color 0.3s ease;
 }
 
 .entry-button {
     background: none;
-    border: none;
+    border: 1px solid #333;
+    border-radius: 2px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    font-weight: 300;
-    color: var(--dwell-text);
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: #555;
     letter-spacing: 0.15em;
     cursor: pointer;
-    padding: 1rem 2rem;
-    transition: color 0.3s ease;
+    padding: 0.8rem 2rem;
+    transition: all 0.2s ease;
 }
 
 .entry-button:hover {
-    color: var(--dwell-text-hover);
+    color: #888;
+    border-color: #555;
 }
 
 .entry-button:active {
-    color: var(--dwell-text-active);
+    color: #aaa;
 }
 
 /* Sound Space */
@@ -143,7 +144,7 @@ html, body {
 /* Back link */
 .back-link {
     position: fixed;
-    bottom: 1.5rem;
+    top: 1.5rem;
     left: 1.5rem;
     font-size: 0.75rem;
     font-weight: 400;
