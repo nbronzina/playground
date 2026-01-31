@@ -1,0 +1,147 @@
+/* ============================================
+   MK-DWELL - Minimal Styles
+   An explorable sound space
+   ============================================ */
+
+:root {
+    --dwell-bg: #0a0a0a;
+    --dwell-text: #1a1a1a;
+    --dwell-text-hover: #333;
+    --dwell-text-active: #666;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--dwell-bg);
+    font-family: 'JetBrains Mono', monospace;
+    cursor: none;
+}
+
+/* Entry Screen */
+.entry-screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--dwell-bg);
+    z-index: 100;
+    transition: opacity 1s ease-out;
+    cursor: default;
+}
+
+.entry-screen.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.entry-content {
+    text-align: center;
+}
+
+.entry-title {
+    font-size: 1.2rem;
+    font-weight: 300;
+    color: var(--dwell-text);
+    letter-spacing: 0.1em;
+    margin-bottom: 3rem;
+    transition: color 0.3s ease;
+}
+
+.entry-button {
+    background: none;
+    border: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    font-weight: 300;
+    color: var(--dwell-text);
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    padding: 1rem 2rem;
+    transition: color 0.3s ease;
+}
+
+.entry-button:hover {
+    color: var(--dwell-text-hover);
+}
+
+.entry-button:active {
+    color: var(--dwell-text-active);
+}
+
+/* Sound Space */
+.sound-space {
+    position: fixed;
+    inset: 0;
+    background: var(--dwell-bg);
+}
+
+.sound-space.hidden {
+    display: none;
+}
+
+/* Hint text */
+.space-hint {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    font-weight: 300;
+    color: var(--dwell-text);
+    letter-spacing: 0.2em;
+    opacity: 0;
+    transition: opacity 2s ease;
+    pointer-events: none;
+}
+
+.space-hint.visible {
+    opacity: 1;
+}
+
+.space-hint.fade {
+    opacity: 0;
+}
+
+/* Custom cursor */
+.cursor {
+    position: fixed;
+    width: 8px;
+    height: 8px;
+    background: var(--dwell-text);
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.3s ease, transform 0.1s ease;
+    z-index: 1000;
+    mix-blend-mode: difference;
+}
+
+.cursor.hidden {
+    opacity: 0;
+}
+
+/* Touch indicator */
+@media (hover: none) {
+    html, body {
+        cursor: default;
+    }
+
+    .cursor {
+        display: none;
+    }
+}
+
+/* Prevent text selection */
+.entry-screen, .sound-space {
+    user-select: none;
+    -webkit-user-select: none;
+}
