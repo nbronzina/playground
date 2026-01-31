@@ -163,8 +163,8 @@ const DwellAudio = (function() {
             }
         },
         {
-            // 2. HARSH NOISE - top right corner
-            name: 'harsh',
+            // 2. RAIN/WIND TEXTURE - top right corner
+            name: 'rain',
             x: 0.9, y: 0.1,
             create: function(ctx, output) {
                 const gain = ctx.createGain();
@@ -181,14 +181,23 @@ const DwellAudio = (function() {
                 noise.buffer = noiseBuffer;
                 noise.loop = true;
 
-                // High resonant filter for harsh character
+                // Bandpass filter for rain-like texture
                 const filter = ctx.createBiquadFilter();
-                filter.type = 'highpass';
-                filter.frequency.value = 3000;
-                filter.Q.value = 15;
+                filter.type = 'bandpass';
+                filter.frequency.value = 2000;
+                filter.Q.value = 0.8;
+
+                // Subtle LFO on filter for movement
+                const lfo = ctx.createOscillator();
+                const lfoGain = ctx.createGain();
+                lfo.frequency.value = 0.15;
+                lfoGain.gain.value = 500;
+                lfo.connect(lfoGain);
+                lfoGain.connect(filter.frequency);
+                lfo.start();
 
                 const noiseGain = ctx.createGain();
-                noiseGain.gain.value = 0.4;
+                noiseGain.gain.value = 0.2; // Lower gain
 
                 noise.connect(filter);
                 filter.connect(noiseGain);
@@ -197,7 +206,7 @@ const DwellAudio = (function() {
 
                 noise.start();
 
-                return { gain, nodes: [noise] };
+                return { gain, nodes: [noise, lfo] };
             }
         },
         {
@@ -208,20 +217,32 @@ const DwellAudio = (function() {
                 const gain = ctx.createGain();
                 gain.gain.value = 0;
 
-                const osc = ctx.createOscillator();
-                osc.type = 'sine';
-                osc.frequency.value = 40; // Very low
+                // Fundamental 40Hz
+                const osc1 = ctx.createOscillator();
+                osc1.type = 'sine';
+                osc1.frequency.value = 40;
+
+                // Harmonic at 80Hz for definition on smaller speakers
+                const osc2 = ctx.createOscillator();
+                osc2.type = 'sine';
+                osc2.frequency.value = 80;
 
                 const oscGain = ctx.createGain();
-                oscGain.gain.value = 0.8;
+                oscGain.gain.value = 1.4; // Boosted for presence
 
-                osc.connect(oscGain);
+                const harmonicGain = ctx.createGain();
+                harmonicGain.gain.value = 0.4; // Subtle harmonic
+
+                osc1.connect(oscGain);
+                osc2.connect(harmonicGain);
                 oscGain.connect(gain);
+                harmonicGain.connect(gain);
                 gain.connect(output);
 
-                osc.start();
+                osc1.start();
+                osc2.start();
 
-                return { gain, nodes: [osc] };
+                return { gain, nodes: [osc1, osc2] };
             }
         },
         {
@@ -579,8 +600,9 @@ const DwellAudio = (function() {
             // Start spatial update loop
             updateSpatial();
 
-            // Fade in master
-            masterGain.gain.setTargetAtTime(1, audioContext.currentTime, 2);
+            // Fade in master - gradual emergence from silence
+            masterGain.gain.setValueAtTime(0, audioContext.currentTime);
+            masterGain.gain.linearRampToValueAtTime(1, audioContext.currentTime + 4);
         },
 
         stop: function() {
