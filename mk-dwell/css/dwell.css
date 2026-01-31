@@ -147,7 +147,7 @@ html, body {
     left: 1.5rem;
     font-size: 0.8rem;
     font-weight: 300;
-    color: var(--dwell-text);
+    color: #2a2a2a;
     text-decoration: none;
     letter-spacing: 0.05em;
     z-index: 200;
@@ -156,7 +156,7 @@ html, body {
 }
 
 .back-link:hover {
-    color: var(--dwell-text-hover);
+    color: #444;
 }
 
 /* Prevent text selection */
