@@ -24,8 +24,8 @@ const DwellAudio = (function() {
 
     // Positioned sources
     let sources = [];
-    const SOURCE_GAIN_MAX = 0.35; // Max gain for individual sources (lower than atmosphere)
-    const DISTANCE_FACTOR = 4;    // How quickly volume falls with distance
+    const SOURCE_GAIN_MAX = 0.8;  // Max gain - sources should be LOUD when close
+    const DISTANCE_FACTOR = 12;   // Very steep falloff - focused listening
 
     // Current cursor position (0-1)
     let position = { x: 0.5, y: 0.5 };
@@ -123,25 +123,26 @@ const DwellAudio = (function() {
     // POSITIONED SOURCES SYSTEM
     // ============================================
 
-    // Source definitions - each with unique timbre
+    // Source definitions - each VERY DISTINCT timbre, spread to corners
     const SOURCE_DEFINITIONS = [
         {
-            // 1. Sustained tonal - warm sine pad
-            name: 'warm-pad',
-            x: 0.15, y: 0.2,
+            // 1. HIGH PITCHED BELL - top left corner
+            name: 'bell',
+            x: 0.1, y: 0.1,
             create: function(ctx, output) {
                 const gain = ctx.createGain();
                 gain.gain.value = 0;
 
+                // Bell-like: high sine with fast decay harmonics
                 const osc1 = ctx.createOscillator();
                 const osc2 = ctx.createOscillator();
                 osc1.type = 'sine';
                 osc2.type = 'sine';
-                osc1.frequency.value = noteToFreq(12); // C3
-                osc2.frequency.value = noteToFreq(12) * 1.002; // Slight detune for warmth
+                osc1.frequency.value = 880; // A5
+                osc2.frequency.value = 880 * 2.4; // Inharmonic partial
 
                 const oscGain = ctx.createGain();
-                oscGain.gain.value = 0.3;
+                oscGain.gain.value = 0.5;
 
                 osc1.connect(oscGain);
                 osc2.connect(oscGain);
@@ -155,9 +156,9 @@ const DwellAudio = (function() {
             }
         },
         {
-            // 2. Granular/noisy - filtered noise with slow sweep
-            name: 'dust',
-            x: 0.8, y: 0.15,
+            // 2. HARSH NOISE - top right corner
+            name: 'harsh',
+            x: 0.9, y: 0.1,
             create: function(ctx, output) {
                 const gain = ctx.createGain();
                 gain.gain.value = 0;
@@ -173,22 +174,14 @@ const DwellAudio = (function() {
                 noise.buffer = noiseBuffer;
                 noise.loop = true;
 
+                // High resonant filter for harsh character
                 const filter = ctx.createBiquadFilter();
-                filter.type = 'bandpass';
-                filter.frequency.value = 2000;
-                filter.Q.value = 8;
-
-                // LFO for filter sweep
-                const lfo = ctx.createOscillator();
-                const lfoGain = ctx.createGain();
-                lfo.frequency.value = 0.08;
-                lfoGain.gain.value = 1500;
-                lfo.connect(lfoGain);
-                lfoGain.connect(filter.frequency);
-                lfo.start();
+                filter.type = 'highpass';
+                filter.frequency.value = 3000;
+                filter.Q.value = 15;
 
                 const noiseGain = ctx.createGain();
-                noiseGain.gain.value = 0.15;
+                noiseGain.gain.value = 0.4;
 
                 noise.connect(filter);
                 filter.connect(noiseGain);
@@ -197,65 +190,23 @@ const DwellAudio = (function() {
 
                 noise.start();
 
-                return { gain, nodes: [noise, lfo] };
+                return { gain, nodes: [noise] };
             }
         },
         {
-            // 3. Pulsing - slow tremolo
-            name: 'pulse',
-            x: 0.5, y: 0.85,
-            create: function(ctx, output) {
-                const gain = ctx.createGain();
-                gain.gain.value = 0;
-
-                const osc = ctx.createOscillator();
-                osc.type = 'triangle';
-                osc.frequency.value = noteToFreq(7); // G2
-
-                // Tremolo
-                const tremolo = ctx.createGain();
-                tremolo.gain.value = 0.5;
-
-                const lfo = ctx.createOscillator();
-                const lfoGain = ctx.createGain();
-                lfo.frequency.value = 0.3; // Slow pulse
-                lfoGain.gain.value = 0.5;
-                lfo.connect(lfoGain);
-                lfoGain.connect(tremolo.gain);
-                lfo.start();
-
-                osc.connect(tremolo);
-                tremolo.connect(gain);
-                gain.connect(output);
-
-                osc.start();
-
-                return { gain, nodes: [osc, lfo] };
-            }
-        },
-        {
-            // 4. Crystal high - bright sine with reverb character
-            name: 'crystal',
-            x: 0.85, y: 0.7,
+            // 3. DEEP SUB BASS - bottom left corner
+            name: 'sub',
+            x: 0.1, y: 0.9,
             create: function(ctx, output) {
                 const gain = ctx.createGain();
                 gain.gain.value = 0;
 
                 const osc = ctx.createOscillator();
                 osc.type = 'sine';
-                osc.frequency.value = noteToFreq(36); // C5
-
-                // Subtle vibrato
-                const vibrato = ctx.createOscillator();
-                const vibGain = ctx.createGain();
-                vibrato.frequency.value = 4;
-                vibGain.gain.value = 3;
-                vibrato.connect(vibGain);
-                vibGain.connect(osc.frequency);
-                vibrato.start();
+                osc.frequency.value = 40; // Very low
 
                 const oscGain = ctx.createGain();
-                oscGain.gain.value = 0.12;
+                oscGain.gain.value = 0.8;
 
                 osc.connect(oscGain);
                 oscGain.connect(gain);
@@ -263,62 +214,27 @@ const DwellAudio = (function() {
 
                 osc.start();
 
-                return { gain, nodes: [osc, vibrato] };
+                return { gain, nodes: [osc] };
             }
         },
         {
-            // 5. Deep bass - sub frequencies
-            name: 'abyss',
-            x: 0.2, y: 0.75,
+            // 4. RHYTHMIC CLICKS - bottom right corner
+            name: 'clicks',
+            x: 0.9, y: 0.9,
             create: function(ctx, output) {
                 const gain = ctx.createGain();
                 gain.gain.value = 0;
 
-                const osc = ctx.createOscillator();
-                osc.type = 'sine';
-                osc.frequency.value = noteToFreq(-12); // C1 (very low)
-
-                // Very slow pitch drift
-                const lfo = ctx.createOscillator();
-                const lfoGain = ctx.createGain();
-                lfo.frequency.value = 0.02;
-                lfoGain.gain.value = 2;
-                lfo.connect(lfoGain);
-                lfoGain.connect(osc.frequency);
-                lfo.start();
-
-                const oscGain = ctx.createGain();
-                oscGain.gain.value = 0.4;
-
-                osc.connect(oscGain);
-                oscGain.connect(gain);
-                gain.connect(output);
-
-                osc.start();
-
-                return { gain, nodes: [osc, lfo] };
-            }
-        },
-        {
-            // 6. Clicks/pops - irregular percussive
-            name: 'static',
-            x: 0.4, y: 0.3,
-            create: function(ctx, output) {
-                const gain = ctx.createGain();
-                gain.gain.value = 0;
-
-                // We'll use a noise burst approach with scheduling
                 const clickGain = ctx.createGain();
-                clickGain.gain.value = 0;
+                clickGain.gain.value = 1;
                 clickGain.connect(gain);
                 gain.connect(output);
 
-                // Schedule random clicks
                 let clickTimeout;
                 function scheduleClick() {
                     if (!isRunning) return;
 
-                    const interval = 200 + seededRandom() * 2000;
+                    const interval = 100 + seededRandom() * 300; // Fast clicks
                     clickTimeout = setTimeout(() => {
                         if (!isRunning || !ctx) return;
 
@@ -327,17 +243,16 @@ const DwellAudio = (function() {
                         const clickEnv = ctx.createGain();
 
                         clickOsc.type = 'square';
-                        clickOsc.frequency.value = 100 + seededRandom() * 400;
+                        clickOsc.frequency.value = 1000 + seededRandom() * 2000;
 
-                        clickEnv.gain.setValueAtTime(0.3, now);
-                        clickEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+                        clickEnv.gain.setValueAtTime(0.6, now);
+                        clickEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.01);
 
                         clickOsc.connect(clickEnv);
                         clickEnv.connect(clickGain);
-                        clickGain.gain.value = 1;
 
                         clickOsc.start(now);
-                        clickOsc.stop(now + 0.03);
+                        clickOsc.stop(now + 0.02);
 
                         scheduleClick();
                     }, interval);
@@ -353,38 +268,41 @@ const DwellAudio = (function() {
             }
         },
         {
-            // 7. Beating/textural - two detuned oscillators
-            name: 'interference',
-            x: 0.65, y: 0.45,
+            // 5. WOBBLING MID - center
+            name: 'wobble',
+            x: 0.5, y: 0.5,
             create: function(ctx, output) {
                 const gain = ctx.createGain();
                 gain.gain.value = 0;
 
-                const osc1 = ctx.createOscillator();
-                const osc2 = ctx.createOscillator();
-                osc1.type = 'sawtooth';
-                osc2.type = 'sawtooth';
-                osc1.frequency.value = noteToFreq(19); // G3
-                osc2.frequency.value = noteToFreq(19) * 1.008; // Beating
+                const osc = ctx.createOscillator();
+                osc.type = 'sawtooth';
+                osc.frequency.value = 220; // A3
+
+                // Fast wobble
+                const lfo = ctx.createOscillator();
+                const lfoGain = ctx.createGain();
+                lfo.frequency.value = 3; // 3Hz wobble
+                lfoGain.gain.value = 50;
+                lfo.connect(lfoGain);
+                lfoGain.connect(osc.frequency);
+                lfo.start();
 
                 const filter = ctx.createBiquadFilter();
                 filter.type = 'lowpass';
-                filter.frequency.value = 800;
-                filter.Q.value = 2;
+                filter.frequency.value = 600;
 
                 const oscGain = ctx.createGain();
-                oscGain.gain.value = 0.15;
+                oscGain.gain.value = 0.5;
 
-                osc1.connect(filter);
-                osc2.connect(filter);
+                osc.connect(filter);
                 filter.connect(oscGain);
                 oscGain.connect(gain);
                 gain.connect(output);
 
-                osc1.start();
-                osc2.start();
+                osc.start();
 
-                return { gain, nodes: [osc1, osc2] };
+                return { gain, nodes: [osc, lfo] };
             }
         }
     ];
@@ -426,25 +344,25 @@ const DwellAudio = (function() {
     function updateSpatial() {
         if (!audioContext || !isRunning) return;
 
-        // X = panning (-1 to 1) - for global atmosphere
+        // X = panning (-1 to 1) - FULL stereo
         const pan = (position.x - 0.5) * 2;
-        smoothParam(pannerNode.pan, pan, 0.05);
+        smoothParam(pannerNode.pan, pan, 0.02); // Faster response
 
         // Y = depth (0 = close/bright, 1 = far/muffled)
         const depth = position.y;
 
-        // Filter: dramatic sweep
-        const filterFreq = 400 + (1 - depth) * 11600;
-        smoothParam(filterNode.frequency, filterFreq, 0.08);
+        // Filter: EXTREME sweep - 200Hz to 16000Hz
+        const filterFreq = 200 + (1 - depth) * 15800;
+        smoothParam(filterNode.frequency, filterFreq, 0.03); // Faster
 
-        // Reverb: always some, more when far
-        const reverbAmount = 0.15 + depth * 0.55;
-        smoothParam(reverbGain.gain, reverbAmount, 0.1);
+        // Reverb: dramatic difference
+        const reverbAmount = 0.1 + depth * 0.8;
+        smoothParam(reverbGain.gain, reverbAmount, 0.05);
 
-        // Delay: subtle when close, prominent when far
-        const delayAmount = 0.05 + depth * 0.45;
-        smoothParam(delayGain.gain, delayAmount, 0.1);
-        smoothParam(delayFeedback.gain, 0.15 + depth * 0.45, 0.1);
+        // Delay: none to lots
+        const delayAmount = depth * 0.7;
+        smoothParam(delayGain.gain, delayAmount, 0.05);
+        smoothParam(delayFeedback.gain, depth * 0.6, 0.05);
 
         // Update positioned sources
         updateSourceGains();
@@ -481,7 +399,7 @@ const DwellAudio = (function() {
             voicePan.pan.value = voice.pan;
 
             const oscGain = audioContext.createGain();
-            oscGain.gain.value = 0.12 / (i + 1); // Slightly lower for balance with sources
+            oscGain.gain.value = 0.04 / (i + 1); // VERY quiet - just background
 
             osc.connect(oscGain);
             oscGain.connect(voicePan);
@@ -491,7 +409,7 @@ const DwellAudio = (function() {
             droneNodes.push({ osc, lfo, oscGain, pan: voicePan });
         });
 
-        droneGain.gain.setTargetAtTime(1, audioContext.currentTime, 3);
+        droneGain.gain.setTargetAtTime(0.5, audioContext.currentTime, 3); // Lower
 
         return droneGain;
     }
@@ -566,7 +484,7 @@ const DwellAudio = (function() {
         noiseL.start();
         noiseR.start();
 
-        textureGain.gain.setTargetAtTime(0.08, audioContext.currentTime, 4);
+        textureGain.gain.setTargetAtTime(0.03, audioContext.currentTime, 4); // VERY quiet
 
         return { noiseL, noiseR, lfoL, lfoR, bpL, bpR, gain: textureGain };
     }
