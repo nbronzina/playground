@@ -23,7 +23,9 @@ const DwellAudio = (function() {
 
     // Current position (0-1)
     let position = { x: 0.5, y: 0.5 };
-    let targetPosition = { x: 0.5, y: 0.5 };
+
+    // Smoothing factor - higher = faster response
+    const SMOOTHING = 0.15;
 
     // Seeded random
     let seed = Date.now();
@@ -118,31 +120,28 @@ const DwellAudio = (function() {
     function updateSpatial() {
         if (!audioContext || !isRunning) return;
 
-        // Smooth position interpolation
-        position.x += (targetPosition.x - position.x) * 0.1;
-        position.y += (targetPosition.y - position.y) * 0.1;
-
-        const now = audioContext.currentTime;
-
-        // X = panning (-1 to 1)
+        // X = panning (-1 to 1) - direct, fast response
         const pan = (position.x - 0.5) * 2;
-        smoothParam(pannerNode.pan, pan, 0.1);
+        smoothParam(pannerNode.pan, pan, 0.05);
 
-        // Y = depth (0 = close/dry, 1 = far/wet)
+        // Y = depth (0 = close/bright, 1 = far/muffled)
         const depth = position.y;
 
-        // Filter: close = bright, far = muffled
-        const filterFreq = 2000 + (1 - depth) * 10000;
-        smoothParam(filterNode.frequency, filterFreq, 0.2);
+        // Filter: dramatic sweep - close = very bright, far = muffled
+        // Range: 400 Hz (far) to 12000 Hz (close)
+        const filterFreq = 400 + (1 - depth) * 11600;
+        smoothParam(filterNode.frequency, filterFreq, 0.08);
 
-        // Reverb: more when far
-        const reverbAmount = depth * 0.6;
-        smoothParam(reverbGain.gain, reverbAmount, 0.3);
+        // Reverb: always some, more when far
+        // Range: 0.15 (close) to 0.7 (far)
+        const reverbAmount = 0.15 + depth * 0.55;
+        smoothParam(reverbGain.gain, reverbAmount, 0.1);
 
-        // Delay: more when far
-        const delayAmount = depth * 0.4;
-        smoothParam(delayGain.gain, delayAmount, 0.3);
-        smoothParam(delayFeedback.gain, 0.2 + depth * 0.4, 0.3);
+        // Delay: subtle when close, prominent when far
+        // Range: 0.05 (close) to 0.5 (far)
+        const delayAmount = 0.05 + depth * 0.45;
+        smoothParam(delayGain.gain, delayAmount, 0.1);
+        smoothParam(delayFeedback.gain, 0.15 + depth * 0.45, 0.1);
 
         requestAnimationFrame(updateSpatial);
     }
@@ -153,35 +152,40 @@ const DwellAudio = (function() {
         droneGain.gain.value = 0;
         droneGain.connect(pannerNode);
 
-        // Multiple low oscillators with slight detuning
-        const freqs = [
-            noteToFreq(0),      // C2
-            noteToFreq(0) * 2,  // C3
-            noteToFreq(7),      // G2
+        // Multiple low oscillators with stereo spread
+        const voices = [
+            { freq: noteToFreq(0), type: 'sine', pan: -0.3 },       // C2 left
+            { freq: noteToFreq(0) * 2, type: 'triangle', pan: 0 }, // C3 center
+            { freq: noteToFreq(7), type: 'triangle', pan: 0.3 },   // G2 right
         ];
 
-        freqs.forEach((freq, i) => {
+        voices.forEach((voice, i) => {
             const osc = audioContext.createOscillator();
-            osc.type = i === 0 ? 'sine' : 'triangle';
-            osc.frequency.value = freq;
+            osc.type = voice.type;
+            osc.frequency.value = voice.freq;
 
             // Subtle drift
             const lfo = audioContext.createOscillator();
             const lfoGain = audioContext.createGain();
             lfo.frequency.value = 0.05 + seededRandom() * 0.1;
-            lfoGain.gain.value = freq * 0.002;
+            lfoGain.gain.value = voice.freq * 0.003;
             lfo.connect(lfoGain);
             lfoGain.connect(osc.frequency);
             lfo.start();
+
+            // Individual panner for stereo width
+            const voicePan = audioContext.createStereoPanner();
+            voicePan.pan.value = voice.pan;
 
             const oscGain = audioContext.createGain();
             oscGain.gain.value = 0.15 / (i + 1);
 
             osc.connect(oscGain);
-            oscGain.connect(droneGain);
+            oscGain.connect(voicePan);
+            voicePan.connect(droneGain);
             osc.start();
 
-            droneNodes.push({ osc, lfo, oscGain });
+            droneNodes.push({ osc, lfo, oscGain, pan: voicePan });
         });
 
         // Fade in
@@ -196,41 +200,80 @@ const DwellAudio = (function() {
         textureGain.gain.value = 0;
         textureGain.connect(pannerNode);
 
-        // Filtered noise
+        // Stereo filtered noise - two independent noise sources
         const bufferSize = audioContext.sampleRate * 4;
-        const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
-        const data = noiseBuffer.getChannelData(0);
+
+        // Left channel noise
+        const noiseBufferL = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+        const dataL = noiseBufferL.getChannelData(0);
         for (let i = 0; i < bufferSize; i++) {
-            data[i] = seededRandom() * 2 - 1;
+            dataL[i] = seededRandom() * 2 - 1;
         }
 
-        const noise = audioContext.createBufferSource();
-        noise.buffer = noiseBuffer;
-        noise.loop = true;
+        // Right channel noise (different random values)
+        const noiseBufferR = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+        const dataR = noiseBufferR.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            dataR[i] = seededRandom() * 2 - 1;
+        }
 
-        // Bandpass filter for texture character
-        const bp = audioContext.createBiquadFilter();
-        bp.type = 'bandpass';
-        bp.frequency.value = 400;
-        bp.Q.value = 2;
+        const noiseL = audioContext.createBufferSource();
+        noiseL.buffer = noiseBufferL;
+        noiseL.loop = true;
 
-        // Slow modulation of filter
-        const lfo = audioContext.createOscillator();
-        const lfoGain = audioContext.createGain();
-        lfo.frequency.value = 0.03;
-        lfoGain.gain.value = 300;
-        lfo.connect(lfoGain);
-        lfoGain.connect(bp.frequency);
-        lfo.start();
+        const noiseR = audioContext.createBufferSource();
+        noiseR.buffer = noiseBufferR;
+        noiseR.loop = true;
 
-        noise.connect(bp);
-        bp.connect(textureGain);
-        noise.start();
+        // Bandpass filters with slightly different frequencies for width
+        const bpL = audioContext.createBiquadFilter();
+        bpL.type = 'bandpass';
+        bpL.frequency.value = 350;
+        bpL.Q.value = 2;
 
-        // Very subtle
-        textureGain.gain.setTargetAtTime(0.08, audioContext.currentTime, 4);
+        const bpR = audioContext.createBiquadFilter();
+        bpR.type = 'bandpass';
+        bpR.frequency.value = 450;
+        bpR.Q.value = 2;
 
-        return { noise, lfo, bp, gain: textureGain };
+        // Slow modulation of filters
+        const lfoL = audioContext.createOscillator();
+        const lfoGainL = audioContext.createGain();
+        lfoL.frequency.value = 0.03;
+        lfoGainL.gain.value = 250;
+        lfoL.connect(lfoGainL);
+        lfoGainL.connect(bpL.frequency);
+        lfoL.start();
+
+        const lfoR = audioContext.createOscillator();
+        const lfoGainR = audioContext.createGain();
+        lfoR.frequency.value = 0.04; // Slightly different rate
+        lfoGainR.gain.value = 300;
+        lfoR.connect(lfoGainR);
+        lfoGainR.connect(bpR.frequency);
+        lfoR.start();
+
+        // Stereo panners
+        const panL = audioContext.createStereoPanner();
+        panL.pan.value = -0.6;
+        const panR = audioContext.createStereoPanner();
+        panR.pan.value = 0.6;
+
+        noiseL.connect(bpL);
+        bpL.connect(panL);
+        panL.connect(textureGain);
+
+        noiseR.connect(bpR);
+        bpR.connect(panR);
+        panR.connect(textureGain);
+
+        noiseL.start();
+        noiseR.start();
+
+        // Subtle but present
+        textureGain.gain.setTargetAtTime(0.1, audioContext.currentTime, 4);
+
+        return { noiseL, noiseR, lfoL, lfoR, bpL, bpR, gain: textureGain };
     }
 
     // === EVENT LAYER ===
@@ -327,8 +370,9 @@ const DwellAudio = (function() {
         },
 
         setPosition: function(x, y) {
-            targetPosition.x = Math.max(0, Math.min(1, x));
-            targetPosition.y = Math.max(0, Math.min(1, y));
+            // Direct update - smoothing handled in updateSpatial via setTargetAtTime
+            position.x = Math.max(0, Math.min(1, x));
+            position.y = Math.max(0, Math.min(1, y));
         },
 
         isRunning: function() {
