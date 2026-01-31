@@ -126,27 +126,34 @@ const DwellAudio = (function() {
     // Source definitions - each VERY DISTINCT timbre, spread to corners
     const SOURCE_DEFINITIONS = [
         {
-            // 1. HIGH PITCHED BELL - top left corner
+            // 1. WARM BELL - top left corner
             name: 'bell',
             x: 0.1, y: 0.1,
             create: function(ctx, output) {
                 const gain = ctx.createGain();
                 gain.gain.value = 0;
 
-                // Bell-like: high sine with fast decay harmonics
+                // Warm bell: triangle waves, lower register
                 const osc1 = ctx.createOscillator();
                 const osc2 = ctx.createOscillator();
-                osc1.type = 'sine';
-                osc2.type = 'sine';
-                osc1.frequency.value = 880; // A5
-                osc2.frequency.value = 880 * 2.4; // Inharmonic partial
+                osc1.type = 'triangle';
+                osc2.type = 'triangle';
+                osc1.frequency.value = 440; // A4
+                osc2.frequency.value = 440 * 1.5; // E5 (fifth)
+
+                // Lowpass filter to soften
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 1800;
+                filter.Q.value = 0.5;
 
                 const oscGain = ctx.createGain();
-                oscGain.gain.value = 0.5;
+                oscGain.gain.value = 0.4;
 
                 osc1.connect(oscGain);
                 osc2.connect(oscGain);
-                oscGain.connect(gain);
+                oscGain.connect(filter);
+                filter.connect(gain);
                 gain.connect(output);
 
                 osc1.start();
@@ -268,40 +275,47 @@ const DwellAudio = (function() {
             }
         },
         {
-            // 5. BREATHING PAD - center (calm, ambient)
+            // 5. BREATHING PAD - center (calm refuge)
             name: 'breath',
             x: 0.5, y: 0.5,
             create: function(ctx, output) {
                 const gain = ctx.createGain();
                 gain.gain.value = 0;
 
-                // Soft chord: C + E + G (major triad, high register)
+                // Soft chord: C + E + G (major triad, LOW register)
                 const osc1 = ctx.createOscillator();
                 const osc2 = ctx.createOscillator();
                 const osc3 = ctx.createOscillator();
                 osc1.type = 'sine';
                 osc2.type = 'sine';
                 osc3.type = 'sine';
-                osc1.frequency.value = 523; // C5
-                osc2.frequency.value = 659; // E5
-                osc3.frequency.value = 784; // G5
+                osc1.frequency.value = 131; // C3
+                osc2.frequency.value = 165; // E3
+                osc3.frequency.value = 196; // G3
+
+                // Lowpass filter for warmth
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 800;
+                filter.Q.value = 0.3;
 
                 // Very slow volume breathing
                 const lfo = ctx.createOscillator();
                 const lfoGain = ctx.createGain();
-                lfo.frequency.value = 0.1; // Very slow breath
-                lfoGain.gain.value = 0.15;
+                lfo.frequency.value = 0.08; // Even slower breath
+                lfoGain.gain.value = 0.1;
                 lfo.start();
 
                 const chordGain = ctx.createGain();
-                chordGain.gain.value = 0.2;
+                chordGain.gain.value = 0.25;
                 lfo.connect(lfoGain);
                 lfoGain.connect(chordGain.gain);
 
                 osc1.connect(chordGain);
                 osc2.connect(chordGain);
                 osc3.connect(chordGain);
-                chordGain.connect(gain);
+                chordGain.connect(filter);
+                filter.connect(gain);
                 gain.connect(output);
 
                 osc1.start();
