@@ -254,30 +254,37 @@ function createHardClipCurve(limit, gain) {
 function cleanupVoice(voice) {
     if (!voice || !voice.nodes) return;
 
-    voice.nodes.forEach(node => {
-        try {
-            if (node.stop && typeof node.stop === 'function') {
-                try { node.stop(); } catch(e) {}
-            }
-            if (node.disconnect && typeof node.disconnect === 'function') {
-                node.disconnect();
-            }
-            // Clear buffer references
-            if (node.buffer) {
-                node.buffer = null;
-            }
-        } catch(e) {
-            // Node may already be disconnected
-        }
-    });
+    const nodesToDisconnect = voice.nodes;
+    voice.nodes = null;
 
     // Cancel any animation frames
     if (voice.animationIds) {
         voice.animationIds.forEach(id => cancelAnimationFrame(id));
     }
-
-    voice.nodes = null;
     voice.animationIds = null;
+
+    // stop() first, then disconnect() after 100ms
+    // — gives the audio thread time to finish its current render quantum
+    nodesToDisconnect.forEach(node => {
+        try {
+            if (node.stop && typeof node.stop === 'function') {
+                try { node.stop(); } catch(e) {}
+            }
+        } catch(e) {}
+    });
+
+    setTimeout(() => {
+        nodesToDisconnect.forEach(node => {
+            try {
+                if (node.disconnect && typeof node.disconnect === 'function') {
+                    node.disconnect();
+                }
+                if (node.buffer) {
+                    node.buffer = null;
+                }
+            } catch(e) {}
+        });
+    }, 100);
 }
 
 // Register a new drum voice and limit active voices
