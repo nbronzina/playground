@@ -9,60 +9,62 @@ author: interplay
 ---
 
 ## 1. Intent
-Diagnostic + fix. Confirm whether MK1.utils.forceCleanup() properly
-disconnects AudioNodes or only silences them. If nodes are orphaned,
-implement the correct teardown pattern.
+Connect driftGain and lfoGain modulation routing in the synth engine.
+The piano should feel alive — subtle pitch drift and LFO movement,
+never static, never mechanical.
 
 ## 2. Constraints
-- Do not change synthesis behavior
-- Do not change the FX chain
-- Do not change the looper
-- Audio must sound identical before and after the fix
-- Fix must not introduce new allocations inside AudioWorklet process()
+- Do not change the synthesis architecture
+- Do not change existing FX chain
+- Do not change drums or looper
+- Modulation must be subtle by default — movement, not vibrato
+- Must follow the safe parameter write pattern (no direct .value assignment)
+- Must not introduce allocations inside AudioWorklet process()
 
 ## 3. Decisions already made
-n0body calls MK1.drums.hit() and MK1.synth.play() continuously.
-Each call creates transient OscillatorNode + GainNode pairs.
-In a 60-minute session this generates 1,200–6,000+ nodes.
+driftGain and lfoGain exist in the code but their outputs
+are never connected to any AudioParam destination.
 
-Correct teardown pattern (from audio engine research):
-  node.stop()
-  setTimeout(() => node.disconnect(), 100)
+Expected routing (from behavioral-patterns.md):
+- driftGain output → oscillator.detune
+  (tape wobble: LFO 0.1–0.3 semitones, rate 0.1–0.3 Hz)
+- lfoGain output → filter.frequency or oscillator.frequency
+  (slow movement, below threshold of obvious vibrato)
 
-This must be applied to every transient node created in drums and synth.
-
-forceCleanup() is called reactively every 60s by n0body's health monitor.
-If it only silences nodes (gain to 0) without disconnecting them,
-the AudioContext graph grows unbounded and degrades.
+These values produce organic movement without being audible
+as an effect — the listener experiences texture, not modulation.
 
 ## 4. What was deliberately not done
-- No changes to n0body — mk-1 owns its own node lifecycle
-- No SharedArrayBuffer — deployment complexity not justified yet
-- No AudioWorklet refactor for drum engine — separate future BRIEF
+- No new UI controls for drift/LFO depth — invisible by default
+- No user-facing parameters exposed yet
+- No changes to n0body's parameter surface (separate BRIEF if needed)
 
 ## 5. Vocabulary
-- zombie nodes: AudioNodes connected to the graph but silent,
-  never disconnected after playback ends
-- forceCleanup(): MK1.utils method called by n0body's health monitor
-- teardown pattern: stop() → setTimeout(disconnect, 100)
+- driftGain: GainNode controlling pitch drift depth on oscillator
+- lfoGain: GainNode controlling LFO modulation depth
+- detune: AudioParam on OscillatorNode (in cents, 100 cents = 1 semitone)
+- tape wobble: subtle random pitch drift simulating analog imperfection
 
 ## 6. Success criterion
-1. Confirm whether forceCleanup() calls disconnect() on completed nodes
-2. If not: add disconnect() to all transient node teardowns in
-   drums and synth
-3. After fix: a 90-minute n0body session shows no AudioContext degradation
-4. forceCleanup() explicitly disconnects all tracked nodes, not just stops them
+1. driftGain output connected to oscillator.detune
+2. lfoGain output connected to appropriate destination
+3. Playing a sustained note on any wave type produces
+   subtle, organic pitch movement
+4. Movement is not audible as vibrato — it's felt as texture
+5. n0body sessions show more expressive piano behavior
 
 ## 7. Do not touch
 - bitcrusher-processor.js
 - mk-dwell/
-- playground-core.css
-- The looper slots (A/B/C/D)
+- drums engine
+- looper slots
+- FX chain order
 
 ## 8. Resume prompt
-Audit mk-1.js for AudioNode lifecycle management. Confirm whether
-MK1.utils.forceCleanup() disconnects nodes or only silences them.
-Check drums.hit() and synth.play() — every transient OscillatorNode
-and GainNode must call stop() then setTimeout(() => disconnect(), 100)
-after playback. If zombie nodes exist, implement the teardown pattern
-throughout. Do not change synthesis behavior, FX chain, or looper.
+Connect the missing modulation routing in mk-1.js synth engine.
+driftGain output must connect to oscillator.detune (tape wobble:
+0.1-0.3 semitones, LFO rate 0.1-0.3 Hz). lfoGain output must connect
+to its intended destination — check the existing LFO source to confirm
+the correct target. Modulation must be subtle by default: movement
+felt as texture, not heard as vibrato. Do not change synthesis
+architecture, FX chain, drums, or looper.

@@ -1628,9 +1628,11 @@ function playNote(freq, skipRecording = false) {
         });
         const lfo = audioContext.createOscillator();
         const lfoGain = audioContext.createGain();
-        lfo.frequency.value = 4 + Math.random() * 2;
-        lfoGain.gain.value = 30;
+        lfo.frequency.setValueAtTime(1.0 + Math.random() * 1.0, now);
+        lfoGain.gain.setValueAtTime(20, now);
         lfo.connect(lfoGain);
+        lfoGain.connect(source.detune);
+        lfoGain.connect(source2.detune);
         formantMix.connect(saturator);
         source.start(now);
         source2.start(now);
@@ -1746,9 +1748,10 @@ function playNote(freq, skipRecording = false) {
         const driftLFO = audioContext.createOscillator();
         const driftGain = audioContext.createGain();
         driftLFO.type = 'sine';
-        driftLFO.frequency.value = 0.2 + Math.random() * 0.5;
-        driftGain.gain.value = 3;
+        driftLFO.frequency.setValueAtTime(0.1 + Math.random() * 0.2, now);
+        driftGain.gain.setValueAtTime(15, now);
         driftLFO.connect(driftGain);
+        driftGain.connect(subOsc.detune);
         subOsc.start(now);
         driftLFO.start(now);
         subOsc.stop(now + release);

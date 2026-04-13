@@ -98,6 +98,9 @@ playground/
 - Sequencer: 8-track × 16-step
 - Tempo: 120 BPM master clock
 - Broadcast: direct link to mk-air
+- Modulation: driftLFO → subOsc.detune (tape wobble, 0.1–0.3 Hz, ±15 cents)
+- Modulation: lfoGain → formant detune (slow organic movement, 1–2 Hz, ±20 cents)
+- Node lifecycle: stop() → setTimeout(disconnect, 100) pattern throughout
 
 **mk-dwell**
 - Cursor position → spatial audio field
