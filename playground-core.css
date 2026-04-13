@@ -37,6 +37,11 @@
     --status-planned: #999;
     --status-beta: #ff9500;
 
+    /* Accent */
+    --accent: #ff9500;
+    --accent-bg: rgba(255, 149, 0, 0.08);
+    --accent-text: #cc7700;
+
     /* Typography scale */
     --letter-spacing-tight: 0.02em;
     --letter-spacing-normal: 0.03em;
@@ -74,6 +79,11 @@
     --status-live: #00ff00;
     --status-planned: #666;
     --status-beta: #ff9500;
+
+    /* Accent */
+    --accent: #ff9500;
+    --accent-bg: rgba(255, 149, 0, 0.08);
+    --accent-text: #ff9500;
 }
 
 /* === BODY BASE === */

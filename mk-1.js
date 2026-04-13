@@ -180,13 +180,6 @@ const SYNTH_DEFAULTS = {
 };
 
 const ANIMATION_CONSTANTS = {
-    VIBE_BASE_RADIUS: 80,
-    VIBE_SCALE_FACTOR: 0.15,
-    VIBE_LERP_SPEED: 0.15,
-    VIBE_VOLUME_THRESHOLD_LOW: 0.02,
-    VIBE_VOLUME_THRESHOLD_MID: 0.05,
-    VIBE_VOLUME_THRESHOLD_HIGH: 0.15,
-    VIBE_TRICK_DURATION: 2000,
     VIZ_LINE_WIDTH: 2
 };
 
@@ -523,159 +516,16 @@ const notes = {
     'C5': 523.25
 };
 
-// Vibe Circle Animation
-let vibeCircle = document.getElementById('vibeCircleMain');
-let vibeEyeLeft = document.getElementById('vibeEyeLeft');
-let vibeEyeRight = document.getElementById('vibeEyeRight');
-let vibeMouth = document.getElementById('vibeMouth');
-let vibeBaseRadius = ANIMATION_CONSTANTS.VIBE_BASE_RADIUS;
-let vibeCurrentScale = 1;
-let vibeTargetScale = 1;
-let vibeMouthState = 'neutral';
-let vibeIsDoingTrick = false;
-let lastVibeExpression = null;
-
-const vibeExpressions = [
-    {
-        name: 'glitch',
-        eyes: () => {
-            vibeEyeLeft.setAttribute('cx', '65');
-            vibeEyeLeft.setAttribute('cy', '75');
-            vibeEyeRight.setAttribute('cx', '135');
-            vibeEyeRight.setAttribute('cy', '95');
-            vibeEyeLeft.setAttribute('r', '2');
-            vibeEyeRight.setAttribute('r', '6');
-        },
-        mouth: 'M 60 115 L 70 120 L 80 115 L 90 125 L 100 115 L 110 120 L 120 115 L 130 125 L 140 115'
-    },
-    {
-        name: 'melt',
-        eyes: () => {
-            vibeEyeLeft.setAttribute('cy', '95');
-            vibeEyeRight.setAttribute('cy', '95');
-            vibeEyeLeft.setAttribute('ry', '8');
-            vibeEyeRight.setAttribute('ry', '8');
-            vibeEyeLeft.setAttribute('r', '3');
-            vibeEyeRight.setAttribute('r', '3');
-        },
-        mouth: 'M 70 130 Q 100 135 130 130'
-    },
-    {
-        name: 'zen',
-        eyes: () => {
-            vibeEyeLeft.setAttribute('r', '1');
-            vibeEyeRight.setAttribute('r', '1');
-        },
-        mouth: 'M 80 115 L 120 115'
-    },
-    {
-        name: 'vibrate',
-        eyes: () => {
-            vibeEyeLeft.setAttribute('cx', '73');
-            vibeEyeLeft.setAttribute('cy', '83');
-            vibeEyeRight.setAttribute('cx', '127');
-            vibeEyeRight.setAttribute('cy', '87');
-            vibeEyeLeft.setAttribute('r', '5');
-            vibeEyeRight.setAttribute('r', '5');
-        },
-        mouth: 'M 68 115 Q 75 120 82 115 Q 90 110 98 115 Q 106 120 114 115 Q 122 110 130 115'
-    },
-    {
-        name: 'flip',
-        eyes: () => {
-            vibeEyeLeft.setAttribute('cy', '115');
-            vibeEyeRight.setAttribute('cy', '115');
-            vibeEyeLeft.setAttribute('r', '4');
-            vibeEyeRight.setAttribute('r', '4');
-        },
-        mouth: 'M 70 85 Q 100 75 130 85'
-    },
-    {
-        name: 'spiral',
-        eyes: () => {
-            vibeEyeLeft.setAttribute('cx', '70');
-            vibeEyeLeft.setAttribute('cy', '80');
-            vibeEyeRight.setAttribute('cx', '130');
-            vibeEyeRight.setAttribute('cy', '90');
-            vibeEyeLeft.setAttribute('r', '2');
-            vibeEyeRight.setAttribute('r', '7');
-        },
-        mouth: 'M 100 115 Q 110 120 115 115 Q 118 108 112 105'
-    },
-    {
-        name: 'wink',
-        eyes: () => {
-            vibeEyeLeft.setAttribute('r', '4');
-            vibeEyeRight.setAttribute('ry', '1');
-            vibeEyeRight.setAttribute('r', '4');
-        },
-        mouth: 'M 70 115 Q 100 130 130 115'
-    },
-    {
-        name: 'surprised',
-        eyes: () => {
-            vibeEyeLeft.setAttribute('r', '7');
-            vibeEyeRight.setAttribute('r', '7');
-        },
-        mouth: 'M 90 120 Q 100 130 110 120 Q 100 110 90 120'
-    },
-    {
-        name: 'sleepy',
-        eyes: () => {
-            vibeEyeLeft.setAttribute('ry', '1');
-            vibeEyeRight.setAttribute('ry', '1');
-            vibeEyeLeft.setAttribute('cy', '90');
-            vibeEyeRight.setAttribute('cy', '90');
-        },
-        mouth: 'M 80 118 Q 100 115 120 118'
-    },
-    {
-        name: 'dizzy',
-        eyes: () => {
-            vibeEyeLeft.setAttribute('cx', '80');
-            vibeEyeLeft.setAttribute('cy', '80');
-            vibeEyeRight.setAttribute('cx', '120');
-            vibeEyeRight.setAttribute('cy', '90');
-            vibeEyeLeft.setAttribute('r', '3');
-            vibeEyeRight.setAttribute('r', '5');
-        },
-        mouth: 'M 75 120 Q 85 110 100 120 Q 115 130 125 115'
-    }
-];
-
-function doRandomVibeTrick() {
-    if (vibeIsDoingTrick) return;
-    
-    vibeIsDoingTrick = true;
-    
-    let availableExpressions = vibeExpressions;
-    if (lastVibeExpression !== null) {
-        availableExpressions = vibeExpressions.filter((expr, index) => index !== lastVibeExpression);
-    }
-    
-    const randomIndex = Math.floor(Math.random() * availableExpressions.length);
-    const expression = availableExpressions[randomIndex];
-    
-    lastVibeExpression = vibeExpressions.indexOf(expression);
-    
-    expression.eyes();
-    vibeMouth.setAttribute('d', expression.mouth);
-    
-    setTimeout(() => {
-        vibeIsDoingTrick = false;
-        vibeEyeLeft.setAttribute('cx', '75');
-        vibeEyeLeft.setAttribute('cy', '85');
-        vibeEyeLeft.setAttribute('r', '4');
-        vibeEyeLeft.setAttribute('ry', '4');
-        vibeEyeRight.setAttribute('cx', '125');
-        vibeEyeRight.setAttribute('cy', '85');
-        vibeEyeRight.setAttribute('r', '4');
-        vibeEyeRight.setAttribute('ry', '4');
-        vibeMouth.setAttribute('d', 'M 70 115 Q 100 125 130 115');
-    }, ANIMATION_CONSTANTS.VIBE_TRICK_DURATION);
+// Vibe Matrix Animation
+const vibeMatrix = document.getElementById('vibeMatrix');
+const vibeCells = [];
+for (let i = 0; i < 32; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'vibe-cell';
+    vibeMatrix.appendChild(cell);
+    vibeCells.push(cell);
 }
-
-document.getElementById('vibeCircle').addEventListener('click', doRandomVibeTrick);
+let vibeDataArray = null;
 
 // ============================================
 // HELPER FUNCTIONS
@@ -725,68 +575,44 @@ function addTouchClick(element, handler) {
     });
 }
 
-function animateVibe() {
-    requestAnimationFrame(animateVibe);
-    
-    if (vibeIsDoingTrick) {
-        return;
-    }
-    
+function animateVibeMatrix() {
+    requestAnimationFrame(animateVibeMatrix);
+
     if (!isActive || !analyser) {
-        vibeEyeLeft.setAttribute('ry', '1');
-        vibeEyeRight.setAttribute('ry', '1');
-        vibeCurrentScale = 1;
-        vibeCircle.setAttribute('r', vibeBaseRadius);
-        vibeMouth.setAttribute('d', 'M 75 115 Q 100 118 125 115');
+        for (let i = 0; i < 32; i++) {
+            vibeCells[i].className = 'vibe-cell';
+        }
         return;
     }
-    
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    analyser.getByteFrequencyData(dataArray);
-    
-    let sum = 0;
-    for (let i = 0; i < bufferLength; i++) {
-        sum += dataArray[i];
+
+    if (!vibeDataArray) {
+        vibeDataArray = new Uint8Array(analyser.frequencyBinCount);
     }
-    const average = sum / bufferLength;
-    const normalizedVolume = average / 255;
+    analyser.getByteFrequencyData(vibeDataArray);
 
-    if (normalizedVolume > ANIMATION_CONSTANTS.VIBE_VOLUME_THRESHOLD_LOW) {
-        vibeEyeLeft.setAttribute('ry', '4');
-        vibeEyeRight.setAttribute('ry', '4');
-
-        vibeTargetScale = 1 + (normalizedVolume * ANIMATION_CONSTANTS.VIBE_SCALE_FACTOR);
-
-        if (normalizedVolume > ANIMATION_CONSTANTS.VIBE_VOLUME_THRESHOLD_HIGH) {
-            vibeMouth.setAttribute('d', 'M 70 110 Q 100 130 130 110');
-        } else if (normalizedVolume > ANIMATION_CONSTANTS.VIBE_VOLUME_THRESHOLD_MID) {
-            vibeMouth.setAttribute('d', 'M 70 115 Q 100 125 130 115');
-        } else {
-            vibeMouth.setAttribute('d', 'M 75 115 Q 100 120 125 115');
+    const bandSize = Math.floor(vibeDataArray.length / 8);
+    for (let col = 0; col < 8; col++) {
+        let sum = 0;
+        const start = col * bandSize;
+        for (let i = start; i < start + bandSize; i++) {
+            sum += vibeDataArray[i];
         }
-        
-        if (normalizedVolume > 0.2 && Math.random() > 0.98) {
-            vibeEyeLeft.setAttribute('ry', '1');
-            vibeEyeRight.setAttribute('ry', '1');
-            setTimeout(() => {
-                vibeEyeLeft.setAttribute('ry', '4');
-                vibeEyeRight.setAttribute('ry', '4');
-            }, 100);
+        const level = Math.min(4, Math.floor((sum / bandSize) / 40));
+
+        for (let row = 0; row < 4; row++) {
+            const cellIndex = row * 8 + col;
+            const rowFromBottom = 3 - row;
+
+            if (rowFromBottom < level) {
+                vibeCells[cellIndex].className = rowFromBottom === level - 1 ? 'vibe-cell lit' : 'vibe-cell dim';
+            } else {
+                vibeCells[cellIndex].className = 'vibe-cell';
+            }
         }
-    } else {
-        vibeEyeLeft.setAttribute('ry', '4');
-        vibeEyeRight.setAttribute('ry', '4');
-        vibeTargetScale = 1;
-        vibeMouth.setAttribute('d', 'M 75 115 Q 100 118 125 115');
     }
-    
-    vibeCurrentScale += (vibeTargetScale - vibeCurrentScale) * ANIMATION_CONSTANTS.VIBE_LERP_SPEED;
-    const newRadius = vibeBaseRadius * vibeCurrentScale;
-    vibeCircle.setAttribute('r', newRadius);
 }
 
-animateVibe();
+animateVibeMatrix();
 
 function initSystem() {
     if (!audioContext) {
@@ -2270,9 +2096,29 @@ keyboardLayoutElement.addEventListener('change', function(e) {
     showMessage('layout: ' + currentLayout);
 });
 
-// Initialize wave type custom select
+// Initialize wave type grid
 const waveTypeElement = document.getElementById('waveType');
-customSelectInstances.waveType = new CustomSelect(waveTypeElement);
+const waveGridBtns = waveTypeElement.querySelectorAll('.wave-grid-btn');
+waveGridBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        waveGridBtns.forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        waveTypeElement.dataset.value = btn.dataset.value;
+    });
+});
+customSelectInstances.waveType = {
+    get value() {
+        return waveTypeElement.dataset.value;
+    },
+    set value(newValue) {
+        const btn = Array.from(waveGridBtns).find(b => b.dataset.value === newValue);
+        if (btn) {
+            waveGridBtns.forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            waveTypeElement.dataset.value = newValue;
+        }
+    }
+};
 
 document.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();

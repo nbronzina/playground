@@ -290,22 +290,16 @@
                         <div class="control-label" style="margin-bottom: 0.5rem;">
                             <span>wave</span>
                         </div>
-                        <div class="custom-select" id="waveType" data-value="sine">
-                            <button class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
-                                <span class="custom-select-value">sine</span>
-                                <span class="custom-select-arrow">▼</span>
-                            </button>
-                            <ul class="custom-select-dropdown" role="listbox">
-                                <li class="custom-select-option selected" data-value="sine" role="option" tabindex="0">sine</li>
-                                <li class="custom-select-option" data-value="square" role="option" tabindex="0">square</li>
-                                <li class="custom-select-option" data-value="sawtooth" role="option" tabindex="0">saw</li>
-                                <li class="custom-select-option" data-value="triangle" role="option" tabindex="0">triangle</li>
-                                <li class="custom-select-option" data-value="pulse" role="option" tabindex="0">pulse</li>
-                                <li class="custom-select-option" data-value="noise" role="option" tabindex="0">noise</li>
-                                <li class="custom-select-option" data-value="string" role="option" tabindex="0">string</li>
-                                <li class="custom-select-option" data-value="formant" role="option" tabindex="0">voice</li>
-                                <li class="custom-select-option" data-value="vocoder" role="option" tabindex="0">vocoder</li>
-                            </ul>
+                        <div class="wave-grid" id="waveType" data-value="sine">
+                            <button class="wave-grid-btn selected" data-value="sine">sine</button>
+                            <button class="wave-grid-btn" data-value="square">square</button>
+                            <button class="wave-grid-btn" data-value="sawtooth">saw</button>
+                            <button class="wave-grid-btn" data-value="triangle">tri</button>
+                            <button class="wave-grid-btn" data-value="pulse">pulse</button>
+                            <button class="wave-grid-btn" data-value="noise">noise</button>
+                            <button class="wave-grid-btn" data-value="string">string</button>
+                            <button class="wave-grid-btn" data-value="formant">voice</button>
+                            <button class="wave-grid-btn" data-value="vocoder">vocoder</button>
                         </div>
                     </div>
                 </div>
@@ -398,12 +392,7 @@
                     <div class="module-desc">your music companion</div>
                 </div>
                 <div class="vibe-container-vertical">
-                    <svg id="vibeCircle" class="vibe-circle" viewBox="0 0 200 200">
-                        <circle id="vibeCircleMain" cx="100" cy="100" r="80" fill="none" stroke="var(--text-primary)" stroke-width="2"/>
-                        <circle id="vibeEyeLeft" cx="75" cy="85" r="4" fill="var(--text-primary)"/>
-                        <circle id="vibeEyeRight" cx="125" cy="85" r="4" fill="var(--text-primary)"/>
-                        <path id="vibeMouth" d="M 70 115 Q 100 125 130 115" fill="none" stroke="var(--text-primary)" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
+                    <div class="vibe-matrix" id="vibeMatrix"></div>
                 </div>
             </div>
 
