@@ -738,6 +738,14 @@ function initSystem() {
 
         window.bitcrusherMix = bitcrusherMix;
 
+        // Karplus-Strong worklet registration
+        window.karplusStrongReady = false;
+        if (audioContext.audioWorklet) {
+            audioContext.audioWorklet.addModule('karplus-strong-processor.js').then(() => {
+                window.karplusStrongReady = true;
+            }).catch(() => {});
+        }
+
         // Chorus effect using modulated delay
         const chorusDelay = audioContext.createDelay();
         chorusDelay.delayTime.value = 0.03; // 30ms base delay
@@ -1388,39 +1396,52 @@ function playNote(freq, skipRecording = false) {
         nodes.push(osc1, osc2, pulseGain, subOsc, subGain);
 
     } else if (wave === 'string') {
-        const sampleRate = audioContext.sampleRate;
-        const period = Math.round(sampleRate / freq);
         const duration = Math.max(release, 1.5);
-        const bufferSize = Math.ceil(sampleRate * duration);
-        const buffer = audioContext.createBuffer(1, bufferSize, sampleRate);
-        const data = buffer.getChannelData(0);
-        const delayLine = new Float32Array(period);
-        for (let i = 0; i < period; i++) delayLine[i] = (Math.random() * 2 - 1) * 0.8;
-        let readIndex = 0;
-        const damping = 0.996;
-        const brightness = 0.5;
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = delayLine[readIndex];
-            const nextIndex = (readIndex + 1) % period;
-            delayLine[readIndex] = (brightness * delayLine[readIndex] + (1 - brightness) * delayLine[nextIndex]) * damping;
-            readIndex = nextIndex;
-        }
-        const source = audioContext.createBufferSource();
-        source.buffer = buffer;
         const bodyFilter = audioContext.createBiquadFilter();
         bodyFilter.type = 'peaking';
-        bodyFilter.frequency.value = freq * 2;
+        bodyFilter.frequency.setValueAtTime(freq * 2, now);
         bodyFilter.Q.value = 1;
         bodyFilter.gain.value = 3;
         const stringGain = audioContext.createGain();
         stringGain.gain.setValueAtTime(0.6, now);
         stringGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-        source.connect(bodyFilter);
-        bodyFilter.connect(stringGain);
-        stringGain.connect(saturator);
-        source.start(now);
-        source.stop(now + duration);
-        nodes.push(source, bodyFilter, stringGain);
+
+        if (window.karplusStrongReady) {
+            const karplusNode = new AudioWorkletNode(audioContext, 'karplus-strong-processor', {
+                processorOptions: { frequency: freq }
+            });
+            karplusNode.connect(bodyFilter);
+            bodyFilter.connect(stringGain);
+            stringGain.connect(saturator);
+            setTimeout(() => {
+                karplusNode.port.postMessage({ stop: true });
+            }, duration * 1000);
+            nodes.push(karplusNode, bodyFilter, stringGain);
+        } else {
+            // Fallback: pre-computed buffer for environments without AudioWorklet
+            const sampleRate = audioContext.sampleRate;
+            const period = Math.round(sampleRate / freq);
+            const bufferSize = Math.ceil(sampleRate * duration);
+            const buffer = audioContext.createBuffer(1, bufferSize, sampleRate);
+            const data = buffer.getChannelData(0);
+            const delayLine = new Float32Array(period);
+            for (let i = 0; i < period; i++) delayLine[i] = (Math.random() * 2 - 1) * 0.8;
+            let readIndex = 0;
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = delayLine[readIndex];
+                const nextIndex = (readIndex + 1) % period;
+                delayLine[readIndex] = (0.5 * delayLine[readIndex] + 0.5 * delayLine[nextIndex]) * 0.996;
+                readIndex = nextIndex;
+            }
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
+            source.connect(bodyFilter);
+            bodyFilter.connect(stringGain);
+            stringGain.connect(saturator);
+            source.start(now);
+            source.stop(now + duration);
+            nodes.push(source, bodyFilter, stringGain);
+        }
 
     } else if (wave === 'formant') {
         const vowels = { a: [800, 1200, 2500], e: [400, 2200, 2800], i: [300, 2300, 3000], o: [500, 900, 2500], u: [350, 700, 2500] };
