@@ -746,6 +746,23 @@ function initSystem() {
             }).catch(() => {});
         }
 
+        // Drum engine worklet registration
+        window.drumEngineReady = false;
+        if (audioContext.audioWorklet) {
+            (async () => {
+                try {
+                    await audioContext.audioWorklet.addModule('drum-engine-processor.js');
+                    const drumEngine = new AudioWorkletNode(audioContext, 'drum-engine-processor');
+                    drumEngine.connect(masterGain);
+                    window.drumEngine = drumEngine;
+                    window.drumEngineReady = true;
+                } catch(e) {
+                    console.warn('Drum engine worklet failed, using fallback:', e);
+                    window.drumEngineReady = false;
+                }
+            })();
+        }
+
         // Chorus effect using modulated delay
         const chorusDelay = audioContext.createDelay();
         chorusDelay.delayTime.value = 0.03; // 30ms base delay
@@ -873,6 +890,22 @@ function playDrum(type, skipRecording = false) {
 
     if (audioContext.state === 'suspended') {
         audioContext.resume();
+    }
+
+    if (window.drumEngineReady && window.drumEngine) {
+        window.drumEngine.port.postMessage({ type: 'trigger', voice: type });
+        const pad = document.querySelector(`[data-sound="${type}"]`);
+        if (pad) {
+            pad.classList.add('active');
+            setTimeout(() => pad.classList.remove('active'), 150);
+        }
+        if (!skipRecording && (isRecording || isOverdub)) {
+            loopSlots[activeSlot].loop.push({
+                type: 'drum', sound: type,
+                time: audioContext.currentTime - recordingStart
+            });
+        }
+        return;
     }
 
     const pad = document.querySelector(`[data-sound="${type}"]`);
