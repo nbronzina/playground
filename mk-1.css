@@ -438,8 +438,8 @@ select:focus {
 }
 
 .slot-btn.active {
-    background: var(--accent);
-    color: #000;
+    background: var(--accent-bg);
+    color: var(--accent-text);
     border-color: var(--accent);
 }
 
