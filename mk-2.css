@@ -52,6 +52,16 @@ body {
     align-items: start;
 }
 
+/* === FILE PICKER (hidden input inside label) === */
+.file-pick {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
 /* === DECK === */
 .deck {
     padding: var(--mk2-pad);
@@ -375,7 +385,14 @@ body {
 .crate { border-top: 1px solid var(--border-primary); padding: var(--mk2-pad); display: flex; flex-direction: column; gap: 12px; }
 .crate-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .crate-head .cap { font-size: 10px; letter-spacing: .2em; color: var(--text-secondary); }
-.crate-head button { height: 24px; min-width: 0; padding: 0 10px; font-size: 9.5px; letter-spacing: .12em; }
+.crate-head button,
+.crate-add-label { height: 24px; min-width: 0; padding: 0 10px; font-size: 9.5px; letter-spacing: .12em; }
+.crate-add-label {
+    display: inline-grid; place-items: center; cursor: pointer; position: relative;
+    color: var(--text-primary); background: transparent;
+    border: 1px solid rgba(var(--mk2-fg-rgb), .55); transition: background .12s linear, color .12s linear;
+}
+.crate-add-label:hover { background: var(--active-bg); color: var(--active-text); }
 .crate-head input {
     font: inherit; font-size: 10px; color: var(--text-primary); background: transparent;
     border: 0; border-bottom: 1px solid rgba(var(--mk2-fg-rgb), .25); padding: 3px 0;
