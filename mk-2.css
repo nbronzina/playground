@@ -103,6 +103,7 @@ body {
     inset: 4%;
     border-radius: 50%;
     border: 1px solid rgba(var(--mk2-fg-rgb), .14);
+    z-index: 3;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -148,6 +149,7 @@ body {
     cursor: grab;
     touch-action: none;
     will-change: transform;
+    z-index: 3;
 }
 .deck.loaded .disc { display: block; }
 .deck.loaded .slot { display: none; }
