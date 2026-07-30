@@ -23,7 +23,6 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    overscroll-behavior: none;
 }
 
 /* === HEADER OVERRIDES === */
@@ -40,7 +39,7 @@ body {
 }
 
 /* === Z-INDEX ABOVE GRAIN === */
-.rig, .crate, .mk2-keys, .footer {
+.rig, .crate, .mk2-keys {
     position: relative;
     z-index: 2;
 }
@@ -241,7 +240,8 @@ body {
 }
 .deck button:focus-visible,
 .mixer button:focus-visible,
-.crate button:focus-visible {
+.crate button:focus-visible,
+.rec button:focus-visible {
     outline: 2px solid var(--text-primary);
     outline-offset: 2px;
 }
@@ -402,6 +402,11 @@ body {
     border-top: 1px solid var(--border-primary); line-height: 1.9;
 }
 .mk2-keys em { font-style: normal; color: var(--text-tertiary); }
+
+/* === SUPPORT CARD === */
+.support-card { cursor: default; }
+.support-card:hover { transform: none; border-color: var(--border-primary); }
+.support-card a { text-decoration: underline; }
 
 /* === FOOTER OVERRIDE === */
 .footer {
