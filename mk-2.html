@@ -64,7 +64,7 @@
     <div class="head"><span class="letter">A</span><span class="track">no record</span></div>
     <div class="body">
       <div class="platter">
-        <div class="slot"><span>drop a record</span></div>
+        <label class="slot"><span>drop a record</span><input type="file" accept="audio/*" class="file-pick"></label>
         <div class="disc"><div class="label">A</div></div>
         <svg class="arm" viewBox="0 0 100 100" aria-hidden="true">
           <line x1="95" y1="80" x2="92" y2="38"></line>
@@ -92,7 +92,6 @@
       <div class="row"><span class="k">ON DECK</span><span class="v now vacio">&mdash;</span></div>
       <div class="row"><span class="k">NEXT</span><span class="v next vacio">&mdash;</span><button class="up" disabled>load</button></div>
     </div>
-    <input type="file" accept="audio/*" hidden>
   </section>
 
   <section class="mixer">
@@ -164,7 +163,7 @@
     <div class="head"><span class="letter">B</span><span class="track">no record</span></div>
     <div class="body">
       <div class="platter">
-        <div class="slot"><span>drop a record</span></div>
+        <label class="slot"><span>drop a record</span><input type="file" accept="audio/*" class="file-pick"></label>
         <div class="disc"><div class="label">B</div></div>
         <svg class="arm" viewBox="0 0 100 100" aria-hidden="true">
           <line x1="95" y1="80" x2="92" y2="38"></line>
@@ -192,7 +191,6 @@
       <div class="row"><span class="k">ON DECK</span><span class="v now vacio">&mdash;</span></div>
       <div class="row"><span class="k">NEXT</span><span class="v next vacio">&mdash;</span><button class="up" disabled>load</button></div>
     </div>
-    <input type="file" accept="audio/*" hidden>
   </section>
 
 </main>
@@ -200,11 +198,10 @@
 <section class="crate" id="crate">
   <div class="crate-head">
     <span class="cap">CRATE</span>
-    <button id="crateAdd">+ records</button>
+    <label class="crate-add-label" id="crateAdd">+ records<input type="file" accept="audio/*" multiple class="file-pick" id="crateFiles"></label>
     <input id="crateUrl" type="url" placeholder="or paste an audio URL" spellcheck="false" aria-label="audio URL for the crate">
   </div>
   <div class="crate-items" id="crateItems"></div>
-  <input type="file" accept="audio/*" multiple hidden id="crateFiles">
 </section>
 
 <div class="mk2-keys">
@@ -422,7 +419,7 @@ if you find value, consider supporting:
       this.s33 = el.querySelector('.s33'); this.s45 = el.querySelector('.s45');
       this.armLine = el.querySelector('.arm line');
       this.armNee = el.querySelector('.arm .nee');
-      this.file = el.querySelector('input[type=file]');
+      this.file = el.querySelector('.file-pick');
       this.numEl = el.querySelector('.pitchcol .num');
 
       this.buffer = null; this.offset = 0; this.pitch = 0; this.base = 1;
@@ -439,14 +436,12 @@ if you find value, consider supporting:
     rate(){ return this.base * (1 + this.pitch/100); }
 
     bind(){
-      this.slot.addEventListener('click', () => this.file.click());
       this.nowEl = this.el.querySelector('.shelf .now');
       this.nextEl = this.el.querySelector('.shelf .next');
       this.upBtn = this.el.querySelector('.shelf .up');
       this.upBtn.addEventListener('click', () => {
         if(this.next){ const it = this.next; this.next = null; this.mount(it); }
       });
-      this.titleEl.addEventListener('click', () => this.file.click());
       this.onPlatter = null; this.next = null;
       this.file.addEventListener('change', e => {
         if(e.target.files[0]) this.load(e.target.files[0]);
@@ -964,7 +959,6 @@ if you find value, consider supporting:
   const crate = [];
   const crateEl = document.getElementById('crate');
   const itemsEl = document.getElementById('crateItems');
-  const addBtn = document.getElementById('crateAdd');
   const filesEl = document.getElementById('crateFiles');
   const urlEl = document.getElementById('crateUrl');
 
@@ -1026,7 +1020,6 @@ if you find value, consider supporting:
   }
   window.paintCrate = paintCrate;
 
-  addBtn.addEventListener('click', () => filesEl.click());
   filesEl.addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
   urlEl.addEventListener('keydown', e => {
     if(e.key === 'Enter'){ addURL(urlEl.value); urlEl.value = ''; }

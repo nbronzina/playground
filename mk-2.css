@@ -52,6 +52,16 @@ body {
     align-items: start;
 }
 
+/* === FILE PICKER (hidden input inside label) === */
+.file-pick {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
 /* === DECK === */
 .deck {
     padding: var(--mk2-pad);
@@ -343,19 +353,19 @@ body {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     border-top: 1px solid var(--border-primary); padding-top: 14px;
 }
-.cuebar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.cuebar button { height: 26px; min-width: 0; padding: 0 10px; font-size: 10px; letter-spacing: .14em; }
+.cuebar { display: flex; flex-direction: column; gap: 8px; }
+.cuebar button { height: 26px; min-width: 0; padding: 0 10px; font-size: 10px; letter-spacing: .14em; align-self: flex-start; }
 .cuebar button.on { background: var(--active-bg); color: var(--active-text); }
-.cue-io { display: flex; gap: 8px; flex: 1; min-width: 0; }
+.cue-io { display: flex; gap: 8px; width: 100%; }
 .cue-io label {
-    display: flex; flex-direction: column; gap: 3px;
-    font-size: 8.5px; letter-spacing: .12em; color: var(--text-secondary); min-width: 0; flex: 1;
+    display: flex; flex-direction: column; gap: 4px;
+    font-size: 8.5px; letter-spacing: .12em; color: var(--text-secondary); flex: 1; min-width: 0;
 }
 .cue-io select {
     font: inherit; font-size: 10px; color: var(--text-primary); background: var(--bg-primary);
-    border: 1px solid rgba(var(--mk2-fg-rgb), .35); border-radius: 0; padding: 3px 4px;
-    max-width: 100%; text-overflow: ellipsis;
-    appearance: auto; background-image: none; padding-right: 4px; font-weight: 400;
+    border: 1px solid rgba(var(--mk2-fg-rgb), .35); border-radius: 0; padding: 4px 6px;
+    width: 100%; text-overflow: ellipsis;
+    appearance: auto; background-image: none; font-weight: 400;
 }
 .cue-io select:focus-visible { outline: 1px solid var(--text-primary); outline-offset: 2px; }
 .cue-msg { font-size: 9.5px; letter-spacing: .08em; color: var(--text-secondary); line-height: 1.6; }
@@ -375,7 +385,14 @@ body {
 .crate { border-top: 1px solid var(--border-primary); padding: var(--mk2-pad); display: flex; flex-direction: column; gap: 12px; }
 .crate-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .crate-head .cap { font-size: 10px; letter-spacing: .2em; color: var(--text-secondary); }
-.crate-head button { height: 24px; min-width: 0; padding: 0 10px; font-size: 9.5px; letter-spacing: .12em; }
+.crate-head button,
+.crate-add-label { height: 24px; min-width: 0; padding: 0 10px; font-size: 9.5px; letter-spacing: .12em; }
+.crate-add-label {
+    display: inline-grid; place-items: center; cursor: pointer; position: relative;
+    color: var(--text-primary); background: transparent;
+    border: 1px solid rgba(var(--mk2-fg-rgb), .55); transition: background .12s linear, color .12s linear;
+}
+.crate-add-label:hover { background: var(--active-bg); color: var(--active-text); }
 .crate-head input {
     font: inherit; font-size: 10px; color: var(--text-primary); background: transparent;
     border: 0; border-bottom: 1px solid rgba(var(--mk2-fg-rgb), .25); padding: 3px 0;
