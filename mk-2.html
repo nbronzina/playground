@@ -86,6 +86,7 @@
       </div>
       <button class="play" disabled aria-label="play A"><span>&#9654;</span></button>
       <button class="back" disabled aria-label="restart A"><span>&#8635;</span></button>
+      <button class="eject" disabled aria-label="eject A"><span>&#9167;</span></button>
       <span class="time">0:00 / 0:00</span>
     </div>
     <div class="shelf">
@@ -186,6 +187,7 @@
       </div>
       <button class="play" disabled aria-label="play B"><span>&#9654;</span></button>
       <button class="back" disabled aria-label="restart B"><span>&#8635;</span></button>
+      <button class="eject" disabled aria-label="eject B"><span>&#9167;</span></button>
       <span class="time">0:00 / 0:00</span>
     </div>
     <div class="shelf">
@@ -207,7 +209,7 @@
 </section>
 
 <div class="mk2-keys">
-  <em>q</em> / <em>p</em> play &middot; <em>w</em> / <em>o</em> restart &middot; <em>&larr; &rarr;</em> crossfade &middot; <em>1-5</em> cue points A &middot; <em>6-0</em> cue points B &middot; first press sets, second jumps<br>
+  <em>q</em> / <em>p</em> play &middot; <em>w</em> / <em>o</em> restart &middot; <em>e</em> / <em>i</em> eject &middot; <em>&larr; &rarr;</em> crossfade &middot; <em>1-5</em> cue points A &middot; <em>6-0</em> cue points B &middot; first press sets, second jumps<br>
   click the groove = drop the needle &middot; drag the disc = scratch &middot; double-click any knob or fader = reset to center<br>
   the motor spins up and brakes like a real turntable. cue requires two system outputs: the browser asks for the mic once, just to list them.<br>
   the crate holds records without decoding: load one to the deck with A or B, and if the deck is busy it queues as next. youtube won't share its audio.
@@ -418,6 +420,7 @@ if you find value, consider supporting:
       this.timeEl = el.querySelector('.time');
       this.playBtn = el.querySelector('.play');
       this.backBtn = el.querySelector('.back');
+      this.ejectBtn = el.querySelector('.eject');
       this.s33 = el.querySelector('.s33'); this.s45 = el.querySelector('.s45');
       this.armLine = el.querySelector('.arm line');
       this.armNee = el.querySelector('.arm .nee');
@@ -462,6 +465,7 @@ if you find value, consider supporting:
 
       this.playBtn.addEventListener('click', () => this.toggle());
       this.backBtn.addEventListener('click', () => this.seek(0));
+      this.ejectBtn.addEventListener('click', () => this.eject());
       this.s33.addEventListener('click', () => this.speed(1));
       this.s45.addEventListener('click', () => this.speed(45/33.3333));
 
@@ -538,7 +542,7 @@ if you find value, consider supporting:
       this.cues = [null, null, null, null, null];
       this.titleEl.textContent = name;
       this.el.classList.add('loaded');
-      [this.playBtn, this.backBtn, this.s33, this.s45].forEach(b => b.disabled = false);
+      [this.playBtn, this.backBtn, this.ejectBtn, this.s33, this.s45].forEach(b => b.disabled = false);
       if(!this.onPlatter) this.onPlatter = {kind:'file', name:name};
       this.shelf();
       this.loadWorklet();
@@ -641,6 +645,21 @@ if you find value, consider supporting:
       this.playing = false; this.vrate = 0;
       this.el.classList.remove('live');
       this.playBtn.querySelector('span').textContent = '▶';
+    }
+
+    eject(){
+      this.kill();
+      this.buffer = null; this.offset = 0; this.angle = 0;
+      this.cues = [null, null, null, null, null];
+      this.onPlatter = null;
+      this.el.classList.remove('loaded');
+      this.titleEl.textContent = 'no record';
+      this.timeEl.textContent = '0:00 / 0:00';
+      [this.playBtn, this.backBtn, this.ejectBtn, this.s33, this.s45].forEach(b => b.disabled = true);
+      this.shelf();
+      this.paint();
+      if(this.next){ const it = this.next; this.next = null; this.mount(it); }
+      if(window.paintCrate) window.paintCrate();
     }
 
     finish(){ this.offset = 0; this.kill(); this.angle = 0; this.paint(); }
@@ -945,7 +964,9 @@ if you find value, consider supporting:
     if(k === 'q'){ decks.A.toggle(); e.preventDefault(); }
     else if(k === 'p'){ decks.B.toggle(); e.preventDefault(); }
     else if(k === 'w'){ decks.A.seek(0); e.preventDefault(); }
+    else if(k === 'e'){ decks.A.eject(); e.preventDefault(); }
     else if(k === 'o'){ decks.B.seek(0); e.preventDefault(); }
+    else if(k === 'i'){ decks.B.eject(); e.preventDefault(); }
     else if(k === 'arrowleft'){ xf.set(xf.val - .04); e.preventDefault(); }
     else if(k === 'arrowright'){ xf.set(xf.val + .04); e.preventDefault(); }
     else if('12345'.includes(k)){ decks.A.cuePoint('12345'.indexOf(k)); e.preventDefault(); }
