@@ -33,8 +33,10 @@ body {
 
 .mk2-hint {
     color: var(--text-tertiary);
-    font-size: 11px;
+    font-size: 0.7rem;
     letter-spacing: .08em;
+    cursor: default;
+    border-color: transparent;
 }
 
 /* === Z-INDEX ABOVE GRAIN === */
