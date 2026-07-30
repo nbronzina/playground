@@ -414,9 +414,28 @@ body {
     padding: var(--mk2-pad);
 }
 
+/* === DECK TOGGLE (mobile) === */
+.deck-toggle {
+    display: none;
+    grid-column: 1 / -1;
+}
+.deck-toggle button {
+    font: inherit; font-size: 13px; font-weight: 700;
+    flex: 1; height: 36px; cursor: pointer;
+    background: transparent; color: var(--text-tertiary);
+    border: 1px solid var(--border-primary); border-radius: 0;
+    transition: background .12s linear, color .12s linear;
+}
+.deck-toggle button + button { border-left: 0; }
+.deck-toggle button.on { background: var(--active-bg); color: var(--active-text); }
+
 /* === RESPONSIVE === */
 @media (max-width: 1000px) {
     .rig { grid-template-columns: 1fr; }
+    .deck-toggle { display: flex; }
+    .deck[data-id="B"] { display: none; }
+    .rig.show-b .deck[data-id="A"] { display: none; }
+    .rig.show-b .deck[data-id="B"] { display: flex; }
     .mixer {
         border-left: 0; border-right: 0;
         border-top: 1px solid var(--border-primary);
