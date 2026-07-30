@@ -309,7 +309,7 @@ if you find value, consider supporting:
       else if(k === 'Home'){ this.set(this.def); e.preventDefault(); return; }
       else return;
       e.preventDefault(); e.stopPropagation();
-      this.set(this.val + d * this.step * big * (this.max - this.min > 30 ? 1 : 1));
+      this.set(this.val + d * this.step * big);
     }
     down(e){
       this.el.setPointerCapture(e.pointerId);
@@ -381,7 +381,7 @@ if you find value, consider supporting:
       this.cue = ctx.createGain(); this.cue.gain.value = 0;   // toma antes del crossfader
       this.an.connect(this.cue); this.cue.connect(cueSum);
       this.buf = new Float32Array(this.an.fftSize);
-      this.peak = 0; this.hold = 0;
+      this.peak = 0;
     }
     get input(){ return this.trim; }
     level(){
@@ -594,6 +594,7 @@ if you find value, consider supporting:
         s.playbackRate.setValueAtTime(Math.max(.02, r), now);
         s.playbackRate.setTargetAtTime(.0001, now, tau);
         try{ s.stop(now + tau * 5); }catch(e){}
+        setTimeout(() => { try{ s.disconnect(); }catch(e){} }, tau * 5000 + 100);
       }
       this.offset = clamp(pos + r * tau, 0, this.buffer.duration);
       this.el.classList.remove('live');
@@ -602,7 +603,7 @@ if you find value, consider supporting:
     }
 
     kill(){
-      if(this.src){ const s = this.src; this.src = null; s.onended = null; try{ s.stop(); }catch(e){} }
+      if(this.src){ const s = this.src; this.src = null; s.onended = null; try{ s.stop(); }catch(e){} setTimeout(() => { try{ s.disconnect(); }catch(e){} }, 100); }
       this.playing = false; this.vrate = 0;
       this.el.classList.remove('live');
       this.playBtn.querySelector('span').textContent = '▶';
@@ -634,6 +635,7 @@ if you find value, consider supporting:
     }
 
     speed(b){
+      if(this.playing) this.offset = this.position();
       this.base = b;
       this.s33.classList.toggle('on', b === 1);
       this.s45.classList.toggle('on', b !== 1);
