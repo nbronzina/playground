@@ -64,7 +64,7 @@
     <div class="head"><span class="letter">A</span><span class="track">no record</span></div>
     <div class="body">
       <div class="platter">
-        <label class="slot"><span>drop a record</span><input type="file" accept="audio/*" class="file-pick"></label>
+        <label class="slot" for="fileA"><span>drop a record</span></label>
         <div class="disc"><div class="label">A</div></div>
         <svg class="arm" viewBox="0 0 100 100" aria-hidden="true">
           <line x1="95" y1="80" x2="92" y2="38"></line>
@@ -92,6 +92,7 @@
       <div class="row"><span class="k">ON DECK</span><span class="v now vacio">&mdash;</span></div>
       <div class="row"><span class="k">NEXT</span><span class="v next vacio">&mdash;</span><button class="up" disabled>load</button></div>
     </div>
+    <input type="file" accept="audio/*" id="fileA" class="file-pick">
   </section>
 
   <section class="mixer">
@@ -163,7 +164,7 @@
     <div class="head"><span class="letter">B</span><span class="track">no record</span></div>
     <div class="body">
       <div class="platter">
-        <label class="slot"><span>drop a record</span><input type="file" accept="audio/*" class="file-pick"></label>
+        <label class="slot" for="fileB"><span>drop a record</span></label>
         <div class="disc"><div class="label">B</div></div>
         <svg class="arm" viewBox="0 0 100 100" aria-hidden="true">
           <line x1="95" y1="80" x2="92" y2="38"></line>
@@ -191,6 +192,7 @@
       <div class="row"><span class="k">ON DECK</span><span class="v now vacio">&mdash;</span></div>
       <div class="row"><span class="k">NEXT</span><span class="v next vacio">&mdash;</span><button class="up" disabled>load</button></div>
     </div>
+    <input type="file" accept="audio/*" id="fileB" class="file-pick">
   </section>
 
 </main>
@@ -436,6 +438,7 @@ if you find value, consider supporting:
     rate(){ return this.base * (1 + this.pitch/100); }
 
     bind(){
+      this.titleEl.addEventListener('click', () => this.file.click());
       this.nowEl = this.el.querySelector('.shelf .now');
       this.nextEl = this.el.querySelector('.shelf .next');
       this.upBtn = this.el.querySelector('.shelf .up');
