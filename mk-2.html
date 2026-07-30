@@ -519,7 +519,7 @@ if you find value, consider supporting:
         if(!r.ok) throw new Error(r.status);
         data = await r.arrayBuffer();
       }catch(err){
-        this.titleEl.textContent = 'that server won't share the file (CORS)';
+        this.titleEl.textContent = "that server won't share the file (CORS)";
         return;
       }
       this.decode(data, baseName(u));
@@ -796,11 +796,11 @@ if you find value, consider supporting:
   const devMon = document.getElementById('devMon');
   const devRoom = document.getElementById('devRoom');
   const roomEl = document.getElementById('room');
-  const blend = new Knob(document.querySelector('.knob[data-ctl=blend]'), () => paintBus());
   const msg = t => { cueMsg.innerHTML = t; };
 
+  var blend;
   function paintBus(){
-    if(!ctx) return;
+    if(!ctx || !blend) return;
     const now = ctx.currentTime;
     const x = blend.val;
     const c = cue.on ? Math.cos(x*Math.PI/2) : 0;
@@ -808,6 +808,7 @@ if you find value, consider supporting:
     cueOut.gain.setTargetAtTime(c, now, .02);
     mon.gain.setTargetAtTime(m, now, .02);
   }
+  blend = new Knob(document.querySelector('.knob[data-ctl=blend]'), () => paintBus());
 
   const canRoute = () => ('setSinkId' in AudioContext.prototype) && ('setSinkId' in HTMLMediaElement.prototype);
 
@@ -904,7 +905,7 @@ if you find value, consider supporting:
   });
 
   /* medidores */
-  const meters = {};
+  var meters = {};
   ['A','B'].forEach(id => {
     const box = document.querySelector('.meter[data-ch=' + id + ']');
     const segs = [];
@@ -921,7 +922,7 @@ if you find value, consider supporting:
   }
 
   /* ---------- reloj ---------- */
-  let raf = null, last = 0;
+  var raf = null, last = 0;
   function loop(){
     if(raf) return;
     last = performance.now();
