@@ -492,6 +492,7 @@ if you find value, consider supporting:
     }
 
     async load(file){
+      audio(); initVinyl();
       const ok = /^audio\//.test(file.type) || /\.(mp3|wav|flac|m4a|aac|ogg|opus|aiff?)$/i.test(file.name);
       if(!ok){ this.titleEl.textContent = 'not an audio file'; return; }
       this.kill();
@@ -503,6 +504,7 @@ if you find value, consider supporting:
     }
 
     async loadURL(u){
+      audio(); initVinyl();
       u = (u || '').trim();
       if(!u) return;
       if(/youtu\.?be/i.test(u)){
