@@ -353,6 +353,7 @@ body {
     font: inherit; font-size: 10px; color: var(--text-primary); background: var(--bg-primary);
     border: 1px solid rgba(var(--mk2-fg-rgb), .35); border-radius: 0; padding: 3px 4px;
     max-width: 100%; text-overflow: ellipsis;
+    appearance: auto; background-image: none; padding-right: 4px; font-weight: 400;
 }
 .cue-io select:focus-visible { outline: 1px solid var(--text-primary); outline-offset: 2px; }
 .cue-msg { font-size: 9.5px; letter-spacing: .08em; color: var(--text-secondary); line-height: 1.6; }

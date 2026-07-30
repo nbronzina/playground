@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -50,7 +50,7 @@
             <div class="header-timestamp" id="timestamp"></div>
         </div>
         <div class="header-actions">
-            <span class="header-btn mk2-hint">agarr&aacute; el disco &middot; soltalo y sigue</span>
+            <span class="header-btn mk2-hint">grab the disc &middot; let go and it keeps spinning</span>
             <button id="themeToggle" class="header-btn" aria-label="Toggle dark mode">
                 <span id="themeIcon" aria-hidden="true">&#9684;</span>
             </button>
@@ -60,10 +60,10 @@
 <main class="rig">
 
   <section class="deck" data-id="A">
-    <div class="head"><span class="letter">A</span><span class="track">sin disco</span></div>
+    <div class="head"><span class="letter">A</span><span class="track">no record</span></div>
     <div class="body">
       <div class="platter">
-        <div class="slot"><span>solt&aacute; un disco</span></div>
+        <div class="slot"><span>drop a record</span></div>
         <div class="disc"><div class="label">A</div></div>
         <svg class="arm" viewBox="0 0 100 100" aria-hidden="true">
           <line x1="95" y1="80" x2="92" y2="38"></line>
@@ -72,8 +72,8 @@
         </svg>
       </div>
       <div class="pitchcol">
-        <span class="cap">TONO</span>
-        <div class="fader pitch" tabindex="0" role="slider" data-min="-8" data-max="8" data-def="0" data-step="0.1" data-bip="1" aria-label="tono deck A" style="flex:1">
+        <span class="cap">PITCH</span>
+        <div class="fader pitch" tabindex="0" role="slider" data-min="-8" data-max="8" data-def="0" data-step="0.1" data-bip="1" aria-label="pitch deck A" style="flex:1">
           <div class="trk"></div><div class="det"></div><div class="cap2 cap"></div>
         </div>
         <span class="num">0.0</span>
@@ -83,43 +83,43 @@
       <div class="speed">
         <button class="s33 on" disabled>33</button><button class="s45" disabled>45</button>
       </div>
-      <button class="play" disabled aria-label="tocar A"><span>&#9654;</span></button>
-      <button class="back" disabled aria-label="al inicio de A"><span>&#8635;</span></button>
+      <button class="play" disabled aria-label="play A"><span>&#9654;</span></button>
+      <button class="back" disabled aria-label="restart A"><span>&#8635;</span></button>
       <span class="time">0:00 / 0:00</span>
     </div>
     <div class="shelf">
-      <div class="row"><span class="k">EN EL PLATO</span><span class="v now vacio">&mdash;</span></div>
-      <div class="row"><span class="k">SIGUE</span><span class="v next vacio">&mdash;</span><button class="up" disabled>poner</button></div>
+      <div class="row"><span class="k">ON DECK</span><span class="v now vacio">&mdash;</span></div>
+      <div class="row"><span class="k">NEXT</span><span class="v next vacio">&mdash;</span><button class="up" disabled>load</button></div>
     </div>
     <input type="file" accept="audio/*" hidden>
   </section>
 
   <section class="mixer">
-    <div class="mx-head"><span>MEZCLADOR</span><span>2 canales</span></div>
+    <div class="mx-head"><span>MIXER</span><span>2 channels</span></div>
 
     <div class="cuebar">
       <button id="cueOn">cue</button>
       <div class="cue-io" id="cueIo" hidden>
-        <label>MONITOREO<select id="devMon"></select></label>
-        <label>SALA<select id="devRoom"></select></label>
+        <label>MONITOR<select id="devMon"></select></label>
+        <label>ROOM<select id="devRoom"></select></label>
       </div>
     </div>
-    <p class="cue-msg" id="cueMsg">una salida &middot; sin cue</p>
+    <p class="cue-msg" id="cueMsg">one output &middot; no cue</p>
 
     <div class="strips">
       <div class="strip" data-ch="A">
         <span class="ch">A</span>
         <button class="cue" data-ch="A" disabled>cue</button>
         <div class="knobs">
-          <div class="knob" tabindex="0" role="slider" data-ctl="trim" data-ch="A" data-min="-12" data-max="12" data-def="0" data-bip="1" data-unit="dB" aria-label="entrada A"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">entrada</span></div>
-          <div class="knob" tabindex="0" role="slider" data-ctl="high" data-ch="A" data-min="-26" data-max="6" data-def="0" data-bip="1" data-unit="dB" aria-label="agudos A"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">agudos</span></div>
-          <div class="knob" tabindex="0" role="slider" data-ctl="mid" data-ch="A" data-min="-26" data-max="6" data-def="0" data-bip="1" data-unit="dB" aria-label="medios A"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">medios</span></div>
-          <div class="knob" tabindex="0" role="slider" data-ctl="low" data-ch="A" data-min="-26" data-max="6" data-def="0" data-bip="1" data-unit="dB" aria-label="graves A"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">graves</span></div>
-          <div class="knob" tabindex="0" role="slider" data-ctl="filt" data-ch="A" data-min="-100" data-max="100" data-def="0" data-bip="1" data-unit="" aria-label="filtro A"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">filtro</span></div>
+          <div class="knob" tabindex="0" role="slider" data-ctl="trim" data-ch="A" data-min="-12" data-max="12" data-def="0" data-bip="1" data-unit="dB" aria-label="trim A"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">trim</span></div>
+          <div class="knob" tabindex="0" role="slider" data-ctl="high" data-ch="A" data-min="-26" data-max="6" data-def="0" data-bip="1" data-unit="dB" aria-label="high A"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">high</span></div>
+          <div class="knob" tabindex="0" role="slider" data-ctl="mid" data-ch="A" data-min="-26" data-max="6" data-def="0" data-bip="1" data-unit="dB" aria-label="mid A"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">mid</span></div>
+          <div class="knob" tabindex="0" role="slider" data-ctl="low" data-ch="A" data-min="-26" data-max="6" data-def="0" data-bip="1" data-unit="dB" aria-label="low A"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">low</span></div>
+          <div class="knob" tabindex="0" role="slider" data-ctl="filt" data-ch="A" data-min="-100" data-max="100" data-def="0" data-bip="1" data-unit="" aria-label="filter A"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">filter</span></div>
         </div>
         <div class="vol">
           <div class="meter" data-ch="A"></div>
-          <div class="fader" tabindex="0" role="slider" data-ctl="vol" data-ch="A" data-min="0" data-max="1" data-def="1" data-step="0.01" aria-label="volumen A">
+          <div class="fader" tabindex="0" role="slider" data-ctl="vol" data-ch="A" data-min="0" data-max="1" data-def="1" data-step="0.01" aria-label="volume A">
             <div class="trk"></div><div class="cap"></div>
           </div>
         </div>
@@ -129,15 +129,15 @@
         <span class="ch">B</span>
         <button class="cue" data-ch="B" disabled>cue</button>
         <div class="knobs">
-          <div class="knob" tabindex="0" role="slider" data-ctl="trim" data-ch="B" data-min="-12" data-max="12" data-def="0" data-bip="1" data-unit="dB" aria-label="entrada B"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">entrada</span></div>
-          <div class="knob" tabindex="0" role="slider" data-ctl="high" data-ch="B" data-min="-26" data-max="6" data-def="0" data-bip="1" data-unit="dB" aria-label="agudos B"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">agudos</span></div>
-          <div class="knob" tabindex="0" role="slider" data-ctl="mid" data-ch="B" data-min="-26" data-max="6" data-def="0" data-bip="1" data-unit="dB" aria-label="medios B"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">medios</span></div>
-          <div class="knob" tabindex="0" role="slider" data-ctl="low" data-ch="B" data-min="-26" data-max="6" data-def="0" data-bip="1" data-unit="dB" aria-label="graves B"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">graves</span></div>
-          <div class="knob" tabindex="0" role="slider" data-ctl="filt" data-ch="B" data-min="-100" data-max="100" data-def="0" data-bip="1" data-unit="" aria-label="filtro B"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">filtro</span></div>
+          <div class="knob" tabindex="0" role="slider" data-ctl="trim" data-ch="B" data-min="-12" data-max="12" data-def="0" data-bip="1" data-unit="dB" aria-label="trim B"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">trim</span></div>
+          <div class="knob" tabindex="0" role="slider" data-ctl="high" data-ch="B" data-min="-26" data-max="6" data-def="0" data-bip="1" data-unit="dB" aria-label="high B"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">high</span></div>
+          <div class="knob" tabindex="0" role="slider" data-ctl="mid" data-ch="B" data-min="-26" data-max="6" data-def="0" data-bip="1" data-unit="dB" aria-label="mid B"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">mid</span></div>
+          <div class="knob" tabindex="0" role="slider" data-ctl="low" data-ch="B" data-min="-26" data-max="6" data-def="0" data-bip="1" data-unit="dB" aria-label="low B"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">low</span></div>
+          <div class="knob" tabindex="0" role="slider" data-ctl="filt" data-ch="B" data-min="-100" data-max="100" data-def="0" data-bip="1" data-unit="" aria-label="filter B"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">filter</span></div>
         </div>
         <div class="vol">
           <div class="meter" data-ch="B"></div>
-          <div class="fader" tabindex="0" role="slider" data-ctl="vol" data-ch="B" data-min="0" data-max="1" data-def="1" data-step="0.01" aria-label="volumen B">
+          <div class="fader" tabindex="0" role="slider" data-ctl="vol" data-ch="B" data-min="0" data-max="1" data-def="1" data-step="0.01" aria-label="volume B">
             <div class="trk"></div><div class="cap"></div>
           </div>
         </div>
@@ -145,25 +145,25 @@
     </div>
 
     <div class="xf-block">
-      <div class="fader h" id="xf" tabindex="0" role="slider" data-min="0" data-max="1" data-def="0.5" data-step="0.01" data-bip="1" aria-label="mezcla entre A y B">
+      <div class="fader h" id="xf" tabindex="0" role="slider" data-min="0" data-max="1" data-def="0.5" data-step="0.01" data-bip="1" aria-label="crossfade A to B">
         <div class="trk"></div><div class="det"></div><div class="cap"></div>
       </div>
-      <div class="xf-lab"><b id="labA" class="on">A</b><span>MEZCLA</span><b id="labB" class="on">B</b></div>
+      <div class="xf-lab"><b id="labA" class="on">A</b><span>MIX</span><b id="labB" class="on">B</b></div>
     </div>
 
     <div class="mst">
-      <span class="cap">SALIDA</span>
-      <div class="knob" tabindex="0" role="slider" data-ctl="master" data-min="0" data-max="1" data-def="0.8" data-step="0.01" data-unit="" aria-label="salida general"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">general</span></div>
-      <div class="knob" tabindex="0" role="slider" data-ctl="blend" data-min="0" data-max="1" data-def="0.5" data-step="0.01" data-unit="" aria-label="mezcla del auricular entre cue y master"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">cue&rarr;mst</span></div>
+      <span class="cap">OUTPUT</span>
+      <div class="knob" tabindex="0" role="slider" data-ctl="master" data-min="0" data-max="1" data-def="0.8" data-step="0.01" data-unit="" aria-label="master output"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">master</span></div>
+      <div class="knob" tabindex="0" role="slider" data-ctl="blend" data-min="0" data-max="1" data-def="0.5" data-step="0.01" data-unit="" aria-label="headphone blend cue to master"><svg viewBox="-16 -16 32 32"><circle class="ring" r="11"></circle><line class="det" x1="0" y1="-13" x2="0" y2="-15.5"></line><path class="arc"></path><line class="tick" x1="0" y1="-3.5" x2="0" y2="-9.5"></line></svg><span class="lab">cue&rarr;mst</span></div>
     </div>
     <audio id="room"></audio>
   </section>
 
   <section class="deck" data-id="B">
-    <div class="head"><span class="letter">B</span><span class="track">sin disco</span></div>
+    <div class="head"><span class="letter">B</span><span class="track">no record</span></div>
     <div class="body">
       <div class="platter">
-        <div class="slot"><span>solt&aacute; un disco</span></div>
+        <div class="slot"><span>drop a record</span></div>
         <div class="disc"><div class="label">B</div></div>
         <svg class="arm" viewBox="0 0 100 100" aria-hidden="true">
           <line x1="95" y1="80" x2="92" y2="38"></line>
@@ -172,8 +172,8 @@
         </svg>
       </div>
       <div class="pitchcol">
-        <span class="cap">TONO</span>
-        <div class="fader pitch" tabindex="0" role="slider" data-min="-8" data-max="8" data-def="0" data-step="0.1" data-bip="1" aria-label="tono deck B" style="flex:1">
+        <span class="cap">PITCH</span>
+        <div class="fader pitch" tabindex="0" role="slider" data-min="-8" data-max="8" data-def="0" data-step="0.1" data-bip="1" aria-label="pitch deck B" style="flex:1">
           <div class="trk"></div><div class="det"></div><div class="cap2 cap"></div>
         </div>
         <span class="num">0.0</span>
@@ -183,13 +183,13 @@
       <div class="speed">
         <button class="s33 on" disabled>33</button><button class="s45" disabled>45</button>
       </div>
-      <button class="play" disabled aria-label="tocar B"><span>&#9654;</span></button>
-      <button class="back" disabled aria-label="al inicio de B"><span>&#8635;</span></button>
+      <button class="play" disabled aria-label="play B"><span>&#9654;</span></button>
+      <button class="back" disabled aria-label="restart B"><span>&#8635;</span></button>
       <span class="time">0:00 / 0:00</span>
     </div>
     <div class="shelf">
-      <div class="row"><span class="k">EN EL PLATO</span><span class="v now vacio">&mdash;</span></div>
-      <div class="row"><span class="k">SIGUE</span><span class="v next vacio">&mdash;</span><button class="up" disabled>poner</button></div>
+      <div class="row"><span class="k">ON DECK</span><span class="v now vacio">&mdash;</span></div>
+      <div class="row"><span class="k">NEXT</span><span class="v next vacio">&mdash;</span><button class="up" disabled>load</button></div>
     </div>
     <input type="file" accept="audio/*" hidden>
   </section>
@@ -198,18 +198,18 @@
 
 <section class="crate" id="crate">
   <div class="crate-head">
-    <span class="cap">CAJ&Oacute;N</span>
-    <button id="crateAdd">+ discos</button>
-    <input id="crateUrl" type="url" placeholder="o peg&aacute; una URL de audio" spellcheck="false" aria-label="URL de audio para el caj&oacute;n">
+    <span class="cap">CRATE</span>
+    <button id="crateAdd">+ records</button>
+    <input id="crateUrl" type="url" placeholder="or paste an audio URL" spellcheck="false" aria-label="audio URL for the crate">
   </div>
   <div class="crate-items" id="crateItems"></div>
   <input type="file" accept="audio/*" multiple hidden id="crateFiles">
 </section>
 
 <div class="mk2-keys">
-  <em>q</em> / <em>p</em> tocar &middot; <em>w</em> / <em>o</em> al inicio &middot; <em>&larr; &rarr;</em> mezcla &middot; clic en el surco = bajar la p&uacute;a &middot; arrastrar el disco = mover a mano &middot; doble clic en cualquier perilla o fader = al centro<br>
-  el motor arranca y frena como un plato de verdad. para el cue hac&eacute;n falta dos salidas del sistema: el navegador pide el micr&oacute;fono una vez, solo para poder nombrarlas.<br>
-  el caj&oacute;n guarda los discos sin abrir: sub&iacute;s uno al plato con A o B, y si el plato est&aacute; ocupado queda en SIGUE. youtube no entrega el audio.
+  <em>q</em> / <em>p</em> play &middot; <em>w</em> / <em>o</em> restart &middot; <em>&larr; &rarr;</em> crossfade &middot; click the groove = drop the needle &middot; drag the disc = move by hand &middot; double-click any knob or fader = reset to center<br>
+  the motor spins up and brakes like a real turntable. cue requires two system outputs: the browser asks for the mic once, just to list them.<br>
+  the crate holds records without decoding: load one to the deck with A or B, and if the deck is busy it queues as next. youtube won't share its audio.
 </div>
 
 <div class="section" style="padding:var(--mk2-pad);position:relative;z-index:2">
@@ -486,12 +486,12 @@ if you find value, consider supporting:
 
     async load(file){
       const ok = /^audio\//.test(file.type) || /\.(mp3|wav|flac|m4a|aac|ogg|opus|aiff?)$/i.test(file.name);
-      if(!ok){ this.titleEl.textContent = 'eso no es audio'; return; }
+      if(!ok){ this.titleEl.textContent = 'not an audio file'; return; }
       this.kill();
-      this.titleEl.textContent = 'leyendo ' + file.name;
+      this.titleEl.textContent = 'reading ' + file.name;
       let data;
       try{ data = await file.arrayBuffer(); }
-      catch(err){ this.titleEl.textContent = 'no se pudo leer ' + file.name; return; }
+      catch(err){ this.titleEl.textContent = 'could not read ' + file.name; return; }
       this.decode(data, baseName(file.name));
     }
 
@@ -499,18 +499,18 @@ if you find value, consider supporting:
       u = (u || '').trim();
       if(!u) return;
       if(/youtu\.?be/i.test(u)){
-        this.titleEl.textContent = 'youtube no entrega el audio · hace falta un archivo directo';
+        this.titleEl.textContent = "youtube won't share its audio · use a direct file";
         return;
       }
       this.kill();
-      this.titleEl.textContent = 'bajando…';
+      this.titleEl.textContent = 'loading…';
       let data;
       try{
         const r = await fetch(u, {mode:'cors'});
         if(!r.ok) throw new Error(r.status);
         data = await r.arrayBuffer();
       }catch(err){
-        this.titleEl.textContent = 'ese servidor no comparte el archivo (CORS)';
+        this.titleEl.textContent = 'that server won't share the file (CORS)';
         return;
       }
       this.decode(data, baseName(u));
@@ -520,7 +520,7 @@ if you find value, consider supporting:
       try{
         this.buffer = await audio().decodeAudioData(data);
       }catch(err){
-        this.buffer = null; this.titleEl.textContent = 'no pude decodificar eso';
+        this.buffer = null; this.titleEl.textContent = 'could not decode that';
         this.onPlatter = null; this.shelf();
         if(window.paintCrate) window.paintCrate();
         return;
@@ -755,7 +755,7 @@ if you find value, consider supporting:
     sel.innerHTML = '';
     devs.forEach((d, i) => {
       const o = document.createElement('option');
-      o.value = d.deviceId; o.textContent = d.label || ('salida ' + (i+1));
+      o.value = d.deviceId; o.textContent = d.label || ('output ' + (i+1));
       sel.appendChild(o);
     });
     sel.selectedIndex = Math.min(idx, devs.length - 1);
@@ -764,10 +764,10 @@ if you find value, consider supporting:
 
   async function route(){
     try{ await ctx.setSinkId(devMon.value); }
-    catch(e){ msg('esa salida de monitoreo no se puede usar'); return; }
+    catch(e){ msg('that monitor output is not available'); return; }
     try{ await roomEl.setSinkId(devRoom.value); }
-    catch(e){ msg('esa salida de sala no se puede usar'); return; }
-    msg('monitoreo: ' + name(devMon) + '<br>sala: ' + name(devRoom) + ' &middot; llega tarde a prop&oacute;sito');
+    catch(e){ msg('that room output is not available'); return; }
+    msg('monitor: ' + name(devMon) + '<br>room: ' + name(devRoom) + ' &middot; latency is intentional');
   }
 
   async function cueOnOff(){
@@ -781,15 +781,15 @@ if you find value, consider supporting:
       document.querySelectorAll('.strip .cue').forEach(b => { b.disabled = true; b.classList.remove('on'); });
       ['A','B'].forEach(id => chans[id].cue.gain.setTargetAtTime(0, ctx.currentTime, .02));
       paintBus();
-      msg('una salida &middot; sin cue');
+      msg('one output &middot; no cue');
       return;
     }
-    if(!canRoute()){ msg('este navegador no rutea salidas &middot; en safari no hay cue'); return; }
+    if(!canRoute()){ msg('this browser cannot route outputs &middot; no cue on safari'); return; }
     audio();
     let devs;
     try{ devs = await outputs(); }
-    catch(e){ msg('no pude leer los dispositivos &middot; abrilo por https o localhost'); return; }
-    if(devs.length < 2){ msg('hace falta una segunda salida &middot; enchuf&aacute; la pantalla o un dongle'); return; }
+    catch(e){ msg('could not read devices &middot; open via https or localhost'); return; }
+    if(devs.length < 2){ msg('need a second output &middot; plug in a display or dongle'); return; }
     fill(devMon, devs, 0); fill(devRoom, devs, 1);
     cue.dest = ctx.createMediaStreamDestination();
     cue.room = ctx.createGain();
@@ -825,7 +825,7 @@ if you find value, consider supporting:
       route();
     });
   }
-  if(!canRoute()) msg('este navegador no rutea salidas &middot; una sola salida');
+  if(!canRoute()) msg('this browser cannot route outputs &middot; one output only');
 
   const labA = document.getElementById('labA'), labB = document.getElementById('labB');
   const xf = new Fader(document.getElementById('xf'), x => {
@@ -910,7 +910,7 @@ if you find value, consider supporting:
     if(!crate.length){
       const e = document.createElement('p');
       e.className = 'crate-empty';
-      e.innerHTML = 'vac&iacute;o &middot; solt&aacute; varios discos ac&aacute;';
+      e.innerHTML = 'empty &middot; drop records here';
       itemsEl.appendChild(e);
       return;
     }
@@ -925,7 +925,7 @@ if you find value, consider supporting:
       ['A','B'].forEach(id => {
         const b = document.createElement('button');
         b.textContent = id;
-        b.title = 'al plato ' + id + (decks[id].onPlatter ? ' (queda en sigue)' : '');
+        b.title = 'to deck ' + id + (decks[id].onPlatter ? ' (queued as next)' : '');
         b.addEventListener('click', () => {
           const d = decks[id];
           if(d.onPlatter) d.queue(it); else d.mount(it);
@@ -934,7 +934,7 @@ if you find value, consider supporting:
         go.appendChild(b);
       });
       const x = document.createElement('button');
-      x.className = 'x'; x.textContent = '×'; x.title = 'sacar del cajón';
+      x.className = 'x'; x.textContent = '×'; x.title = 'remove from crate';
       x.addEventListener('click', () => {
         crate.splice(i, 1);
         ['A','B'].forEach(id => {
