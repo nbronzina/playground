@@ -58,6 +58,7 @@
     </div>
 
 <main class="rig">
+  <div class="deck-toggle"><button class="dt-a on">A</button><button class="dt-b">B</button></div>
 
   <section class="deck" data-id="A">
     <div class="head"><span class="letter">A</span><span class="track">no record</span></div>
@@ -207,7 +208,8 @@
 </section>
 
 <div class="mk2-keys">
-  <em>q</em> / <em>p</em> play &middot; <em>w</em> / <em>o</em> restart &middot; <em>&larr; &rarr;</em> crossfade &middot; click the groove = drop the needle &middot; drag the disc = move by hand &middot; double-click any knob or fader = reset to center<br>
+  <em>q</em> / <em>p</em> play &middot; <em>w</em> / <em>o</em> restart &middot; <em>&larr; &rarr;</em> crossfade &middot; <em>1-5</em> cue points A &middot; <em>6-0</em> cue points B &middot; first press sets, second jumps<br>
+  click the groove = drop the needle &middot; drag the disc = scratch &middot; double-click any knob or fader = reset to center<br>
   the motor spins up and brakes like a real turntable. cue requires two system outputs: the browser asks for the mic once, just to list them.<br>
   the crate holds records without decoding: load one to the deck with A or B, and if the deck is busy it queues as next. youtube won't share its audio.
 </div>
@@ -252,6 +254,11 @@ if you find value, consider supporting:
     }
     if(ctx.state === 'suspended') ctx.resume();
     return ctx;
+  }
+  let vinylReady = false;
+  function initVinyl(){
+    if(!ctx || !ctx.audioWorklet || vinylReady) return;
+    ctx.audioWorklet.addModule('vinyl-playback-processor.js').then(() => { vinylReady = true; }).catch(() => {});
   }
   const dbg = db => Math.pow(10, db/20);
   const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
@@ -421,6 +428,8 @@ if you find value, consider supporting:
       this.buffer = null; this.offset = 0; this.pitch = 0; this.base = 1;
       this.playing = false; this.src = null; this.startedAt = 0;
       this.angle = 0; this.vrate = 0; this.grab = null;
+      this.cues = [null, null, null, null, null];
+      this.wp = null;
 
       this.pitchFader = new Fader(el.querySelector('.fader.pitch'), v => this.setPitch(v));
       this.bind();
@@ -526,12 +535,27 @@ if you find value, consider supporting:
         return;
       }
       this.offset = 0; this.angle = 0;
+      this.cues = [null, null, null, null, null];
       this.titleEl.textContent = name;
       this.el.classList.add('loaded');
       [this.playBtn, this.backBtn, this.s33, this.s45].forEach(b => b.disabled = false);
-      if(!this.onPlatter) this.onPlatter = {kind:'file', name:name};   // vino del picker del plato
+      if(!this.onPlatter) this.onPlatter = {kind:'file', name:name};
       this.shelf();
+      this.loadWorklet();
       this.paint();
+    }
+
+    loadWorklet(){
+      if(!vinylReady || !this.buffer) return;
+      if(!this.wp){
+        this.wp = new AudioWorkletNode(ctx, 'vinyl-playback-processor');
+        this.wp.connect(this.ch.input);
+        this.wp.port.onmessage = (e) => { if(e.data.event === 'ended') this.finish(); };
+      }
+      const nch = this.buffer.numberOfChannels;
+      const bufs = [];
+      for(let c = 0; c < nch; c++) bufs.push(new Float32Array(this.buffer.getChannelData(c)));
+      this.wp.port.postMessage({cmd:'load', buffer:bufs, channels:nch, length:this.buffer.length}, bufs.map(b => b.buffer));
     }
 
     position(){
@@ -566,16 +590,20 @@ if you find value, consider supporting:
       if(!this.buffer || this.playing) return;
       audio();
       if(this.offset >= this.buffer.duration - .02) this.offset = 0;
-      const r = this.rate(), now = ctx.currentTime;
-      const s = ctx.createBufferSource();
-      s.buffer = this.buffer;
-      s.playbackRate.setValueAtTime(.02, now);
-      s.playbackRate.setTargetAtTime(r, now, TAU_UP);
-      s.connect(this.ch.input);
-      s.onended = () => { if(this.src === s) this.finish(); };
-      s.start(0, this.offset);
-      this.src = s;
-      this.startedAt = now + TAU_UP;   // compensa el arranque del motor
+      if(this.wp){
+        this.wp.port.postMessage({cmd:'play', offset:this.offset, rate:this.rate()});
+      } else {
+        const r = this.rate(), now = ctx.currentTime;
+        const s = ctx.createBufferSource();
+        s.buffer = this.buffer;
+        s.playbackRate.setValueAtTime(.02, now);
+        s.playbackRate.setTargetAtTime(r, now, TAU_UP);
+        s.connect(this.ch.input);
+        s.onended = () => { if(this.src === s) this.finish(); };
+        s.start(0, this.offset);
+        this.src = s;
+      }
+      this.startedAt = ctx.currentTime + TAU_UP;
       this.playing = true;
       this.el.classList.add('live');
       this.playBtn.querySelector('span').textContent = '❚❚';
@@ -586,16 +614,21 @@ if you find value, consider supporting:
       if(!this.playing) return;
       tau = tau || BRAKE;
       const pos = this.position(), r = this.rate(), now = ctx.currentTime;
-      const s = this.src;
-      this.src = null; this.playing = false;
-      if(s){
-        s.onended = null;
-        s.playbackRate.cancelScheduledValues(now);
-        s.playbackRate.setValueAtTime(Math.max(.02, r), now);
-        s.playbackRate.setTargetAtTime(.0001, now, tau);
-        try{ s.stop(now + tau * 5); }catch(e){}
-        setTimeout(() => { try{ s.disconnect(); }catch(e){} }, tau * 5000 + 100);
+      if(this.wp){
+        this.wp.port.postMessage({cmd:'pause', brake:tau});
+      } else {
+        const s = this.src;
+        this.src = null;
+        if(s){
+          s.onended = null;
+          s.playbackRate.cancelScheduledValues(now);
+          s.playbackRate.setValueAtTime(Math.max(.02, r), now);
+          s.playbackRate.setTargetAtTime(.0001, now, tau);
+          try{ s.stop(now + tau * 5); }catch(e){}
+          setTimeout(() => { try{ s.disconnect(); }catch(e){} }, tau * 5000 + 100);
+        }
       }
+      this.playing = false;
       this.offset = clamp(pos + r * tau, 0, this.buffer.duration);
       this.el.classList.remove('live');
       this.playBtn.querySelector('span').textContent = '▶';
@@ -603,6 +636,7 @@ if you find value, consider supporting:
     }
 
     kill(){
+      if(this.wp) this.wp.port.postMessage({cmd:'stop'});
       if(this.src){ const s = this.src; this.src = null; s.onended = null; try{ s.stop(); }catch(e){} setTimeout(() => { try{ s.disconnect(); }catch(e){} }, 100); }
       this.playing = false; this.vrate = 0;
       this.el.classList.remove('live');
@@ -617,6 +651,7 @@ if you find value, consider supporting:
       this.kill();
       this.offset = clamp(t, 0, this.buffer.duration);
       this.angle = this.offset * 200;
+      if(this.wp) this.wp.port.postMessage({cmd:'seek', position:this.offset});
       if(was){ this.vrate = this.rate(); this.play(); } else this.paint();
     }
 
@@ -624,8 +659,12 @@ if you find value, consider supporting:
       if(!this.playing) return;
       this.offset = this.position();
       this.startedAt = ctx.currentTime;
-      this.src.playbackRate.cancelScheduledValues(ctx.currentTime);
-      this.src.playbackRate.setValueAtTime(this.rate(), ctx.currentTime);
+      if(this.wp){
+        this.wp.port.postMessage({cmd:'rate', value:this.rate()});
+      } else if(this.src){
+        this.src.playbackRate.cancelScheduledValues(ctx.currentTime);
+        this.src.playbackRate.setValueAtTime(this.rate(), ctx.currentTime);
+      }
     }
 
     setPitch(v){
@@ -643,6 +682,12 @@ if you find value, consider supporting:
       loop();
     }
 
+    cuePoint(i){
+      if(!this.buffer) return;
+      if(this.cues[i] !== null) this.seek(this.cues[i]);
+      else this.cues[i] = this.position();
+    }
+
     geo(e){
       const r = this.disc.getBoundingClientRect();
       const dx = e.clientX - (r.left + r.width/2), dy = e.clientY - (r.top + r.height/2);
@@ -655,7 +700,13 @@ if you find value, consider supporting:
       this.disc.setPointerCapture(e.pointerId);
       const g = this.geo(e);
       const was = this.playing;
-      if(was) this.pause(.03);
+      if(this.wp){
+        if(was){ this.playing = false; this.el.classList.remove('live'); this.playBtn.querySelector('span').textContent = '▶'; }
+        this.offset = this.position();
+        this.wp.port.postMessage({cmd:'scratch', position:this.offset});
+      } else {
+        if(was) this.pause(.03);
+      }
       this.vrate = 0;
       this.grab = {ang:g.ang, r:g.r, moved:0, at:performance.now(), resume:was, x:e.clientX, y:e.clientY};
       this.el.classList.add('grab');
@@ -672,6 +723,7 @@ if you find value, consider supporting:
       this.grab.x = e.clientX; this.grab.y = e.clientY;
       this.offset = clamp(this.offset + (d/(2*Math.PI)) * 1.8, 0, this.buffer.duration);
       this.angle += d * 180/Math.PI;
+      if(this.wp) this.wp.port.postMessage({cmd:'scratch', position:this.offset});
       this.paint();
     }
 
@@ -685,7 +737,21 @@ if you find value, consider supporting:
         this.offset = prog * this.buffer.duration;
         this.angle = this.offset * 200;
       }
-      if(g.resume) this.play(); else this.paint();
+      if(this.wp){
+        if(tap && g.r > R_IN - 3 && g.r <= R_DISC) this.wp.port.postMessage({cmd:'seek', position:this.offset});
+        if(g.resume){
+          this.wp.port.postMessage({cmd:'release', resume:true, rate:this.rate()});
+          this.startedAt = ctx.currentTime + TAU_UP;
+          this.playing = true;
+          this.el.classList.add('live');
+          this.playBtn.querySelector('span').textContent = '❚❚';
+        } else {
+          this.wp.port.postMessage({cmd:'release', resume:false});
+        }
+      } else {
+        if(g.resume) this.play();
+      }
+      this.paint();
       loop();
     }
   }
@@ -881,7 +947,16 @@ if you find value, consider supporting:
     else if(k === 'o'){ decks.B.seek(0); e.preventDefault(); }
     else if(k === 'arrowleft'){ xf.set(xf.val - .04); e.preventDefault(); }
     else if(k === 'arrowright'){ xf.set(xf.val + .04); e.preventDefault(); }
+    else if('12345'.includes(k)){ decks.A.cuePoint('12345'.indexOf(k)); e.preventDefault(); }
+    else if('67890'.includes(k)){ decks.B.cuePoint('67890'.indexOf(k)); e.preventDefault(); }
   });
+
+  /* ---------- mobile deck toggle ---------- */
+  const dtA = document.querySelector('.dt-a');
+  const dtB = document.querySelector('.dt-b');
+  const rig = document.querySelector('.rig');
+  dtA.addEventListener('click', () => { rig.classList.remove('show-b'); dtA.classList.add('on'); dtB.classList.remove('on'); });
+  dtB.addEventListener('click', () => { rig.classList.add('show-b'); dtB.classList.add('on'); dtA.classList.remove('on'); });
 
   /* ---------- cajón ----------
      guarda los discos sin decodificar: el disco está en la funda hasta que sube al plato.
@@ -969,7 +1044,7 @@ if you find value, consider supporting:
       if(u) addURL(u);
     }
   });
-  document.addEventListener('pointerdown', () => audio(), {once:true});
+  document.addEventListener('pointerdown', () => { audio(); initVinyl(); }, {once:true});
 })();
 </script>
 <script>
