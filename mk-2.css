@@ -105,7 +105,7 @@ body {
 .platter {
     position: relative;
     flex: 1;
-    max-width: 330px;
+    max-width: 440px;
     aspect-ratio: 1;
 }
 .slot {
@@ -163,18 +163,6 @@ body {
     background: var(--active-text);
 }
 
-/* === ARM === */
-.arm {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    overflow: visible;
-}
-.arm line { stroke: rgba(var(--mk2-fg-rgb), .75); stroke-width: 1.1; }
-.arm .pivot { fill: var(--bg-primary); stroke: rgba(var(--mk2-fg-rgb), .6); stroke-width: 1; }
-.arm .nee { fill: var(--text-primary); }
 
 /* === PITCH COLUMN === */
 .pitchcol {
@@ -444,7 +432,7 @@ body {
         border-bottom: 1px solid var(--border-primary);
         max-width: 520px; margin: 0 auto; width: 100%;
     }
-    .platter { max-width: min(72vw, 300px); }
+    .platter { max-width: min(85vw, 400px); }
 }
 
 @media (prefers-reduced-motion: reduce) {

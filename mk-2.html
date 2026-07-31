@@ -66,11 +66,6 @@
       <div class="platter">
         <label class="slot" for="fileA"><span>drop a record</span></label>
         <div class="disc"><div class="label">A</div></div>
-        <svg class="arm" viewBox="0 0 100 100" aria-hidden="true">
-          <line x1="95" y1="80" x2="92" y2="38"></line>
-          <circle class="pivot" cx="95" cy="80" r="3.4"></circle>
-          <circle class="nee" cx="92" cy="38" r="1.7"></circle>
-        </svg>
       </div>
       <div class="pitchcol">
         <span class="cap">PITCH</span>
@@ -169,11 +164,6 @@
       <div class="platter">
         <label class="slot" for="fileB"><span>drop a record</span></label>
         <div class="disc"><div class="label">B</div></div>
-        <svg class="arm" viewBox="0 0 100 100" aria-hidden="true">
-          <line x1="95" y1="80" x2="92" y2="38"></line>
-          <circle class="pivot" cx="95" cy="80" r="3.4"></circle>
-          <circle class="nee" cx="92" cy="38" r="1.7"></circle>
-        </svg>
       </div>
       <div class="pitchcol">
         <span class="cap">PITCH</span>
@@ -406,13 +396,7 @@ if you find value, consider supporting:
   }
 
   /* ---------- bandeja ---------- */
-  const PIV = {x:95,y:80}, CEN = {x:50,y:50}, ARM = 42, R_OUT = 44, R_IN = 18, R_DISC = 46;
-  const DM = Math.hypot(PIV.x-CEN.x, PIV.y-CEN.y), PHI = Math.atan2(PIV.y-CEN.y, PIV.x-CEN.x);
-  function armTip(r){
-    const c = clamp((r*r - DM*DM - ARM*ARM)/(2*ARM*DM), -1, 1);
-    const th = PHI - Math.acos(c);
-    return {x: PIV.x + ARM*Math.cos(th), y: PIV.y + ARM*Math.sin(th)};
-  }
+  const R_OUT = 44, R_IN = 18, R_DISC = 46;
   const TAU_UP = .30, TAU_DN = .22, BRAKE = .16;
 
   class Deck {
@@ -428,8 +412,6 @@ if you find value, consider supporting:
       this.rewBtn = el.querySelector('.rew');
       this.fwdBtn = el.querySelector('.fwd');
       this.s33 = el.querySelector('.s33'); this.s45 = el.querySelector('.s45');
-      this.armLine = el.querySelector('.arm line');
-      this.armNee = el.querySelector('.arm .nee');
       this.file = el.querySelector('.file-pick');
       this.numEl = el.querySelector('.pitchcol .num');
 
@@ -578,11 +560,7 @@ if you find value, consider supporting:
 
     paint(){
       const pos = this.position(), dur = this.buffer ? this.buffer.duration : 0;
-      const prog = dur ? clamp(pos/dur, 0, 1) : 0;
       this.disc.style.transform = 'rotate(' + this.angle.toFixed(1) + 'deg)';
-      const t = armTip(R_OUT - (R_OUT - R_IN) * prog);
-      this.armLine.setAttribute('x2', t.x.toFixed(2)); this.armLine.setAttribute('y2', t.y.toFixed(2));
-      this.armNee.setAttribute('cx', t.x.toFixed(2)); this.armNee.setAttribute('cy', t.y.toFixed(2));
       this.timeEl.textContent = fmt(pos) + ' / ' + fmt(dur);
     }
 
