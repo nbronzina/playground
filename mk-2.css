@@ -27,7 +27,7 @@ body {
 
 /* === HEADER OVERRIDES === */
 .header {
-    padding: var(--mk2-pad);
+    padding: 0.8rem var(--mk2-pad);
 }
 
 .mk2-hint {
@@ -67,7 +67,7 @@ body {
     padding: var(--mk2-pad);
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 10px;
 }
 .deck.over .disc,
 .deck.over .slot {
@@ -105,7 +105,7 @@ body {
 .platter {
     position: relative;
     flex: 1;
-    max-width: 440px;
+    max-width: min(38vh, 360px);
     aspect-ratio: 1;
 }
 .slot {
@@ -244,7 +244,7 @@ body {
     padding: var(--mk2-pad);
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 10px;
 }
 .mx-head {
     font-size: 10px;
@@ -254,22 +254,22 @@ body {
     justify-content: space-between;
 }
 .strips { display: grid; grid-template-columns: 1fr 1fr; gap: var(--mk2-pad); }
-.strip { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 0 4px; }
+.strip { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 4px; }
 .strip + .strip { border-left: 1px solid var(--border-primary); padding-left: calc(var(--mk2-pad) - 4px); }
 .strip .ch { font-weight: 700; font-size: 15px; }
 
 /* === KNOBS === */
-.knobs { display: flex; flex-direction: column; gap: 11px; align-items: center; }
+.knobs { display: flex; flex-direction: column; gap: 6px; align-items: center; }
 .knob {
-    width: 38px;
+    width: 34px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
+    gap: 2px;
     cursor: ns-resize;
     touch-action: none;
 }
-.knob svg { width: 32px; height: 32px; overflow: visible; display: block; }
+.knob svg { width: 28px; height: 28px; overflow: visible; display: block; }
 .knob .ring { fill: none; stroke: rgba(var(--mk2-fg-rgb), .22); stroke-width: 1; }
 .knob .arc { fill: none; stroke: var(--text-primary); stroke-width: 2; }
 .knob .tick { stroke: var(--text-primary); stroke-width: 1.4; }
@@ -279,7 +279,7 @@ body {
 .knob:focus-visible { outline: 1px solid var(--text-primary); outline-offset: 3px; }
 
 /* === VOLUME + METER === */
-.vol { display: flex; gap: 9px; align-items: stretch; height: 150px; }
+.vol { display: flex; gap: 9px; align-items: stretch; height: 100px; }
 .meter { width: 5px; display: flex; flex-direction: column-reverse; gap: 2px; justify-content: flex-start; }
 .meter i { flex: 1; background: rgba(var(--mk2-fg-rgb), .13); }
 .meter i.on { background: var(--text-primary); }
@@ -309,7 +309,7 @@ body {
 .fader.h .cap { top: 0; bottom: 0; height: auto; width: 11px; left: auto; right: auto; transform: translateX(-50%); }
 
 /* === CROSSFADER === */
-.xf-block { display: flex; flex-direction: column; gap: 7px; border-top: 1px solid var(--border-primary); padding-top: 16px; }
+.xf-block { display: flex; flex-direction: column; gap: 5px; border-top: 1px solid var(--border-primary); padding-top: 10px; }
 .xf-lab { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: .16em; color: var(--text-secondary); }
 .xf-lab b { font-size: 13px; color: var(--text-primary); opacity: .35; transition: opacity .12s linear; }
 .xf-lab b.on { opacity: 1; }
@@ -317,7 +317,7 @@ body {
 /* === MASTER + CUE === */
 .mst {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    border-top: 1px solid var(--border-primary); padding-top: 14px;
+    border-top: 1px solid var(--border-primary); padding-top: 8px;
 }
 .cuebar { display: flex; flex-direction: column; gap: 8px; }
 .cuebar button { height: 26px; min-width: 0; padding: 0 10px; font-size: 10px; letter-spacing: .14em; align-self: flex-start; }
@@ -432,7 +432,7 @@ body {
         border-bottom: 1px solid var(--border-primary);
         max-width: 520px; margin: 0 auto; width: 100%;
     }
-    .platter { max-width: min(85vw, 400px); }
+    .platter { max-width: min(75vw, 340px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
