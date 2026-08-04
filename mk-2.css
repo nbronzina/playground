@@ -38,8 +38,27 @@ body {
     padding: 0.8rem var(--mk2-pad);
     background: #0a0a0a;
     border-bottom: 1px solid #1e1e1e;
+    flex-wrap: wrap;
 }
 .header::after { display: none; }
+
+/* === KNOW HOW PANEL === */
+.knowhow-panel {
+    grid-column: 1 / -1;
+    padding: 12px var(--mk2-pad);
+    border-top: 1px solid var(--border-primary);
+    font-size: 11px;
+    line-height: 1.8;
+    color: #fff;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 32px;
+}
+.knowhow-panel[hidden] { display: none; }
+.knowhow-section { min-width: 200px; flex: 1; }
+.knowhow-section strong { color: var(--mk2-accent); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
+.knowhow-section em { font-style: normal; color: var(--mk2-accent); }
+.knowhow-section a { color: var(--mk2-accent); text-decoration: underline; }
 
 .mk2-hint {
     color: var(--text-tertiary);
@@ -58,7 +77,7 @@ body {
 }
 
 /* === Z-INDEX ABOVE GRAIN === */
-.rig, .crate, .mk2-keys {
+.rig, .crate {
     position: relative;
     z-index: 2;
 }
@@ -407,19 +426,7 @@ body {
 .rec button.x:hover { background: transparent; color: var(--text-primary); }
 .rec.puesto { border-color: rgba(var(--mk2-fg-rgb), .7); }
 
-/* === KEYS === */
-.mk2-keys {
-    padding: var(--mk2-pad); color: var(--text-secondary);
-    font-size: 10.5px; letter-spacing: .09em;
-    border-top: 1px solid var(--border-primary); line-height: 1.9;
-}
-.mk2-keys em { font-style: normal; color: var(--text-tertiary); }
 
-/* === SUPPORT CARD === */
-.support-card { cursor: default; }
-.support-card:hover { transform: none; border-color: var(--border-primary); }
-.support-card a { text-decoration: underline; }
-.support-card .separator { margin: 0; }
 
 /* === FOOTER OVERRIDE === */
 .footer {
