@@ -54,6 +54,8 @@
         </div>
     </div>
 
+<canvas id="viz" class="viz"></canvas>
+
 <main class="rig">
   <div class="deck-toggle"><button class="dt-a on">A</button><button class="dt-b">B</button></div>
 
@@ -227,6 +229,10 @@ if you find value, consider supporting:
 
 <script>
 (() => {
+  const vizCanvas = document.getElementById('viz');
+  const vizCtx = vizCanvas.getContext('2d');
+  var vizData = null;
+
   /* ---------- audio ---------- */
   let ctx, master, limiter, out, mon, cueSum, cueOut;
   function audio(){
@@ -241,6 +247,9 @@ if you find value, consider supporting:
       cueSum = ctx.createGain();
       cueOut = ctx.createGain(); cueOut.gain.value = 0;
       master.connect(limiter); limiter.connect(out);
+      window.masterAn = ctx.createAnalyser();
+      window.masterAn.fftSize = 2048;
+      out.connect(window.masterAn);
       out.connect(mon); mon.connect(ctx.destination);
       cueSum.connect(cueOut); cueOut.connect(ctx.destination);
     }
@@ -925,6 +934,47 @@ if you find value, consider supporting:
     });
   }
 
+  /* ---------- visualizer ---------- */
+  function drawViz(){
+    const c = vizCanvas, g = vizCtx;
+    const dpr = window.devicePixelRatio || 1;
+    if(c.width !== c.offsetWidth * dpr || c.height !== c.offsetHeight * dpr){
+      c.width = c.offsetWidth * dpr;
+      c.height = c.offsetHeight * dpr;
+      g.scale(dpr, dpr);
+    }
+    const w = c.offsetWidth, h = c.offsetHeight;
+    g.clearRect(0, 0, w, h);
+
+    if(!window.masterAn) return;
+    const an = window.masterAn;
+    const len = an.frequencyBinCount;
+    if(!vizData || vizData.length !== len) vizData = new Uint8Array(len);
+    an.getByteTimeDomainData(vizData);
+
+    g.lineWidth = 1.2;
+    g.strokeStyle = '#d4c5a0';
+    g.shadowColor = '#d4c5a0';
+    g.shadowBlur = 4;
+    g.beginPath();
+    const step = w / len;
+    for(let i = 0; i < len; i++){
+      const v = vizData[i] / 128.0;
+      const y = (v * h) / 2;
+      if(i === 0) g.moveTo(0, y);
+      else g.lineTo(i * step, y);
+    }
+    g.stroke();
+    g.shadowBlur = 0;
+
+    g.strokeStyle = 'rgba(212, 197, 160, .08)';
+    g.lineWidth = 0.5;
+    g.beginPath();
+    g.moveTo(0, h/2);
+    g.lineTo(w, h/2);
+    g.stroke();
+  }
+
   /* ---------- reloj ---------- */
   var raf = null, last = 0;
   function loop(){
@@ -934,9 +984,9 @@ if you find value, consider supporting:
       const dt = Math.min(.05, (t - last)/1000); last = t;
       let busy = false;
       for(const id in decks){ decks[id].frame(dt); if(decks[id].busy()) busy = true; }
-      drawMeters();
+      drawMeters(); drawViz();
       if(busy) raf = requestAnimationFrame(step);
-      else { raf = null; drawMeters(); }
+      else { raf = null; drawMeters(); drawViz(); }
     };
     raf = requestAnimationFrame(step);
   }
