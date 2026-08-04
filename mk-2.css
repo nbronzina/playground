@@ -125,7 +125,7 @@ body {
 .platter {
     position: relative;
     flex: 1;
-    max-width: min(38vh, 360px);
+    max-width: min(42vh, 520px);
     aspect-ratio: 1;
 }
 .slot {
