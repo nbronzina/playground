@@ -51,6 +51,32 @@
         </div>
         <div class="header-actions">
             <span class="mk2-hint">grab the disc &middot; let go and it keeps spinning</span>
+            <button id="knowHow" class="header-btn">know how</button>
+        </div>
+        <div class="knowhow-panel" id="knowHowPanel" hidden>
+            <div class="knowhow-section">
+                <strong>keys</strong><br>
+                <em>q</em> / <em>p</em> play &middot; <em>w</em> / <em>o</em> restart &middot; <em>e</em> / <em>i</em> eject &middot; <em>&larr; &rarr;</em> crossfade<br>
+                <em>1-5</em> cue points A &middot; <em>6-0</em> cue points B &middot; first press sets, second jumps<br>
+                <em>&laquo;</em> <em>&raquo;</em> skip 10s &middot; double-click any knob or fader = reset
+            </div>
+            <div class="knowhow-section">
+                <strong>gestures</strong><br>
+                click the groove = drop the needle &middot; drag the disc = scratch<br>
+                the motor spins up and brakes like a real turntable
+            </div>
+            <div class="knowhow-section">
+                <strong>cue</strong><br>
+                requires two system outputs &middot; the browser asks for the mic once, just to list them
+            </div>
+            <div class="knowhow-section">
+                <strong>crate</strong><br>
+                holds records without decoding &middot; load to deck with A or B &middot; if busy, queues as next<br>
+                youtube won't share its audio
+            </div>
+            <div class="knowhow-section">
+                play&middot;ground is free and open &middot; <a href="https://buymeacoffee.com/nbronzina" target="_blank">buy me a coffee</a>
+            </div>
         </div>
     </div>
 
@@ -201,23 +227,6 @@
   <div class="crate-items" id="crateItems"></div>
 </section>
 
-<div class="mk2-keys">
-  <em>q</em> / <em>p</em> play &middot; <em>w</em> / <em>o</em> restart &middot; <em>e</em> / <em>i</em> eject &middot; <em>&larr; &rarr;</em> crossfade &middot; <em>1-5</em> cue points A &middot; <em>6-0</em> cue points B &middot; first press sets, second jumps<br>
-  click the groove = drop the needle &middot; drag the disc = scratch &middot; <em>&laquo;</em> <em>&raquo;</em> skip 10s &middot; double-click any knob or fader = reset to center<br>
-  the motor spins up and brakes like a real turntable. cue requires two system outputs: the browser asks for the mic once, just to list them.<br>
-  the crate holds records without decoding: load one to the deck with A or B, and if the deck is busy it queues as next. youtube won't share its audio.
-</div>
-
-<div class="section" style="padding:var(--mk2-pad);position:relative;z-index:2">
-    <div class="card card-full support-card">
-        <div class="card-header">
-            <div class="card-title">support</div>
-        </div>
-        <pre>play<span class="separator">&middot;</span>ground is free and open.
-if you find value, consider supporting:
-<a href="https://buymeacoffee.com/nbronzina" target="_blank">[buy me a coffee]</a></pre>
-    </div>
-</div>
 
 <div class="footer">
     <div class="footer-content">
@@ -1103,6 +1112,10 @@ if you find value, consider supporting:
 })();
 </script>
 <script>
+    document.getElementById('knowHow').addEventListener('click', () => {
+        const p = document.getElementById('knowHowPanel');
+        p.hidden = !p.hidden;
+    });
     function updateTimestamp() {
         const now = new Date();
         const date = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
