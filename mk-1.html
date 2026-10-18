@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>play·ground mk-1 · create loop play</title>
-    <meta name="description" content="browser-based music creation. drums, synth, looper, mic input. no install, no account. just play.">
+    <title>mk-1 · synth, drums and looper · play·ground</title>
+    <meta name="description" content="a synth with drums in the browser. 8 pads, 16 steps, 9 voices, 4 loops, mic in. tap a pad and it plays.">
     
     <!-- Favicon SVG -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f2f2f0'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
@@ -44,115 +44,62 @@
     <link rel="stylesheet" href="mk-1.css">
 </head>
 <body>
-    <div class="header">
-        <div class="header-brand">
-            <a href="index.html" class="brand wordmark">play<span class="separator">·</span>ground mk-1</a>
-            <div class="header-timestamp" id="timestamp"></div>
-        </div>
+    <div class="screen">
+    <header class="header">
+        <h1 class="brand wordmark"><a href="index.html">play<span class="separator">·</span>ground</a> mk-1</h1>
         <div class="header-actions">
-            <a href="https://mk-air.onrender.com/broadcast?from=mk1" target="_blank" class="header-btn">broadcast</a>
-            <button id="shortcutsBtn" class="header-btn" aria-label="Show keyboard shortcuts">?</button>
+            <a href="https://mk-air.onrender.com/broadcast?from=mk1" target="_blank" rel="noopener" class="header-btn">on air ↗</a>
+            <button id="knowHow" class="header-btn" aria-expanded="false" aria-controls="knowHowPanel">know how</button>
         </div>
-    </div>
-
-    <!-- Shortcuts Modal -->
-    <div class="modal-overlay" id="shortcutsModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title" id="modalTitle">keyboard shortcuts</h3>
-                <button class="modal-close" id="closeModal" aria-label="Close modal">esc</button>
-            </div>
-            <div class="layout-selector">
-                <span>layout:</span>
-                <div class="custom-select" id="keyboardLayout" data-value="qwerty">
-                    <button class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
-                        <span class="custom-select-value">QWERTY</span>
-                        <span class="custom-select-arrow">▼</span>
-                    </button>
-                    <ul class="custom-select-dropdown" role="listbox">
-                        <li class="custom-select-option selected" data-value="qwerty" role="option" tabindex="0">QWERTY</li>
-                        <li class="custom-select-option" data-value="azerty" role="option" tabindex="0">AZERTY</li>
-                        <li class="custom-select-option" data-value="qwertz" role="option" tabindex="0">QWERTZ</li>
-                    </ul>
+        <div class="knowhow-panel" id="knowHowPanel" hidden>
+            <section class="knowhow-section knowhow-play">
+                <h2 class="knowhow-title">play</h2>
+                <ul class="knowhow-keys">
+                    <li><kbd>1–8</kbd> drums</li>
+                    <li><kbd data-keys="white">a s d f g h j k</kbd> white keys</li>
+                    <li><kbd data-keys="black">w e t y u</kbd> black keys</li>
+                    <li><kbd>space</kbd> play the pattern and record into the slot · again to stop</li>
+                    <li><kbd>r</kbd> rec manual · <kbd>o</kbd> add layer</li>
+                    <li><kbd>p</kbd> play · <kbd>l</kbd> play all</li>
+                    <li><kbd data-keys="slots">q z b n</kbd> <span data-keys="slot-names">slots a b c d</span></li>
+                    <li><kbd>c</kbd> clear slot · <kbd>x</kbd> clear pattern</li>
+                    <li><kbd>ctrl+z</kbd> undo · <kbd>ctrl+shift+z</kbd> redo the pattern</li>
+                    <li><kbd>m</kbd> mic · the vocoder turns it on with its first note</li>
+                    <li><kbd>v</kbd> download · <kbd>shift+e</kbd> export all</li>
+                    <li><kbd>?</kbd> know how · <kbd>esc</kbd> close</li>
+                    <li>on air ↗ opens mk-air in a new tab · a radio that forgets</li>
+                </ul>
+                <div class="layout-selector">
+                    <span>layout</span>
+                    <div class="custom-select" id="keyboardLayout" data-value="qwerty">
+                        <button class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="keyboard layout">
+                            <span class="custom-select-value">qwerty</span>
+                            <span class="custom-select-arrow">▼</span>
+                        </button>
+                        <ul class="custom-select-dropdown" role="listbox">
+                            <li class="custom-select-option selected" data-value="qwerty" role="option" tabindex="0">qwerty</li>
+                            <li class="custom-select-option" data-value="azerty" role="option" tabindex="0">azerty</li>
+                            <li class="custom-select-option" data-value="qwertz" role="option" tabindex="0">qwertz</li>
+                        </ul>
+                    </div>
                 </div>
-            </div>
-            <div class="shortcuts-grid">
-                <div class="shortcut">
-                    <span class="shortcut-key">1-8</span>
-                    <span class="shortcut-desc">drums</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">a-k</span>
-                    <span class="shortcut-desc">notes</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">space</span>
-                    <span class="shortcut-desc">play+rec</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">enter</span>
-                    <span class="shortcut-desc">start</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">r</span>
-                    <span class="shortcut-desc">rec manual</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">o</span>
-                    <span class="shortcut-desc">add layer</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">p</span>
-                    <span class="shortcut-desc">play loop</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">l</span>
-                    <span class="shortcut-desc">play all</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">c</span>
-                    <span class="shortcut-desc">clear loop</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">v</span>
-                    <span class="shortcut-desc">download slot</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">shift+e</span>
-                    <span class="shortcut-desc">export all</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">ctrl+z</span>
-                    <span class="shortcut-desc">undo</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">ctrl+shift+z</span>
-                    <span class="shortcut-desc">redo</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">x</span>
-                    <span class="shortcut-desc">clear pattern</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">q/z/b/n</span>
-                    <span class="shortcut-desc">slots A/B/C/D</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">m</span>
-                    <span class="shortcut-desc">toggle mic</span>
-                </div>
-                <div class="shortcut">
-                    <span class="shortcut-key">?</span>
-                    <span class="shortcut-desc">show shortcuts</span>
-                </div>
-            </div>
-            <p class="modal-support">play<span class="separator">·</span>ground is free and open.
-if you find value, consider supporting:
-<a href="https://buymeacoffee.com/nbronzina" target="_blank">[buy me a coffee]</a></p>
+            </section>
+            <section class="knowhow-section">
+                <h2 class="knowhow-title">sound</h2>
+                <p>a synth with drums. 8 pads, 9 waves, 16 steps, 4 loops, mic in. nothing kept on a server.</p>
+            </section>
+            <section class="knowhow-section">
+                <h2 class="knowhow-title">who</h2>
+                <p>by <a href="https://nicolasbronzina.com" target="_blank" rel="noopener">nicolás bronzina ↗</a> · <a href="https://github.com/nbronzina/playground" target="_blank" rel="noopener">code on github ↗</a></p>
+            </section>
+            <section class="knowhow-section">
+                <h2 class="knowhow-title">support</h2>
+                <p>play<span class="separator">·</span>ground is free. <a href="https://buymeacoffee.com/nbronzina" target="_blank" rel="noopener">buy me a coffee ↗</a></p>
+            </section>
         </div>
-    </div>
+    </header>
 
-    <div class="container console">
+    <main class="container console">
         <div class="status-bar">
             <div class="status-item"><span class="status-value" id="sysStatus">ready</span></div>
             <div class="status-item">rec: <span class="status-value" id="recStatus">off</span></div>
@@ -166,8 +113,8 @@ if you find value, consider supporting:
             </div>
             <div class="status-item status-message" id="statusMessage" aria-live="polite"></div>
             <div class="status-item status-actions">
-                <button class="btn" id="loadDemoBtn">load demo</button>
-                <button class="btn-secondary" id="clearAllBtn">clear all</button>
+                <button class="btn" id="loadDemoBtn">demo</button>
+                <button class="btn-secondary" id="clearAllBtn">clear</button>
                 <button id="initBtn" hidden></button>
             </div>
         </div>
@@ -177,8 +124,7 @@ if you find value, consider supporting:
             <div class="console-col">
                 <div class="module module-drums">
                     <div class="module-header">
-                        <div class="module-title">drums</div>
-                        <div class="module-desc">tap pads or use keys 1-8 to play sounds</div>
+                        <h2 class="module-title">drums</h2>
                     </div>
                     <div class="pad-grid">
                         <div class="pad" data-sound="kick">
@@ -218,8 +164,7 @@ if you find value, consider supporting:
 
                 <div class="module module-pattern">
                     <div class="module-header">
-                        <div class="module-title">pattern</div>
-                        <div class="module-desc">program rhythms · play auto-records</div>
+                        <h2 class="module-title">pattern</h2>
                     </div>
                     <div id="sequencer">
                         <div class="seq-row">
@@ -266,8 +211,7 @@ if you find value, consider supporting:
             <div class="console-col">
                 <div class="module module-wave">
                     <div class="module-header">
-                        <div class="module-title">wave</div>
-                        <div class="module-desc">visual audio feedback</div>
+                        <h2 class="module-title">wave</h2>
                     </div>
                     <div class="visualizer">
                         <canvas id="viz" aria-label="Audio waveform visualization" role="img"></canvas>
@@ -276,8 +220,7 @@ if you find value, consider supporting:
 
                 <div class="module module-keys">
                     <div class="module-header">
-                        <div class="module-title">keys</div>
-                        <div class="module-desc">play melodies with a-k keys</div>
+                        <h2 class="module-title">keys</h2>
                     </div>
 
                     <div class="synth-controls">
@@ -338,8 +281,7 @@ if you find value, consider supporting:
             <div class="console-col">
                 <div class="module module-loop">
                     <div class="module-header">
-                        <div class="module-title">loop</div>
-                        <div class="module-desc">record & layer up to 4 loops + mic input</div>
+                        <h2 class="module-title">loop</h2>
                     </div>
 
                     <div class="btn-group slot-group">
@@ -370,16 +312,14 @@ if you find value, consider supporting:
 
                 <div class="module module-vibe">
                     <div class="module-header">
-                        <div class="module-title">vibe</div>
-                        <div class="module-desc">your music companion</div>
+                        <h2 class="module-title">vibe</h2>
                     </div>
                     <div class="vibe-matrix" id="vibeMatrix"></div>
                 </div>
 
                 <div class="module module-fx">
                     <div class="module-header">
-                        <div class="module-title">fx + tempo</div>
-                        <div class="module-desc">shape your sound</div>
+                        <h2 class="module-title">fx + tempo</h2>
                     </div>
                     <div class="fx-grid">
                         <div class="control-group">
@@ -442,16 +382,21 @@ if you find value, consider supporting:
                 </div>
             </div>
         </div>
-
-        <!-- Footer -->
-        <div class="footer">
-            <div class="footer-content">
-                <span class="version">pg mk-1</span>
-                <span class="separator">•</span>
-                <span>designed, coded & built by <a href="https://nicolasbronzina.com" target="_blank">nicolás bronzina</a></span>
-            </div>
-        </div>
+    </main>
     </div>
+
+    <footer class="pg-footer">
+        <nav class="pg-footer-nav" aria-label="play·ground">
+            <a href="index.html" class="wordmark">play<span class="separator">·</span>ground</a>
+            <a href="mk-1.html" aria-current="page">mk-1</a>
+            <a href="mk-2.html">mk-2</a>
+            <a href="https://mk-air.onrender.com/" target="_blank" rel="noopener">mk-air ↗</a>
+            <a href="mk-dwell/">mk-dwell</a>
+            <a href="about.html">about</a>
+            <a href="https://buymeacoffee.com/nbronzina" target="_blank" rel="noopener">buy me a coffee ↗</a>
+        </nav>
+        <p class="pg-footer-credit">designed, coded &amp; built by <a href="https://nicolasbronzina.com" target="_blank" rel="noopener">nicolás bronzina ↗</a></p>
+    </footer>
 
     <!-- JavaScript -->
     <script src="mk-1.js" defer></script>

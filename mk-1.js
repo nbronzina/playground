@@ -445,6 +445,7 @@ let micStream = null;
 let micSource = null;
 let micGain = null;
 let isMicActive = false;
+let micPending = false;
 
 let loopSlots = {
     A: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, loopSamples: 0, isPlaying: false, playback: null },
@@ -974,8 +975,10 @@ function applySliders() {
 
 async function toggleMic() {
     initSystem();
+    if (micPending) return;
 
     if (!isMicActive) {
+        micPending = true;
         try {
             micStream = await navigator.mediaDevices.getUserMedia({ 
                 audio: {
@@ -995,12 +998,13 @@ async function toggleMic() {
             document.getElementById('micBtn').classList.add('active');
             document.getElementById('micIndicator').classList.add('active');
 
-            showMessage('mic active · ready to capture external audio', 3000);
+            showMessage('mic on', 2000);
 
         } catch (error) {
-            console.error('Microphone access denied:', error);
-            alert('Could not access microphone. Please check permissions.');
+            console.warn('Microphone access denied:', error);
+            showMessage(error.name === 'NotFoundError' ? 'no mic found' : 'mic blocked · allow it in the browser', 4000);
         }
+        micPending = false;
     } else {
         if (micSource) {
             micSource.disconnect();
@@ -1474,6 +1478,17 @@ function playNote(freq, skipRecording = false, time, releaseMs = releaseTime, wa
         return;
     }
 
+    // The vocoder has nothing to shape without the mic; a played note asks for it, a loop or the API stays silent
+    if (wave === 'vocoder' && !micSource) {
+        if (!skipRecording) {
+            toggleMic();
+            const micBtn = document.getElementById('micBtn');
+            micBtn.classList.add('blink');
+            setTimeout(() => micBtn.classList.remove('blink'), 1500);
+        }
+        return;
+    }
+
     if (audioContext.state === 'suspended') {
         audioContext.resume();
     }
@@ -1664,24 +1679,6 @@ function playNote(freq, skipRecording = false, time, releaseMs = releaseTime, wa
         nodes.push(lfo, lfoGain);
 
     } else if (wave === 'vocoder') {
-        if (!isMicActive || !micSource) {
-            const hintOsc = audioContext.createOscillator();
-            const hintGain = audioContext.createGain();
-            hintOsc.frequency.value = 440;
-            hintGain.gain.setValueAtTime(0.1, now);
-            hintGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-            hintOsc.connect(hintGain);
-            hintGain.connect(masterGain);
-            hintOsc.start(now);
-            hintOsc.stop(now + 0.3);
-            registerSynthVoice([hintOsc, hintGain], 0.4);
-            const micBtn = document.getElementById('micBtn');
-            if (micBtn) {
-                micBtn.classList.add('blink');
-                setTimeout(() => micBtn.classList.remove('blink'), 1500);
-            }
-            return;
-        }
         // Simplified vocoder - fewer bands for performance
         const bandFreqs = [200, 400, 800, 1600, 3200, 6400];
         const carrier = audioContext.createOscillator();
@@ -2374,28 +2371,22 @@ document.getElementById('chorus').addEventListener('input', function() {
     }
 });
 
-// Shortcuts Modal
-const modal = document.getElementById('shortcutsModal');
-const closeModalBtn = document.getElementById('closeModal');
+// Know how
+const knowHow = document.getElementById('knowHow');
+const knowHowPanel = document.getElementById('knowHowPanel');
 
-function openModal() {
-    modal.classList.add('active');
+function showKnowHow(open) {
+    if (!open && knowHowPanel.contains(document.activeElement)) knowHow.focus();
+    knowHowPanel.hidden = !open;
+    knowHow.setAttribute('aria-expanded', open);
 }
 
-function closeModal() {
-    modal.classList.remove('active');
-}
+knowHow.addEventListener('click', () => showKnowHow(knowHowPanel.hidden));
 
-// Shortcuts Modal Button
-document.getElementById('shortcutsBtn').addEventListener('click', openModal);
-
-modal.addEventListener('click', (e) => {
-    if (e.target === modal) {
-        closeModal();
-    }
+document.addEventListener('pointerdown', (e) => {
+    if (knowHowPanel.hidden || knowHowPanel.contains(e.target) || knowHow.contains(e.target)) return;
+    showKnowHow(false);
 });
-
-closeModalBtn.addEventListener('click', closeModal);
 
 // Keyboard layouts for different keyboard types
 const keyboardLayouts = {
@@ -2440,10 +2431,24 @@ if (currentLayout !== 'qwerty') {
     }
 }
 
+function showLayoutKeys() {
+    const keysFor = test => Object.keys(keyMap).filter(k => notes[keyMap[k]] && test(keyMap[k])).join(' ');
+    knowHowPanel.querySelector('[data-keys="white"]').textContent = keysFor(n => !n.includes('#'));
+    knowHowPanel.querySelector('[data-keys="black"]').textContent = keysFor(n => n.includes('#'));
+    // A slot key that is also a note in this layout plays the note, so it is left out
+    const slotKeys = { q: 'a', z: 'b', b: 'c', n: 'd' };
+    const free = Object.keys(slotKeys).filter(k => !keyMap[k]);
+    knowHowPanel.querySelector('[data-keys="slots"]').textContent = free.join(' ');
+    knowHowPanel.querySelector('[data-keys="slot-names"]').textContent = 'slots ' + free.map(k => slotKeys[k]).join(' ');
+}
+
+showLayoutKeys();
+
 keyboardLayoutElement.addEventListener('change', function(e) {
     currentLayout = e.detail.value;
     keyMap = keyboardLayouts[currentLayout];
     localStorage.setItem('playground-mk1-keyboard-layout', currentLayout);
+    showLayoutKeys();
     showMessage('layout: ' + currentLayout);
 });
 
@@ -2474,8 +2479,8 @@ customSelectInstances.waveType = {
 document.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
 
-    if (modal.classList.contains('active')) {
-        if (e.key === 'Escape') closeModal();
+    if (!knowHowPanel.hidden) {
+        if (e.key === 'Escape' || e.key === '?') showKnowHow(false);
         return;
     }
 
@@ -2497,7 +2502,7 @@ document.addEventListener('keydown', (e) => {
 
     if (e.key === '?') {
         e.preventDefault();
-        openModal();
+        showKnowHow(true);
         return;
     }
 
@@ -2640,16 +2645,6 @@ function resizeCanvas() {
 // The display grows with the console, not only with the window
 new ResizeObserver(resizeCanvas).observe(canvas);
 
-function updateTimestamp() {
-    const now = new Date();
-    const date = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    document.getElementById('timestamp').textContent = `${date} — ${time}`;
-}
-
-updateTimestamp();
-setInterval(updateTimestamp, 1000);
-
 function updatePatternCount() {
     let totalActive = 0;
     drums.forEach(drum => {
@@ -2725,7 +2720,7 @@ document.getElementById('loadDemoBtn').addEventListener('click', () => {
     updatePatternCount();
     updateSlotUI();
 
-    showMessage(free.length > 0 ? 'demo loaded! hit space to hear it' : 'demo pattern loaded · slots full', 4000);
+    showMessage(free.length > 0 ? 'demo · space' : 'demo · space · slots full', 4000);
 });
 
 document.getElementById('clearAllBtn').addEventListener('click', () => {
@@ -2764,7 +2759,7 @@ document.getElementById('clearAllBtn').addEventListener('click', () => {
     updatePatternCount();
     updateSlotUI();
 
-    showMessage('all clear! start creating', 3000);
+    showMessage('clear', 2000);
 });
 
 // ============================================
