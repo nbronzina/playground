@@ -1,0 +1,5 @@
+# GitHub Pages serves this repo as it is. These are notes for whoever works on it, not pages.
+exclude:
+  - BRIEF.md
+  - CLAUDE.md
+  - README.md

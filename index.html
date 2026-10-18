@@ -5,41 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>play·ground · sound tools and spaces in the browser</title>
     <meta name="description" content="a playground for sound in the browser. a synth with drums, two decks and a mixer, a live radio with no archive, a field of sound you move through. no install. no account.">
-    <meta name="keywords" content="browser music, web audio, synth, drums, looper, sequencer, turntables, mixer, live broadcast, ephemeral audio, generative ambient, no install, free music tools">
+    <meta name="author" content="nicolás bronzina">
+    <link rel="canonical" href="https://nbronzina.github.io/playground/">
 
-    <!-- Favicon SVG -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f2f2f0'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="color-scheme" content="dark">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' font-weight='600' text-anchor='middle' fill='%23fff'%3Epg%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%230a0a0a'/%3E%3Ctext x='90' y='120' font-family='monospace' font-size='80' font-weight='600' text-anchor='middle' fill='%23fff'%3Epg%3C/text%3E%3C/svg%3E">
 
-    <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
+    <meta property="og:site_name" content="play·ground">
     <meta property="og:url" content="https://nbronzina.github.io/playground/">
     <meta property="og:title" content="play·ground · sound tools and spaces in the browser">
     <meta property="og:description" content="tools to make sound. spaces to be inside it. nothing to install. nothing kept. just play.">
-    <meta property="og:image" content="https://nicolasbronzina.com/img/playground-og.png">
+    <meta property="og:image" content="https://nbronzina.github.io/playground/og/home.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="play·ground, tools to make sound and spaces to be inside it, over the home page with mk-1, mk-2, mk-air, mk-dwell and n0body">
 
-    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="https://nbronzina.github.io/playground/">
     <meta name="twitter:title" content="play·ground · sound tools and spaces in the browser">
     <meta name="twitter:description" content="tools to make sound. spaces to be inside it. nothing to install. nothing kept. just play.">
-    <meta name="twitter:image" content="https://nicolasbronzina.com/img/playground-og.png">
+    <meta name="twitter:image" content="https://nbronzina.github.io/playground/og/home.png">
+    <meta name="twitter:image:alt" content="play·ground, tools to make sound and spaces to be inside it, over the home page with mk-1, mk-2, mk-air, mk-dwell and n0body">
 
-    <!-- Apple Touch Icon -->
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%23f2f2f0'/%3E%3Ctext x='90' y='120' font-family='monospace' font-size='80' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
-
-    <!-- Theme color - always dark -->
-    <meta name="theme-color" content="#0a0a0a">
-
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap">
 
-    <!-- Stylesheets -->
-    <link rel="preload" href="playground-core.css" as="style">
-    <link rel="preload" href="playground.css" as="style">
     <link rel="stylesheet" href="playground-core.css">
     <link rel="stylesheet" href="playground.css">
 </head>
