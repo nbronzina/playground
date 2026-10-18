@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>play·ground mk-2 · just play</title>
     <meta name="description" content="two decks and a mixer in the browser. drop two records, grab the disc, crossfade. no manuals. no friction.">
 
     <!-- Favicon SVG -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f2f2f0'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' font-weight='600' text-anchor='middle' fill='%23d4c5a0'%3Epg%3C/text%3E%3C/svg%3E">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
@@ -26,11 +26,10 @@
     <meta name="twitter:image" content="https://nicolasbronzina.com/img/playground-og.png">
 
     <!-- Apple Touch Icon -->
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%23f2f2f0'/%3E%3Ctext x='90' y='120' font-family='monospace' font-size='80' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%230a0a0a'/%3E%3Ctext x='90' y='120' font-family='monospace' font-size='80' font-weight='600' text-anchor='middle' fill='%23d4c5a0'%3Epg%3C/text%3E%3C/svg%3E">
 
     <!-- Theme colors -->
-    <meta name="theme-color" content="#f2f2f0" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#0a0a0a">
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -50,10 +49,10 @@
             <div class="header-timestamp" id="timestamp"></div>
         </div>
         <div class="header-actions">
-            <span class="mk2-hint">grab the disc &middot; let go and it keeps spinning</span>
             <button id="knowHow" class="header-btn" aria-expanded="false" aria-controls="knowHowPanel">know how</button>
         </div>
         <div class="knowhow-panel" id="knowHowPanel" hidden>
+            <p class="knowhow-lead">grab the disc &middot; let go and it keeps spinning</p>
             <div class="knowhow-section">
                 <strong>keys</strong><br>
                 <em>q</em> / <em>p</em> play &middot; <em>w</em> / <em>o</em> restart &middot; <em>e</em> / <em>i</em> eject &middot; <em>&larr; &rarr;</em> crossfade<br>
@@ -109,6 +108,7 @@
       <button class="rew" disabled aria-label="rewind A"><span>&laquo;</span></button>
       <button class="fwd" disabled aria-label="forward A"><span>&raquo;</span></button>
       <button class="eject" disabled aria-label="eject A"><span>&#9167;</span></button>
+      <button class="pick" aria-label="load a record on A">load</button>
       <span class="time">0:00 / 0:00</span>
     </div>
     <div class="shelf">
@@ -207,6 +207,7 @@
       <button class="rew" disabled aria-label="rewind B"><span>&laquo;</span></button>
       <button class="fwd" disabled aria-label="forward B"><span>&raquo;</span></button>
       <button class="eject" disabled aria-label="eject B"><span>&#9167;</span></button>
+      <button class="pick" aria-label="load a record on B">load</button>
       <span class="time">0:00 / 0:00</span>
     </div>
     <div class="shelf">
@@ -347,11 +348,20 @@
     grabbed(){}
   }
 
+  /* el eq corta más de lo que realza (-26..+6): cada lado tiene su escala para que 0 dB quede en el detent de las 12. */
   class Knob extends Ctl {
     constructor(el, cb){ super(el, cb); }
+    turn(v){
+      if(!this.bip) return (v - this.min) / (this.max - this.min);
+      return v < 0 ? .5 - .5 * v / this.min : .5 + .5 * v / this.max;
+    }
+    unturn(t){
+      if(!this.bip) return this.min + t * (this.max - this.min);
+      return t < .5 ? this.min * (1 - 2*t) : this.max * (2*t - 1);
+    }
     paint(){
-      const ang = A0 + this.norm() * (A1 - A0);
-      const zero = this.bip ? A0 + ((0 - this.min)/(this.max - this.min)) * (A1 - A0) : A0;
+      const ang = A0 + this.turn(this.val) * (A1 - A0);
+      const zero = this.bip ? A0 + this.turn(0) * (A1 - A0) : A0;
       this.el.querySelector('.tick').setAttribute('transform', 'rotate(' + ang.toFixed(2) + ')');
       this.el.querySelector('.arc').setAttribute('d', arcPath(zero, ang, 13.5));
       const v = Math.abs(this.max - this.min) > 3 ? this.val.toFixed(1) : this.val.toFixed(2);
@@ -359,7 +369,7 @@
     }
     moved(e){
       const d = (this.drag.y - e.clientY) / 130;
-      this.set(this.drag.v + d * (this.max - this.min));
+      this.set(this.unturn(clamp(this.turn(this.drag.v) + d, 0, 1)));
     }
   }
 
@@ -454,6 +464,7 @@
 
     bind(){
       this.titleEl.addEventListener('click', () => this.file.click());
+      this.el.querySelector('.pick').addEventListener('click', () => this.file.click());
       this.nowEl = this.el.querySelector('.shelf .now');
       this.nextEl = this.el.querySelector('.shelf .next');
       this.upBtn = this.el.querySelector('.shelf .up');
@@ -1062,8 +1073,9 @@
   const dtA = document.querySelector('.dt-a');
   const dtB = document.querySelector('.dt-b');
   const rig = document.querySelector('.rig');
-  dtA.addEventListener('click', () => { rig.classList.remove('show-b'); dtA.classList.add('on'); dtB.classList.remove('on'); });
-  dtB.addEventListener('click', () => { rig.classList.add('show-b'); dtB.classList.add('on'); dtA.classList.remove('on'); });
+  const dtFor = {A: dtA, B: dtB};
+  dtA.addEventListener('click', () => { rig.classList.remove('show-b'); dtA.classList.add('on'); dtB.classList.remove('on'); dtA.classList.remove('news'); });
+  dtB.addEventListener('click', () => { rig.classList.add('show-b'); dtB.classList.add('on'); dtA.classList.remove('on'); dtB.classList.remove('news'); });
 
   /* ---------- cajón ----------
      guarda los discos sin decodificar: el disco está en la funda hasta que sube al plato.
@@ -1113,6 +1125,7 @@
         b.addEventListener('click', () => {
           const d = decks[id];
           if(d.onPlatter) d.queue(it); else d.mount(it);
+          if(!d.el.offsetWidth) dtFor[id].classList.add('news');
           paintCrate();
         });
         go.appendChild(b);
@@ -1168,6 +1181,10 @@
     document.addEventListener('keydown', e => {
         if (e.key !== 'Escape' || knowHowPanel.hidden) return;
         if (knowHowPanel.contains(document.activeElement)) knowHow.focus();
+        showKnowHow(false);
+    });
+    document.addEventListener('pointerdown', e => {
+        if (knowHowPanel.hidden || knowHowPanel.contains(e.target) || knowHow.contains(e.target)) return;
         showKnowHow(false);
     });
     function updateTimestamp() {
