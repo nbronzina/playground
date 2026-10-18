@@ -38,17 +38,13 @@
     --accent-dwell: #8cc7a8;
     --accent-air: #ff5a4a;
     --accent: var(--accent-mk1);
-    --accent-bg: rgba(255, 149, 0, 0.08);
-    --accent-text: #ff9500;
 
-    /* Old names still read by mk-1.css and mk-1.js */
-    --text-tertiary: var(--text-secondary);
+    /* Old names still read by .btn, mk-1.css and mk-1.js */
     --accent-primary: var(--text-primary);
     --viz-bg: #0a0a0a;
     --viz-line: #e0e0e0;
 
     /* Typography scale */
-    --letter-spacing-tight: 0.02em;
     --letter-spacing-normal: 0.03em;
     --letter-spacing-wide: 0.05em;
     --letter-spacing-wider: 0.08em;
@@ -121,13 +117,6 @@ body::before {
     z-index: 2;
 }
 
-.header-timestamp {
-    font-size: 0.7rem;
-    color: var(--text-secondary);
-    font-weight: 400;
-    margin-top: 0.3rem;
-}
-
 .header-actions {
     display: flex;
     gap: 0.5rem;
@@ -164,30 +153,8 @@ body::before {
     z-index: 2;
 }
 
-/* === HERO === */
-.hero {
-    text-align: center;
-    margin-bottom: 3rem;
-    padding: 2rem 0;
-}
-
-.hero h1 {
-    font-size: 3rem;
-    font-weight: 200;
-    letter-spacing: var(--letter-spacing-tight);
-    margin-bottom: 0.8rem;
-}
-
-.hero p {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    font-weight: 300;
-    letter-spacing: var(--letter-spacing-normal);
-    transition: all 0.3s ease;
-}
-
-/* === CARDS/MODULES === */
-.card, .module {
+/* === MODULES === */
+.module {
     background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     padding: 1.5rem;
@@ -197,37 +164,23 @@ body::before {
     transition: all 0.15s ease;
 }
 
-.card > *, .module > * {
+.module > * {
     position: relative;
     z-index: 2;
 }
 
-.card:hover {
-    border-color: var(--border-secondary);
-    transform: translateY(-2px);
-}
-
-/* === CARD HEADER === */
-.card-header, .module-header {
+/* === MODULE HEADER === */
+.module-header {
     margin-bottom: 1rem;
     padding-bottom: 0.8rem;
 }
 
-.card-title, .module-title {
+.module-title {
     font-size: 0.7rem;
     font-weight: 500;
     letter-spacing: var(--letter-spacing-wider);
     text-transform: lowercase;
     color: var(--text-secondary);
-}
-
-.module-desc {
-    font-size: 0.65rem;
-    font-weight: 400;
-    letter-spacing: var(--letter-spacing-normal);
-    color: var(--text-secondary);
-    margin-top: 0.3rem;
-    line-height: 1.4;
 }
 
 /* === BUTTONS === */
@@ -308,61 +261,6 @@ a:hover {
     color: var(--text-secondary);
 }
 
-/* === STATUS BADGES === */
-.status-badge {
-    display: inline-block;
-    padding: 0.35rem 0.7rem;
-    font-size: 0.7rem;
-    font-weight: 500;
-    text-transform: lowercase;
-    letter-spacing: var(--letter-spacing-wide);
-    white-space: nowrap;
-    border-radius: 2px;
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-}
-
-/* === FOOTER === */
-.footer {
-    margin-top: 3rem;
-    padding: 2rem 0;
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: 0.7rem;
-    letter-spacing: var(--letter-spacing-normal);
-    position: relative;
-    z-index: 2;
-}
-
-.footer-content {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-
-.footer a {
-    color: var(--text-secondary);
-    text-decoration: none;
-    border-bottom: 1px solid var(--border-secondary);
-    transition: color 0.2s;
-}
-
-.footer a:hover {
-    color: var(--text-primary);
-}
-
-.footer-content > .separator {
-    margin: 0 0.5rem;
-}
-
-.version {
-    color: var(--text-secondary);
-    text-transform: lowercase;
-}
-
 /* === COMMON FOOTER (every page, same markup) ===
    No background and no positioning of its own: it sits on #0a0a0a, on a piece's
    panel or inside mk-dwell's fixed screens. A page moves it; these rules only dress it. */
@@ -437,71 +335,6 @@ a:hover {
     .pg-footer-nav {
         gap: 0 1.1rem;
     }
-}
-
-/* === MODAL === */
-.modal-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    z-index: 1000;
-    justify-content: center;
-    align-items: center;
-    backdrop-filter: blur(4px);
-}
-
-.modal-overlay.active {
-    display: flex;
-}
-
-.modal-content {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-primary);
-    padding: 2rem;
-    max-width: 600px;
-    width: 90%;
-    max-height: 80vh;
-    overflow-y: auto;
-    position: relative;
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-    position: relative;
-    z-index: 2;
-}
-
-.modal-title {
-    font-size: 0.7rem;
-    font-weight: 500;
-    text-transform: lowercase;
-    letter-spacing: var(--letter-spacing-wider);
-    color: var(--text-secondary);
-}
-
-.modal-close {
-    background: none;
-    border: 1px solid var(--border-primary);
-    color: var(--text-primary);
-    padding: 0.3rem 0.6rem;
-    cursor: pointer;
-    font-size: 0.7rem;
-    font-weight: 500;
-    text-transform: lowercase;
-    letter-spacing: var(--letter-spacing-wide);
-    transition: all 0.15s ease;
-}
-
-.modal-close:hover {
-    background: var(--hover-primary);
-    border-color: var(--border-secondary);
 }
 
 /* ======================== */
@@ -610,43 +443,26 @@ a:hover {
         font-size: 0.9rem;
     }
 
-    .hero h1 {
-        font-size: 2rem;
-    }
-
-    .hero p {
-        font-size: 0.8rem;
-    }
-
     .container {
         padding: 1.5rem 1rem;
     }
 
-    .card, .module {
+    .module {
         padding: 1rem;
     }
 
-    .card-header, .module-header {
+    .module-header {
         margin-bottom: 0.8rem;
         padding-bottom: 0.6rem;
     }
 
-    .card-title, .module-title {
+    .module-title {
         font-size: 0.65rem;
-    }
-
-    .module-desc {
-        font-size: 0.6rem;
     }
 
     .btn, .btn-secondary {
         font-size: 0.7rem;
         padding: 0.8rem;
-    }
-
-    .modal-content {
-        padding: 1.5rem;
-        max-height: 90vh;
     }
 }
 
@@ -659,19 +475,11 @@ a:hover {
         font-size: 0.8rem;
     }
 
-    .hero h1 {
-        font-size: 1.6rem;
-    }
-
-    .hero p {
-        font-size: 0.75rem;
-    }
-
     .container {
         padding: 1rem 0.8rem;
     }
 
-    .card, .module {
+    .module {
         padding: 0.8rem;
     }
 }

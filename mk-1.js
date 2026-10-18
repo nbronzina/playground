@@ -94,19 +94,6 @@ class CustomSelect {
         }));
     }
 
-    // Get current value
-    get value() {
-        return this.element.dataset.value;
-    }
-
-    // Set value programmatically
-    set value(newValue) {
-        const option = Array.from(this.options).find(opt => opt.dataset.value === newValue);
-        if (option) {
-            this.select(option);
-        }
-    }
-
     handleKeydown(e) {
         switch(e.key) {
             case 'Enter':
@@ -167,16 +154,12 @@ const AUDIO_CONSTANTS = {
     DELAY_TIME: 0.3,
     DELAY_FEEDBACK: 0.3,
     REVERB_TIME: 2,
-    DEFAULT_FILTER_FREQ: 10000,
-    DEFAULT_TEMPO: 120,
-    SEQUENCER_STEPS: 16,
-    LOOP_SLOTS_COUNT: 4
+    DEFAULT_FILTER_FREQ: 10000
 };
 
 const SYNTH_DEFAULTS = {
     ATTACK_MS: 10,
-    RELEASE_MS: 300,
-    GAIN: 0.3
+    RELEASE_MS: 300
 };
 
 const ANIMATION_CONSTANTS = {
@@ -233,9 +216,7 @@ function initSharedCurves() {
 
     sharedCurves = {
         // Tanh curves for saturation
-        tanh15: createTanhCurve(1.5),
         tanh18: createTanhCurve(1.8),
-        tanh20: createTanhCurve(2.0),
         tanh25: createTanhCurve(2.5),
         tanh40: createTanhCurve(4.0),
         // Hard clip curve
@@ -418,14 +399,6 @@ function startVoiceCleanup() {
         }
 
     }, VOICE_LIMITS.CLEANUP_INTERVAL);
-}
-
-// Stop voice cleanup (for cleanup on page unload)
-function stopVoiceCleanup() {
-    if (cleanupIntervalId) {
-        clearInterval(cleanupIntervalId);
-        cleanupIntervalId = null;
-    }
 }
 
 // Distortion curve generator
@@ -1817,8 +1790,7 @@ document.querySelectorAll('.key').forEach(key => {
     });
 });
 
-const sequencer = document.getElementById('sequencer');
-const drums = ['kick', 'snare', 'hihat', 'clap', 'tom1', 'perc', 'cymbal', 'rim'];
+const drums =['kick', 'snare', 'hihat', 'clap', 'tom1', 'perc', 'cymbal', 'rim'];
 
 drums.forEach(drum => {
     const stepsContainer = document.querySelector(`.seq-steps[data-drum="${drum}"]`);
@@ -2773,14 +2745,6 @@ function midiNoteToFreq(note) {
     return 440 * Math.pow(2, (note - 69) / 12);
 }
 
-// MIDI note to our note name mapping
-function midiNoteToName(note) {
-    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const octave = Math.floor(note / 12) - 1;
-    const noteName = noteNames[note % 12];
-    return noteName + octave;
-}
-
 // MIDI drum mapping (GM standard drum kit on channel 10, notes 35-81)
 const midiDrumMap = {
     36: 'kick',    // Bass Drum 1
@@ -2809,7 +2773,6 @@ function handleMIDIMessage(event) {
     // Note On (command = 9) with velocity > 0
     if (command === 9 && data2 > 0) {
         const note = data1;
-        const velocity = data2 / 127;
 
         // Channel 10 (index 9) is drums in GM
         if (channel === 9) {

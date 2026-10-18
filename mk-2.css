@@ -6,7 +6,6 @@
 /* === MK-2 VARIABLES === */
 :root {
     --mk2-fg-rgb: 255, 255, 255;
-    --mk2-groove: rgba(255, 255, 255, .11);
     --mk2-pad: clamp(12px, 1.2vw, 32px);
     --mk2-gap: clamp(8px, .55vw, 16px);
     --mk2-accent: #d4c5a0;
@@ -28,14 +27,13 @@
     --bg-secondary: #111;
     --text-primary: #fff;
     --text-secondary: #fff;
-    --text-tertiary: #fff;
     --border-primary: #1e1e1e;
     --active-bg: #e0e0e0;
     --active-text: #0a0a0a;
 }
 
-/* kill playground-core grain and vignette */
-body::before, body::after { display: none !important; }
+/* kill playground-core grain */
+body::before { display: none; }
 
 /* === BODY OVERRIDES === */
 body {
@@ -69,7 +67,6 @@ body {
     flex-wrap: wrap;
     overflow: visible;
 }
-.header::after { display: none; }
 .brand { font-size: var(--mk2-fs-value); font-weight: 600; color: var(--text-primary); }
 .brand a { color: inherit; }
 .brand a:hover { color: var(--mk2-accent); }
@@ -499,7 +496,6 @@ body {
 .crate { border-top: 1px solid var(--border-primary); padding: var(--mk2-pad); display: flex; flex-direction: column; gap: 12px; }
 .crate-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .crate-head .cap { font-size: var(--mk2-fs-label); letter-spacing: .2em; color: var(--text-secondary); }
-.crate-head button,
 .crate-add-label { height: var(--mk2-btn-s); min-width: 0; padding: 0 10px; font-size: var(--mk2-fs-label); letter-spacing: .12em; }
 .crate-add-label {
     display: inline-grid; place-items: center; cursor: pointer; position: relative;
@@ -529,8 +525,6 @@ body {
 .rec button.x { margin-left: auto; border-color: transparent; color: var(--text-secondary); }
 .rec button.x:hover { background: transparent; color: var(--mk2-accent); }
 .rec.puesto { border-color: rgba(var(--mk2-fg-rgb), .7); }
-
-
 
 /* === FOOTER OVERRIDE === */
 .pg-footer {

@@ -332,28 +332,6 @@ input[type="range"]::-moz-range-thumb {
     gap: 1.25rem 1.5rem;
 }
 
-select {
-    width: 100%;
-    padding: 0.8rem 1rem;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-primary);
-    color: var(--text-primary);
-    font-family: inherit;
-    font-size: 0.85rem;
-    font-weight: 500;
-    cursor: pointer;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%23999' stroke-width='1.5'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 1rem center;
-    padding-right: 2.5rem;
-}
-
-select:focus {
-    outline: none;
-    border-color: var(--border-secondary);
-}
-
 /* === LOOP === */
 .btn-group {
     display: grid;
@@ -594,10 +572,6 @@ select:focus {
     font-weight: 500;
     letter-spacing: var(--letter-spacing-wider);
     color: var(--accent);
-}
-
-.knowhow-section p + p {
-    margin-top: 0.6rem;
 }
 
 .knowhow-section a {
