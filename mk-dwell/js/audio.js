@@ -56,6 +56,18 @@ const DwellAudio = (function() {
         return BASE_FREQ * Math.pow(2, note / 12);
     }
 
+    // Free pitches land on the nearest scale note: inside the space nothing can sound wrong
+    function snapToScale(freq) {
+        const semitones = 12 * Math.log2(freq / BASE_FREQ);
+        const octave = Math.floor(semitones / 12) * 12;
+        let nearest = octave + SCALE[0];
+        for (let i = 1; i <= SCALE.length; i++) {
+            const note = octave + (i < SCALE.length ? SCALE[i] : 12);
+            if (Math.abs(note - semitones) < Math.abs(nearest - semitones)) nearest = note;
+        }
+        return noteToFreq(nearest);
+    }
+
     // Create impulse response for reverb
     function createReverbImpulse(duration, decay) {
         const sampleRate = audioContext.sampleRate;
@@ -227,15 +239,16 @@ const DwellAudio = (function() {
                 const gain = ctx.createGain();
                 gain.gain.value = 0;
 
-                // Fundamental 40Hz
+                // Fundamental E1 (~41Hz): a free 40Hz sat a quarter tone flat of the scale
+                const fundamental = snapToScale(40);
                 const osc1 = ctx.createOscillator();
                 osc1.type = 'sine';
-                osc1.frequency.value = 40;
+                osc1.frequency.value = fundamental;
 
-                // Harmonic at 80Hz for definition on smaller speakers
+                // Octave harmonic for definition on smaller speakers
                 const osc2 = ctx.createOscillator();
                 osc2.type = 'sine';
-                osc2.frequency.value = 80;
+                osc2.frequency.value = fundamental * 2;
 
                 const oscGain = ctx.createGain();
                 oscGain.gain.value = 1.4; // Boosted for presence
@@ -279,7 +292,7 @@ const DwellAudio = (function() {
                     const clickEnv = ctx.createGain();
 
                     clickOsc.type = 'square';
-                    clickOsc.frequency.value = 1000 + seededRandom() * 2000;
+                    clickOsc.frequency.value = snapToScale(1000 + seededRandom() * 2000);
 
                     clickEnv.gain.setValueAtTime(0.6, time);
                     clickEnv.gain.exponentialRampToValueAtTime(0.001, time + 0.01);
