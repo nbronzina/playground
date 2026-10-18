@@ -29,9 +29,8 @@
     <!-- Apple Touch Icon -->
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%23f2f2f0'/%3E%3Ctext x='90' y='120' font-family='monospace' font-size='80' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
 
-    <!-- Theme colors -->
-    <meta name="theme-color" content="#f2f2f0" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+    <!-- Theme color - always dark -->
+    <meta name="theme-color" content="#0a0a0a">
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -52,9 +51,6 @@
         </div>
         <div class="header-actions">
             <a href="about.html" class="header-btn">about</a>
-            <button id="themeToggle" class="header-btn" aria-label="Toggle dark mode">
-                <span id="themeIcon" aria-hidden="true">◐</span>
-            </button>
         </div>
     </div>
 
@@ -67,73 +63,68 @@
         </div>
 
         <!-- Tools & Spaces -->
-        <div class="section" id="tools">
-            <h2 class="section-title">releases</h2>
-            <div class="two-column-grid">
-                <!-- Tools Column -->
-                <div class="column">
-                    <h3 class="column-title">tools</h3>
-                    <a href="mk-1.html" class="release-card">
-                        <div class="release-header">
-                            <h3 class="release-title wordmark">play<span class="separator">·</span>ground mk-1</h3>
-                            <span class="status-badge live">live</span>
-                        </div>
-                        <p class="release-description">web-based music creation. drums, synth, looper, mic input.</p>
-                        <div class="release-meta">
-                            <span class="release-tag">8-track sequencer</span>
-                            <span class="release-tag">4-slot looper</span>
-                            <span class="release-tag">synthesizer</span>
-                        </div>
-                    </a>
+        <div class="section two-column-grid">
+            <section class="column" id="tools">
+                <h2 class="section-title">tools</h2>
+                <a href="mk-1.html" class="release-card" data-piece="mk-1">
+                    <div class="release-header">
+                        <h3 class="release-title wordmark">play<span class="separator">·</span>ground mk-1</h3>
+                        <span class="status-badge live">live</span>
+                    </div>
+                    <p class="release-description">web-based music creation. drums, synth, looper, mic input.</p>
+                    <div class="release-meta">
+                        <span class="release-tag">8-track sequencer</span>
+                        <span class="release-tag">4-slot looper</span>
+                        <span class="release-tag">synthesizer</span>
+                    </div>
+                </a>
 
-                    <a href="mk-2.html" class="release-card">
-                        <div class="release-header">
-                            <h3 class="release-title wordmark">play<span class="separator">·</span>ground mk-2</h3>
-                            <span class="status-badge live">live</span>
-                        </div>
-                        <p class="release-description">two decks and a mixer in the browser. drop two records, grab the disc, crossfade.</p>
-                        <div class="release-meta">
-                            <span class="release-tag">2 turntables</span>
-                            <span class="release-tag">mixer</span>
-                            <span class="release-tag">cue routing</span>
-                        </div>
-                    </a>
-                </div>
+                <a href="mk-2.html" class="release-card" data-piece="mk-2">
+                    <div class="release-header">
+                        <h3 class="release-title wordmark">play<span class="separator">·</span>ground mk-2</h3>
+                        <span class="status-badge live">live</span>
+                    </div>
+                    <p class="release-description">two decks and a mixer in the browser. drop two records, grab the disc, crossfade.</p>
+                    <div class="release-meta">
+                        <span class="release-tag">2 turntables</span>
+                        <span class="release-tag">mixer</span>
+                        <span class="release-tag">cue routing</span>
+                    </div>
+                </a>
+            </section>
 
-                <!-- Spaces Column -->
-                <div class="column">
-                    <h3 class="column-title">spaces</h3>
-                    <a href="https://mk-air.onrender.com/" class="release-card">
-                        <div class="release-header">
-                            <h3 class="release-title wordmark">play<span class="separator">·</span>ground mk-air</h3>
-                            <span class="status-badge live">live</span>
-                        </div>
-                        <p class="release-description">ephemeral live audio broadcasts. no recording, no archive.</p>
-                        <div class="release-meta">
-                            <span class="release-tag">streaming</span>
-                            <span class="release-tag">live only</span>
-                            <span class="release-tag">no archive</span>
-                        </div>
-                    </a>
+            <section class="column" id="spaces">
+                <h2 class="section-title">spaces</h2>
+                <a href="https://mk-air.onrender.com/" class="release-card" data-piece="mk-air">
+                    <div class="release-header">
+                        <h3 class="release-title wordmark">play<span class="separator">·</span>ground mk-air</h3>
+                        <span class="status-badge live">live</span>
+                    </div>
+                    <p class="release-description">ephemeral live audio broadcasts. no recording, no archive.</p>
+                    <div class="release-meta">
+                        <span class="release-tag">streaming</span>
+                        <span class="release-tag">live only</span>
+                        <span class="release-tag">no archive</span>
+                    </div>
+                </a>
 
-                    <a href="mk-dwell/" class="release-card">
-                        <div class="release-header">
-                            <h3 class="release-title wordmark">play<span class="separator">·</span>ground mk-dwell</h3>
-                            <span class="status-badge live">live</span>
-                        </div>
-                        <p class="release-description">an explorable sound space. generative ambient. cursor-controlled.</p>
-                        <div class="release-meta">
-                            <span class="release-tag">generative</span>
-                            <span class="release-tag">ambient</span>
-                            <span class="release-tag">spatial</span>
-                        </div>
-                    </a>
-                </div>
-            </div>
+                <a href="mk-dwell/" class="release-card" data-piece="mk-dwell">
+                    <div class="release-header">
+                        <h3 class="release-title wordmark">play<span class="separator">·</span>ground mk-dwell</h3>
+                        <span class="status-badge live">live</span>
+                    </div>
+                    <p class="release-description">an explorable sound space. generative ambient. cursor-controlled.</p>
+                    <div class="release-meta">
+                        <span class="release-tag">generative</span>
+                        <span class="release-tag">ambient</span>
+                        <span class="release-tag">spatial</span>
+                    </div>
+                </a>
+            </section>
         </div>
 
         <!-- Airtists -->
-        <div class="section" id="airtists">
+        <section class="section" id="airtists">
             <h2 class="section-title">airtists</h2>
             <div class="airtist-featured">
                 <div class="release-card no-link">
@@ -150,7 +141,7 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
 
         <!-- Support -->
         <div class="section">
@@ -169,14 +160,6 @@
     </div>
 
     <script>
-        // Theme Toggle
-        const themeToggle = document.getElementById('themeToggle');
-        const html = document.documentElement;
-
-        themeToggle.addEventListener('click', () => {
-            html.classList.toggle('dark-mode');
-        });
-
         // Timestamp
         function updateTimestamp() {
             const now = new Date();

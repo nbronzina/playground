@@ -28,9 +28,8 @@
     <!-- Apple Touch Icon -->
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%23f2f2f0'/%3E%3Ctext x='90' y='120' font-family='monospace' font-size='80' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
 
-    <!-- Theme colors -->
-    <meta name="theme-color" content="#f2f2f0" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+    <!-- Theme color - always dark -->
+    <meta name="theme-color" content="#0a0a0a">
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -48,11 +47,6 @@
         <div>
             <a href="index.html" class="brand wordmark">play<span class="separator">·</span>ground</a>
             <div class="header-timestamp" id="timestamp"></div>
-        </div>
-        <div class="header-actions">
-            <button id="themeToggle" class="header-btn" aria-label="Toggle dark mode">
-                <span id="themeIcon" aria-hidden="true">◐</span>
-            </button>
         </div>
     </div>
 
@@ -84,14 +78,6 @@
     </div>
 
     <script>
-        // Theme Toggle
-        const themeToggle = document.getElementById('themeToggle');
-        const html = document.documentElement;
-
-        themeToggle.addEventListener('click', () => {
-            html.classList.toggle('dark-mode');
-        });
-
         // Timestamp
         function updateTimestamp() {
             const now = new Date();

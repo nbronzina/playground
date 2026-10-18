@@ -10,37 +10,42 @@
     box-sizing: border-box;
 }
 
-/* === CSS VARIABLES === */
+/* === TOKENS === */
+/* One theme only: dark. Two text levels, three surfaces, one accent per piece. */
 :root {
-    /* Light mode (default) */
-    --bg-primary: #f2f2f0;
-    --bg-secondary: #fefefe;
-    --bg-tertiary: #fafafa;
-    --bg-input: #0f0f0f;
-    --border-primary: #e0e0e0;
-    --border-secondary: #2a2a2a;
-    --text-primary: #000;
-    --text-secondary: #666;
-    --text-tertiary: #999;
-    --text-invert: #fff;
-    --accent-primary: #000;
-    --accent-secondary: #e0e0e0;
-    --hover-primary: #f0f0f0;
-    --hover-secondary: #ccc;
-    --active-bg: #000;
-    --active-text: #fff;
-    --viz-bg: #fafafa;
-    --viz-line: #000;
+    /* Surfaces */
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #141414;
+    --bg-tertiary: #0f0f0f;
 
-    /* Status colors */
-    --status-live: #00ff00;
-    --status-planned: #999;
-    --status-beta: #ff9500;
+    /* Text: both stay >= 7:1 on all three surfaces */
+    --text-primary: #fff;
+    --text-secondary: #b3b3b3;
 
-    /* Accent */
-    --accent: #ff9500;
+    /* Lines */
+    --border-primary: #2a2a2a;
+    --border-secondary: #444;
+
+    /* States */
+    --hover-primary: #1a1a1a;
+    --hover-secondary: #444;
+    --active-bg: #e0e0e0;
+    --active-text: #000;
+
+    /* One piece, one accent. A page or a block picks its own with data-piece. */
+    --accent-mk1: #ff9500;
+    --accent-mk2: #d4c5a0;
+    --accent-dwell: #8cc7a8;
+    --accent-air: #ff5a4a;
+    --accent: var(--accent-mk1);
     --accent-bg: rgba(255, 149, 0, 0.08);
-    --accent-text: #cc7700;
+    --accent-text: #ff9500;
+
+    /* Old names still read by mk-1.css and mk-1.js */
+    --text-tertiary: var(--text-secondary);
+    --accent-primary: var(--text-primary);
+    --viz-bg: #0a0a0a;
+    --viz-line: #e0e0e0;
 
     /* Typography scale */
     --letter-spacing-tight: 0.02em;
@@ -48,43 +53,13 @@
     --letter-spacing-wide: 0.05em;
     --letter-spacing-wider: 0.08em;
 
-    /* Noise textures - consolidated */
-    --noise-main: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="1.2" numOctaves="6" seed="2" /></filter><rect width="100%" height="100%" filter="url(%23noise)" opacity="1"/></svg>');
-    --noise-card: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="5" /></filter><rect width="100%" height="100%" filter="url(%23n)"/></svg>');
-    --noise-header: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="250" height="250"><filter id="hn"><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="4" /></filter><rect width="100%" height="100%" filter="url(%23hn)"/></svg>');
+    --noise-main: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="1.2" numOctaves="3" seed="2" /></filter><rect width="100%" height="100%" filter="url(%23noise)" opacity="1"/></svg>');
 }
 
-:root.dark-mode {
-    /* Dark mode */
-    --bg-primary: #0a0a0a;
-    --bg-secondary: #141414;
-    --bg-tertiary: #0f0f0f;
-    --bg-input: #0f0f0f;
-    --border-primary: #2a2a2a;
-    --border-secondary: #444;
-    --text-primary: #e0e0e0;
-    --text-secondary: #999;
-    --text-tertiary: #666;
-    --text-invert: #000;
-    --accent-primary: #e0e0e0;
-    --accent-secondary: #2a2a2a;
-    --hover-primary: #1a1a1a;
-    --hover-secondary: #444;
-    --active-bg: #e0e0e0;
-    --active-text: #000;
-    --viz-bg: #0a0a0a;
-    --viz-line: #e0e0e0;
-    
-    /* Status colors dark mode */
-    --status-live: #00ff00;
-    --status-planned: #666;
-    --status-beta: #ff9500;
-
-    /* Accent */
-    --accent: #ff9500;
-    --accent-bg: rgba(255, 149, 0, 0.08);
-    --accent-text: #ff9500;
-}
+[data-piece="mk-1"] { --accent: var(--accent-mk1); }
+[data-piece="mk-2"] { --accent: var(--accent-mk2); }
+[data-piece="mk-dwell"] { --accent: var(--accent-dwell); }
+[data-piece="mk-air"] { --accent: var(--accent-air); }
 
 /* === BODY BASE === */
 body {
@@ -104,12 +79,11 @@ body {
 }
 
 .wordmark .separator {
-    opacity: 1;
-    margin: 0;
-    padding: 0;
+    color: var(--accent);
 }
 
 /* === GRAIN TEXTURE OVERLAY (FIXED) === */
+/* soft-light at low opacity keeps the black at #0a0a0a; plain alpha lifted it to ~#1f1f1f */
 body::before {
     content: '';
     position: fixed;
@@ -117,23 +91,11 @@ body::before {
     left: 0;
     width: 100%;
     height: 100%;
-    opacity: 0.25;
+    opacity: 0.06;
+    mix-blend-mode: soft-light;
     z-index: 1;
     pointer-events: none;
     background-image: var(--noise-main);
-}
-
-/* === SUBTLE VIGNETTE === */
-body::after {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 1;
-    box-shadow: inset 0 0 200px rgba(0,0,0,0.12);
 }
 
 /* === HEADER === */
@@ -150,19 +112,6 @@ body::after {
     align-items: center;
 }
 
-.header::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0.12;
-    z-index: 1;
-    pointer-events: none;
-    background-image: var(--noise-header);
-}
-
 .brand {
     font-size: 1rem;
     font-weight: 600;
@@ -174,7 +123,7 @@ body::after {
 
 .header-timestamp {
     font-size: 0.7rem;
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     font-weight: 400;
     margin-top: 0.3rem;
 }
@@ -231,7 +180,7 @@ body::after {
 
 .hero p {
     font-size: 0.85rem;
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     font-weight: 300;
     letter-spacing: var(--letter-spacing-normal);
     transition: all 0.3s ease;
@@ -246,20 +195,6 @@ body::after {
     overflow: hidden;
     min-width: 0;
     transition: all 0.15s ease;
-}
-
-/* Grain texture on cards/modules */
-.card::after, .module::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0.12;
-    z-index: 1;
-    pointer-events: none;
-    background-image: var(--noise-card);
 }
 
 .card > *, .module > * {
@@ -283,14 +218,14 @@ body::after {
     font-weight: 500;
     letter-spacing: var(--letter-spacing-wider);
     text-transform: lowercase;
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
 }
 
-.card-desc, .module-desc {
+.module-desc {
     font-size: 0.65rem;
     font-weight: 400;
     letter-spacing: var(--letter-spacing-normal);
-    color: #bbb;
+    color: var(--text-secondary);
     margin-top: 0.3rem;
     line-height: 1.4;
 }
@@ -376,31 +311,16 @@ a:hover {
 /* === STATUS BADGES === */
 .status-badge {
     display: inline-block;
-    padding: 0.3rem 0.6rem;
-    font-size: 0.65rem;
-    font-weight: 600;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.7rem;
+    font-weight: 500;
     text-transform: lowercase;
     letter-spacing: var(--letter-spacing-wide);
+    white-space: nowrap;
     border-radius: 2px;
-    border: 1px solid;
-}
-
-.status-badge.live {
-    color: #00cc00;
-    background: rgba(0, 204, 0, 0.15);
-    border-color: #00cc00;
-}
-
-.status-badge.planned {
-    color: #666;
-    background: rgba(102, 102, 102, 0.1);
-    border-color: #666;
-}
-
-.status-badge.beta {
-    color: #ff9500;
-    background: rgba(255, 149, 0, 0.15);
-    border-color: #ff9500;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 /* === FOOTER === */
@@ -408,7 +328,7 @@ a:hover {
     margin-top: 3rem;
     padding: 2rem 0;
     text-align: center;
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     font-size: 0.7rem;
     letter-spacing: var(--letter-spacing-normal);
     position: relative;
@@ -424,7 +344,7 @@ a:hover {
 }
 
 .footer a {
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     text-decoration: none;
     border-bottom: 1px solid var(--border-secondary);
     transition: color 0.2s;
@@ -434,13 +354,12 @@ a:hover {
     color: var(--text-primary);
 }
 
-.separator {
-    color: var(--border-primary);
+.footer-content > .separator {
     margin: 0 0.5rem;
 }
 
 .version {
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     text-transform: lowercase;
 }
 
@@ -474,19 +393,6 @@ a:hover {
     position: relative;
 }
 
-.modal-content::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0.12;
-    z-index: 1;
-    pointer-events: none;
-    background-image: var(--noise-card);
-}
-
 .modal-header {
     display: flex;
     justify-content: space-between;
@@ -501,7 +407,7 @@ a:hover {
     font-weight: 500;
     text-transform: lowercase;
     letter-spacing: var(--letter-spacing-wider);
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
 }
 
 .modal-close {
@@ -541,30 +447,18 @@ a:hover {
     font-size: 14px;
     font-weight: 400;
     background: transparent;
-    border: 1px solid rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     color: var(--text-primary);
     cursor: pointer;
     text-align: left;
 }
 
-:root.dark-mode .custom-select-trigger {
-    border-color: rgba(255, 255, 255, 0.15);
-}
-
 .custom-select-trigger:hover {
-    border-color: rgba(0, 0, 0, 0.3);
-}
-
-:root.dark-mode .custom-select-trigger:hover {
     border-color: rgba(255, 255, 255, 0.3);
 }
 
 .custom-select-trigger:focus {
     outline: none;
-    border-color: rgba(0, 0, 0, 0.5);
-}
-
-:root.dark-mode .custom-select-trigger:focus {
     border-color: rgba(255, 255, 255, 0.5);
 }
 
@@ -589,14 +483,10 @@ a:hover {
     padding: 0;
     list-style: none;
     background: var(--bg-secondary);
-    border: 1px solid rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     border-top: none;
     display: none;
     overflow: hidden;
-}
-
-:root.dark-mode .custom-select-dropdown {
-    border-color: rgba(255, 255, 255, 0.15);
 }
 
 .custom-select.open .custom-select-dropdown {
@@ -616,10 +506,6 @@ a:hover {
 }
 
 .custom-select-option:hover {
-    background: rgba(0, 0, 0, 0.05);
-}
-
-:root.dark-mode .custom-select-option:hover {
     background: rgba(255, 255, 255, 0.05);
 }
 
@@ -635,10 +521,6 @@ a:hover {
 
 .custom-select-option:focus {
     outline: none;
-    background: rgba(0, 0, 0, 0.05);
-}
-
-:root.dark-mode .custom-select-option:focus {
     background: rgba(255, 255, 255, 0.05);
 }
 
@@ -677,7 +559,7 @@ a:hover {
         font-size: 0.65rem;
     }
 
-    .card-desc, .module-desc {
+    .module-desc {
         font-size: 0.6rem;
     }
 

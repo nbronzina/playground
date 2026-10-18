@@ -4,10 +4,8 @@
    ============================================ */
 
 :root {
-    --dwell-bg: #0a0a0a;
-    --dwell-text: #1a1a1a;
-    --dwell-text-hover: #333;
-    --dwell-text-active: #666;
+    --dwell-bg: var(--bg-primary);
+    color-scheme: dark;
 }
 
 * {
@@ -23,6 +21,11 @@ html, body {
     background: var(--dwell-bg);
     font-family: 'JetBrains Mono', monospace;
     cursor: none;
+}
+
+/* The core grain sits above .sound-space (no z-index): it lifted the black to ~#202020 and buried the zone tints. */
+body::before, body::after {
+    display: none;
 }
 
 /* Entry Screen */
@@ -48,41 +51,42 @@ html, body {
 }
 
 .entry-title {
-    font-size: 1.2rem;
+    font-size: 1.5rem;
     font-weight: 300;
-    color: #555;
+    color: var(--text-primary);
     letter-spacing: 0.1em;
     margin-bottom: 3rem;
 }
 
 .entry-button {
     background: none;
-    border: 1px solid #333;
+    border: 1px solid var(--border-secondary);
     border-radius: 2px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 400;
-    color: #555;
+    color: var(--text-primary);
     letter-spacing: 0.15em;
     cursor: pointer;
     padding: 0.8rem 2rem;
     transition: all 0.2s ease;
 }
 
-.entry-button:hover {
-    color: #888;
-    border-color: #555;
+.entry-button:hover,
+.entry-button:focus-visible {
+    border-color: var(--accent);
+    outline: none;
 }
 
 .entry-button:active {
-    color: #aaa;
+    color: var(--accent);
 }
 
 .entry-hint {
     margin-top: 2rem;
-    font-size: 0.65rem;
+    font-size: 0.75rem;
     font-weight: 300;
-    color: #555;
+    color: var(--text-secondary);
     letter-spacing: 0.15em;
 }
 
@@ -90,9 +94,9 @@ html, body {
     position: absolute;
     bottom: 1.5rem;
     right: 1.5rem;
-    font-size: 0.6rem;
+    font-size: 0.75rem;
     font-weight: 300;
-    color: #555;
+    color: var(--text-secondary);
 }
 
 .entry-credit .separator {
@@ -117,9 +121,9 @@ html, body {
     bottom: 2rem;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 0.7rem;
+    font-size: 0.85rem;
     font-weight: 300;
-    color: var(--dwell-text);
+    color: var(--text-primary);
     letter-spacing: 0.2em;
     opacity: 0;
     transition: opacity 2s ease;
@@ -137,9 +141,9 @@ html, body {
 /* Custom cursor */
 .cursor {
     position: fixed;
-    width: 8px;
-    height: 8px;
-    background: var(--dwell-text);
+    width: 10px;
+    height: 10px;
+    background: var(--text-primary);
     border-radius: 50%;
     pointer-events: none;
     transform: translate(-50%, -50%);
@@ -170,20 +174,22 @@ html, body {
     left: 1.5rem;
     font-size: 0.75rem;
     font-weight: 400;
-    color: #555;
+    color: var(--text-secondary);
     text-decoration: none;
     letter-spacing: 0.1em;
     padding: 0.6rem 1rem;
-    border: 1px solid #333;
+    border: 1px solid var(--border-primary);
     border-radius: 2px;
     z-index: 200;
     transition: all 0.2s ease;
     cursor: pointer;
 }
 
-.back-link:hover {
-    color: #888;
-    border-color: #555;
+.back-link:hover,
+.back-link:focus-visible {
+    color: var(--text-primary);
+    border-color: var(--border-secondary);
+    outline: none;
 }
 
 /* Prevent text selection */

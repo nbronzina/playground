@@ -8,13 +8,13 @@ const DwellInput = (function() {
     let isActive = false;
     let lastPosition = { x: 0.5, y: 0.5 };
 
-    // Zone colors (very subtle tints) - RGB values
-    // Base is #0a0a0a (10, 10, 10)
+    // Zone colors - RGB values
+    // Base is #0a0a0a (10, 10, 10); ±5 was imperceptible, ±30 reads as a place
     const ZONE_COLORS = {
-        topLeft:     { r: 10, g: 10, b: 15 },  // Blue tint (bell)
-        topRight:    { r: 15, g: 10, b: 10 },  // Red tint (harsh)
-        bottomLeft:  { r: 10, g: 15, b: 10 },  // Green tint (sub)
-        bottomRight: { r: 13, g: 10, b: 15 },  // Purple tint (clicks)
+        topLeft:     { r: 10, g: 10, b: 40 },  // Blue tint (bell)
+        topRight:    { r: 40, g: 10, b: 10 },  // Red tint (harsh)
+        bottomLeft:  { r: 10, g: 40, b: 10 },  // Green tint (sub)
+        bottomRight: { r: 28, g: 10, b: 40 },  // Purple tint (clicks)
         center:      { r: 10, g: 10, b: 10 }   // Neutral (breath)
     };
 
