@@ -5,11 +5,22 @@ class VinylPlaybackProcessor extends AudioWorkletProcessor {
         this.nch = 0;
         this.len = 0;
         this.pos = 0;
+        this.step = 0;
         this.rate = 0;
         this.target = 0;
         this.state = 0; // 0=stopped, 1=playing, 2=braking, 3=scratching
         this.tau = 0.30;
         this.scratchTarget = 0;
+        this.endedMsg = { event: 'ended' };
+
+        // every jump or cut crossfades from the old read head so it never clicks
+        this.xfLen = Math.round(0.004 * sampleRate);
+        this.tailLeft = 0;
+        this.tailBuf = null;
+        this.tailNch = 0;
+        this.tailLen = 0;
+        this.tailPos = 0;
+        this.tailStep = 0;
 
         this.port.onmessage = (e) => {
             const m = e.data;
@@ -23,6 +34,7 @@ class VinylPlaybackProcessor extends AudioWorkletProcessor {
                     this.state = 0;
                     break;
                 case 'play':
+                    this.fade();
                     this.pos = m.offset * sampleRate;
                     this.target = m.rate;
                     this.tau = 0.30;
@@ -34,6 +46,7 @@ class VinylPlaybackProcessor extends AudioWorkletProcessor {
                     this.state = 2;
                     break;
                 case 'stop':
+                    this.fade();
                     this.state = 0;
                     this.rate = 0;
                     break;
@@ -47,6 +60,7 @@ class VinylPlaybackProcessor extends AudioWorkletProcessor {
                         this.tau = 0.30;
                         this.state = 1;
                     } else {
+                        this.fade();
                         this.state = 0;
                         this.rate = 0;
                     }
@@ -56,16 +70,26 @@ class VinylPlaybackProcessor extends AudioWorkletProcessor {
                     if (this.state === 1) this.tau = 0.015;
                     break;
                 case 'seek':
+                    this.fade();
                     this.pos = m.position * sampleRate;
                     break;
             }
         };
     }
 
-    cubic(ch, p) {
+    fade() {
+        if (!this.buf || this.state === 0) return;
+        this.tailBuf = this.buf;
+        this.tailNch = this.nch;
+        this.tailLen = this.len;
+        this.tailPos = this.pos;
+        this.tailStep = this.step;
+        this.tailLeft = this.xfLen;
+    }
+
+    cubic(ch, p, len) {
         const i = p | 0;
         const f = p - i;
-        const len = this.len;
         const y0 = ch[Math.max(0, i - 1)];
         const y1 = ch[Math.min(len - 1, i)];
         const y2 = ch[Math.min(len - 1, i + 1)];
@@ -80,43 +104,54 @@ class VinylPlaybackProcessor extends AudioWorkletProcessor {
         const out = outputs[0];
         const n = out[0].length;
 
-        if (!this.buf || this.state === 0) {
+        if (!this.buf || (this.state === 0 && this.tailLeft === 0)) {
             for (let c = 0; c < out.length; c++)
                 for (let i = 0; i < n; i++) out[c][i] = 0;
             return true;
         }
 
-        const sr = sampleRate;
         const len = this.len;
-        const alpha = 1 - Math.exp(-1 / (sr * Math.max(0.001, this.tau)));
+        const alpha = 1 - Math.exp(-1 / (sampleRate * Math.max(0.001, this.tau)));
 
         for (let i = 0; i < n; i++) {
-            if (this.state === 3) {
-                const diff = this.scratchTarget - this.pos;
-                this.pos += diff * 0.015;
-            } else {
-                this.rate += (this.target - this.rate) * alpha;
-                this.pos += this.rate;
-                if (this.state === 2 && Math.abs(this.rate) < 0.001) {
+            let live = this.state !== 0;
+            if (live) {
+                const p0 = this.pos;
+                if (this.state === 3) {
+                    const diff = this.scratchTarget - this.pos;
+                    this.pos += diff * 0.015;
+                } else {
+                    this.rate += (this.target - this.rate) * alpha;
+                    this.pos += this.rate;
+                    if (this.state === 2 && Math.abs(this.rate) < 0.001) {
+                        this.state = 0;
+                        this.rate = 0;
+                    }
+                }
+                if (this.pos < 0) this.pos = 0;
+                this.step = this.pos - p0;
+                if (this.pos >= len - 1) {
+                    this.pos = 0;
                     this.state = 0;
                     this.rate = 0;
+                    this.port.postMessage(this.endedMsg);
+                    live = false;
                 }
             }
 
-            if (this.pos < 0) this.pos = 0;
-            if (this.pos >= len - 1) {
-                this.pos = 0;
-                this.state = 0;
-                this.rate = 0;
-                this.port.postMessage({ event: 'ended' });
-                for (let c = 0; c < out.length; c++)
-                    for (let j = i; j < n; j++) out[c][j] = 0;
-                return true;
+            const k = this.tailLeft / this.xfLen;
+            for (let c = 0; c < out.length; c++) {
+                let v = 0;
+                if (live) v = (1 - k) * this.cubic(c < this.nch ? this.buf[c] : this.buf[0], this.pos, len);
+                if (this.tailLeft > 0) v += k * this.cubic(c < this.tailNch ? this.tailBuf[c] : this.tailBuf[0], this.tailPos, this.tailLen);
+                out[c][i] = v;
             }
 
-            for (let c = 0; c < out.length; c++) {
-                const ch = c < this.nch ? this.buf[c] : this.buf[0];
-                out[c][i] = this.cubic(ch, this.pos);
+            if (this.tailLeft > 0) {
+                this.tailPos += this.tailStep;
+                if (this.tailPos < 0) this.tailPos = 0;
+                if (this.tailPos > this.tailLen - 1) this.tailPos = this.tailLen - 1;
+                if (--this.tailLeft === 0) this.tailBuf = null;
             }
         }
 

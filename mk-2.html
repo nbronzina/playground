@@ -51,7 +51,7 @@
         </div>
         <div class="header-actions">
             <span class="mk2-hint">grab the disc &middot; let go and it keeps spinning</span>
-            <button id="knowHow" class="header-btn">know how</button>
+            <button id="knowHow" class="header-btn" aria-expanded="false" aria-controls="knowHowPanel">know how</button>
         </div>
         <div class="knowhow-panel" id="knowHowPanel" hidden>
             <div class="knowhow-section">
@@ -243,7 +243,9 @@
   var vizData = null;
 
   /* ---------- audio ---------- */
-  let ctx, master, limiter, out, mon, cueSum, cueOut;
+  let ctx, master, limiter, out, mon, cueSum, cueOut, vinylP;
+  const chans = {};
+  const ctls = [];
   function audio(){
     if(!ctx){
       ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -261,14 +263,14 @@
       out.connect(window.masterAn);
       out.connect(mon); mon.connect(ctx.destination);
       cueSum.connect(cueOut); cueOut.connect(ctx.destination);
+      vinylP = ctx.audioWorklet
+        ? ctx.audioWorklet.addModule('vinyl-playback-processor.js').then(() => true, () => false)
+        : Promise.resolve(false);
+      chans.A = new Channel('A'); chans.B = new Channel('B');
+      ctls.forEach(c => { if(c.cb) c.cb(c.val, true); });
     }
     if(ctx.state === 'suspended') ctx.resume();
     return ctx;
-  }
-  let vinylReady = false;
-  function initVinyl(){
-    if(!ctx || !ctx.audioWorklet || vinylReady) return;
-    ctx.audioWorklet.addModule('vinyl-playback-processor.js').then(() => { vinylReady = true; }).catch(() => {});
   }
   const dbg = db => Math.pow(10, db/20);
   const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
@@ -277,6 +279,9 @@
     try{ n = decodeURIComponent(new URL(u).pathname.split('/').pop()) || u; }catch(e){}
     n = n.split('/').pop().split('\\').pop();
     return n.replace(/\.[^.]+$/, '') || u;
+  };
+  const isURL = u => {
+    try{ return /^https?:$/.test(new URL(u).protocol); }catch(e){ return false; }
   };
   const fmt = s => {
     if(!isFinite(s) || s < 0) s = 0;
@@ -308,6 +313,7 @@
       el.addEventListener('pointercancel', e => this.up(e));
       el.addEventListener('dblclick', () => this.set(this.def));
       el.addEventListener('keydown', e => this.key(e));
+      ctls.push(this);
       this.set(this.def, true);
     }
     norm(){ return (this.val - this.min) / (this.max - this.min); }
@@ -381,7 +387,6 @@
   /* ---------- canal del mezclador ---------- */
   class Channel {
     constructor(id){
-      audio();
       this.id = id;
       this.trim = ctx.createGain();
       this.low = ctx.createBiquadFilter(); this.low.type = 'lowshelf'; this.low.frequency.value = 220;
@@ -415,8 +420,9 @@
   const TAU_UP = .30, TAU_DN = .22, BRAKE = .16;
 
   class Deck {
-    constructor(el, ch){
-      this.el = el; this.id = el.dataset.id; this.ch = ch;
+    constructor(el){
+      this.el = el; this.id = el.dataset.id;
+      this.platter = el.querySelector('.platter');
       this.disc = el.querySelector('.disc');
       this.slot = el.querySelector('.slot');
       this.titleEl = el.querySelector('.track');
@@ -435,11 +441,14 @@
       this.angle = 0; this.vrate = 0; this.grab = null;
       this.cues = [null, null, null, null, null];
       this.wp = null;
+      this.tok = 0; this.name = ''; this.item = null;
 
       this.pitchFader = new Fader(el.querySelector('.fader.pitch'), v => this.setPitch(v));
       this.bind();
       this.paint();
     }
+
+    get ch(){ return chans[this.id]; }
 
     rate(){ return this.base * (1 + this.pitch/100); }
 
@@ -453,7 +462,8 @@
       });
       this.onPlatter = null; this.next = null;
       this.file.addEventListener('change', e => {
-        if(e.target.files[0]) this.load(e.target.files[0]);
+        const f = e.target.files[0];
+        if(f) this.mount({kind:'file', file:f, name:baseName(f.name)});
         e.target.value = '';
       });
       ['dragenter','dragover'].forEach(t => this.el.addEventListener(t, e => { e.preventDefault(); this.el.classList.add('over'); }));
@@ -500,62 +510,73 @@
       this.upBtn.disabled = !this.next;
     }
 
+    /* el disco que suena sigue sonando hasta que el nuevo decodifica bien. */
     async load(file){
-      audio(); initVinyl();
-      const ok = /^audio\//.test(file.type) || /\.(mp3|wav|flac|m4a|aac|ogg|opus|aiff?)$/i.test(file.name);
-      if(!ok){ this.titleEl.textContent = 'not an audio file'; return; }
-      this.kill();
-      this.titleEl.textContent = 'reading ' + file.name;
+      const tok = ++this.tok;
+      audio();
+      if(!isAudio(file)){ this.fail('not an audio file', tok); return; }
+      this.say('reading ' + file.name, true);
       let data;
       try{ data = await file.arrayBuffer(); }
-      catch(err){ this.titleEl.textContent = 'could not read ' + file.name; return; }
-      this.decode(data, baseName(file.name));
+      catch(err){ this.fail('could not read ' + file.name, tok); return; }
+      this.decode(data, baseName(file.name), tok);
     }
 
     async loadURL(u){
-      audio(); initVinyl();
+      const tok = ++this.tok;
+      audio();
       u = (u || '').trim();
-      if(!u) return;
-      if(/youtu\.?be/i.test(u)){
-        this.titleEl.textContent = "youtube won't share its audio · use a direct file";
-        return;
-      }
-      this.kill();
-      this.titleEl.textContent = 'loading…';
+      if(/youtu\.?be/i.test(u)){ this.fail("youtube won't share its audio · use a direct file", tok); return; }
+      if(!isURL(u)){ this.fail('not a url', tok); return; }
+      this.say('loading…', true);
       let data;
       try{
         const r = await fetch(u, {mode:'cors'});
-        if(!r.ok) throw new Error(r.status);
+        if(!r.ok){ this.fail(r.status === 404 ? 'nothing at that address (404)' : 'that server answered ' + r.status, tok); return; }
         data = await r.arrayBuffer();
       }catch(err){
-        this.titleEl.textContent = "that server won't share the file (CORS)";
+        this.fail(navigator.onLine === false ? "offline · can't fetch that" : "that server won't share the file (CORS)", tok);
         return;
       }
-      this.decode(data, baseName(u));
+      this.decode(data, baseName(u), tok);
     }
 
-    async decode(data, name){
-      try{
-        this.buffer = await audio().decodeAudioData(data);
-      }catch(err){
-        this.buffer = null; this.titleEl.textContent = 'could not decode that';
-        this.onPlatter = null; this.shelf();
-        if(window.paintCrate) window.paintCrate();
-        return;
-      }
+    async decode(data, name, tok){
+      let buf;
+      try{ buf = await audio().decodeAudioData(data); }
+      catch(err){ this.fail('could not decode that', tok); return; }
+      await vinylP;
+      if(tok !== this.tok) return;
+      this.kill();
+      this.buffer = buf; this.name = name;
       this.offset = 0; this.angle = 0;
       this.cues = [null, null, null, null, null];
-      this.titleEl.textContent = name;
+      this.say(name, true);
       this.el.classList.add('loaded');
       [this.playBtn, this.backBtn, this.rewBtn, this.fwdBtn, this.ejectBtn, this.s33, this.s45].forEach(b => b.disabled = false);
       if(!this.onPlatter) this.onPlatter = {kind:'file', name:name};
+      this.item = this.onPlatter;
       this.shelf();
       this.loadWorklet();
       this.paint();
     }
 
-    loadWorklet(){
-      if(!vinylReady || !this.buffer) return;
+    fail(t, tok){
+      if(tok !== this.tok) return;
+      if(this.buffer) this.onPlatter = this.item; else this.reset();
+      this.say(t);
+      this.shelf();
+      if(window.paintCrate) window.paintCrate();
+    }
+
+    say(t, hold){
+      clearTimeout(this.sayT);
+      this.titleEl.textContent = t;
+      if(!hold && this.buffer) this.sayT = setTimeout(() => { this.titleEl.textContent = this.name; }, 2500);
+    }
+
+    async loadWorklet(){
+      if(!(await vinylP) || !this.buffer) return;
       if(!this.wp){
         this.wp = new AudioWorkletNode(ctx, 'vinyl-playback-processor');
         this.wp.connect(this.ch.input);
@@ -591,7 +612,7 @@
 
     toggle(){ this.playing ? this.pause() : this.play(); }
 
-    play(){
+    play(instant){
       if(!this.buffer || this.playing) return;
       audio();
       if(this.offset >= this.buffer.duration - .02) this.offset = 0;
@@ -601,14 +622,14 @@
         const r = this.rate(), now = ctx.currentTime;
         const s = ctx.createBufferSource();
         s.buffer = this.buffer;
-        s.playbackRate.setValueAtTime(.02, now);
-        s.playbackRate.setTargetAtTime(r, now, TAU_UP);
+        if(instant) s.playbackRate.setValueAtTime(r, now);
+        else { s.playbackRate.setValueAtTime(.02, now); s.playbackRate.setTargetAtTime(r, now, TAU_UP); }
         s.connect(this.ch.input);
         s.onended = () => { if(this.src === s) this.finish(); };
         s.start(0, this.offset);
         this.src = s;
       }
-      this.startedAt = ctx.currentTime + TAU_UP;
+      this.startedAt = ctx.currentTime + (instant ? 0 : TAU_UP);
       this.playing = true;
       this.el.classList.add('live');
       this.playBtn.querySelector('span').textContent = '❚❚';
@@ -650,31 +671,46 @@
 
     skip(dt){ if(this.buffer) this.seek(this.position() + dt); }
 
-    eject(){
+    reset(){
       this.kill();
-      this.buffer = null; this.offset = 0; this.angle = 0;
+      this.buffer = null; this.item = null; this.onPlatter = null;
+      this.offset = 0; this.angle = 0;
       this.cues = [null, null, null, null, null];
-      this.onPlatter = null;
       this.el.classList.remove('loaded');
-      this.titleEl.textContent = 'no record';
-      this.timeEl.textContent = '0:00 / 0:00';
       [this.playBtn, this.backBtn, this.rewBtn, this.fwdBtn, this.ejectBtn, this.s33, this.s45].forEach(b => b.disabled = true);
-      this.shelf();
       this.paint();
+    }
+
+    eject(){
+      this.tok++;
+      this.reset();
+      this.say('no record', true);
+      this.shelf();
       if(this.next){ const it = this.next; this.next = null; this.mount(it); }
       if(window.paintCrate) window.paintCrate();
     }
 
     finish(){ this.offset = 0; this.kill(); this.angle = 0; this.paint(); }
 
+    /* con el motor andando el salto lo hace el worklet: el plato no frena ni vuelve a arrancar. */
     seek(t){
       if(!this.buffer) return;
+      const to = clamp(t, 0, this.buffer.duration);
+      this.angle = to * 200;
+      if(this.playing && this.wp){
+        this.offset = to;
+        this.startedAt = Math.max(ctx.currentTime, this.startedAt);
+        this.wp.port.postMessage({cmd:'seek', position:to});
+        this.paint();
+        return;
+      }
       const was = this.playing;
       this.kill();
-      this.offset = clamp(t, 0, this.buffer.duration);
-      this.angle = this.offset * 200;
-      if(this.wp) this.wp.port.postMessage({cmd:'seek', position:this.offset});
-      if(was){ this.vrate = this.rate(); this.play(); } else this.paint();
+      this.offset = to;
+      if(this.wp) this.wp.port.postMessage({cmd:'seek', position:to});
+      if(was && to >= this.buffer.duration - .02) this.finish();
+      else if(was){ this.vrate = this.rate(); this.play(true); }
+      else this.paint();
     }
 
     reflow(){
@@ -710,10 +746,11 @@
       else this.cues[i] = this.position();
     }
 
+    /* el bbox del disco crece al rotar; el plato no rota. */
     geo(e){
-      const r = this.disc.getBoundingClientRect();
+      const r = this.platter.getBoundingClientRect();
       const dx = e.clientX - (r.left + r.width/2), dy = e.clientY - (r.top + r.height/2);
-      return {ang: Math.atan2(dy, dx), r: (Math.hypot(dx, dy)/(r.width/2)) * R_DISC};
+      return {ang: Math.atan2(dy, dx), r: (Math.hypot(dx, dy)/(this.disc.offsetWidth/2)) * R_DISC};
     }
 
     hold(e){
@@ -723,8 +760,8 @@
       const g = this.geo(e);
       const was = this.playing;
       if(this.wp){
-        if(was){ this.playing = false; this.el.classList.remove('live'); this.playBtn.querySelector('span').textContent = '▶'; }
         this.offset = this.position();
+        if(was){ this.playing = false; this.el.classList.remove('live'); this.playBtn.querySelector('span').textContent = '▶'; }
         this.wp.port.postMessage({cmd:'scratch', position:this.offset});
       } else {
         if(was) this.pause(.03);
@@ -779,16 +816,16 @@
   }
 
   /* ---------- cableado ---------- */
-  const chans = {A: new Channel('A'), B: new Channel('B')};
   const decks = {};
   document.querySelectorAll('.deck').forEach(el => {
-    decks[el.dataset.id] = new Deck(el, chans[el.dataset.id]);
+    decks[el.dataset.id] = new Deck(el);
   });
 
   document.querySelectorAll('.knob[data-ch], .fader[data-ctl=vol]').forEach(el => {
-    const ch = chans[el.dataset.ch], kind = el.dataset.ctl;
+    const kind = el.dataset.ctl;
     const apply = v => {
-      const now = ctx.currentTime, sm = .015;
+      if(!ctx) return;
+      const ch = chans[el.dataset.ch], now = ctx.currentTime, sm = .015;
       if(kind === 'trim') ch.trim.gain.setTargetAtTime(dbg(v), now, sm);
       else if(kind === 'vol') ch.vol.gain.setTargetAtTime(v, now, sm);
       else if(kind === 'filt'){
@@ -803,7 +840,7 @@
   });
 
   new Knob(document.querySelector('.knob[data-ctl=master]'), v => {
-    master.gain.setTargetAtTime(v, ctx.currentTime, .02);
+    if(ctx) master.gain.setTargetAtTime(v, ctx.currentTime, .02);
   });
 
   /* ---------- cue de auriculares ----------
@@ -875,7 +912,7 @@
       msg('one output &middot; no cue');
       return;
     }
-    if(!canRoute()){ msg('this browser cannot route outputs &middot; no cue on safari'); return; }
+    if(!canRoute()){ msg('this browser cannot route outputs &middot; one output only'); return; }
     audio();
     let devs;
     try{ devs = await outputs(); }
@@ -921,8 +958,10 @@
   const labA = document.getElementById('labA'), labB = document.getElementById('labB');
   const xf = new Fader(document.getElementById('xf'), x => {
     const a = Math.cos(x*Math.PI/2), b = Math.sin(x*Math.PI/2);
-    chans.A.xg.gain.setTargetAtTime(a, ctx.currentTime, .01);
-    chans.B.xg.gain.setTargetAtTime(b, ctx.currentTime, .01);
+    if(ctx){
+      chans.A.xg.gain.setTargetAtTime(a, ctx.currentTime, .01);
+      chans.B.xg.gain.setTargetAtTime(b, ctx.currentTime, .01);
+    }
     labA.classList.toggle('on', a > .08); labB.classList.toggle('on', b > .08);
   });
 
@@ -935,6 +974,7 @@
     meters[id] = segs;
   });
   function drawMeters(){
+    if(!ctx) return;
     ['A','B'].forEach(id => {
       const lv = chans[id].level(), n = Math.round(lv * 11);
       meters[id].forEach((s, i) => {
@@ -947,12 +987,10 @@
   function drawViz(){
     const c = vizCanvas, g = vizCtx;
     const dpr = window.devicePixelRatio || 1;
-    if(c.width !== c.offsetWidth * dpr || c.height !== c.offsetHeight * dpr){
-      c.width = c.offsetWidth * dpr;
-      c.height = c.offsetHeight * dpr;
-      g.scale(dpr, dpr);
-    }
     const w = c.offsetWidth, h = c.offsetHeight;
+    const pw = Math.round(w * dpr), ph = Math.round(h * dpr);
+    if(c.width !== pw || c.height !== ph){ c.width = pw; c.height = ph; }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
 
     if(!window.masterAn) return;
@@ -1003,8 +1041,11 @@
   /* ---------- teclas ---------- */
   document.addEventListener('keydown', e => {
     const t = e.target;
+    if(e.ctrlKey || e.metaKey || e.altKey) return;
+    if(t.closest && t.closest('input, select, textarea, [contenteditable]')) return;
     if(t.getAttribute && t.getAttribute('role') === 'slider') return;
     const k = e.key.toLowerCase();
+    if(e.repeat && k !== 'arrowleft' && k !== 'arrowright') return;
     if(k === 'q'){ decks.A.toggle(); e.preventDefault(); }
     else if(k === 'p'){ decks.B.toggle(); e.preventDefault(); }
     else if(k === 'w'){ decks.A.seek(0); e.preventDefault(); }
@@ -1043,9 +1084,10 @@
   }
   function addURL(u){
     u = (u || '').trim();
-    if(!u) return;
+    if(!isURL(u)) return false;
     crate.push({kind:'url', url:u, name:baseName(u)});
     paintCrate();
+    return true;
   }
   function paintCrate(){
     itemsEl.innerHTML = '';
@@ -1093,8 +1135,11 @@
 
   filesEl.addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
   urlEl.addEventListener('keydown', e => {
-    if(e.key === 'Enter'){ addURL(urlEl.value); urlEl.value = ''; }
+    if(e.key !== 'Enter' || !urlEl.value.trim()) return;
+    if(addURL(urlEl.value)){ urlEl.value = ''; urlEl.removeAttribute('aria-invalid'); }
+    else urlEl.setAttribute('aria-invalid', 'true');
   });
+  urlEl.addEventListener('input', () => urlEl.removeAttribute('aria-invalid'));
   ['dragenter','dragover'].forEach(t => crateEl.addEventListener(t, e => { e.preventDefault(); crateEl.classList.add('over'); }));
   ['dragleave','drop'].forEach(t => crateEl.addEventListener(t, e => { e.preventDefault(); crateEl.classList.remove('over'); }));
   paintCrate();
@@ -1108,13 +1153,22 @@
       if(u) addURL(u);
     }
   });
-  document.addEventListener('pointerdown', () => { audio(); initVinyl(); }, {once:true});
+  document.addEventListener('pointerdown', () => audio(), {once:true});
+  document.addEventListener('keydown', () => audio(), {once:true});
 })();
 </script>
 <script>
-    document.getElementById('knowHow').addEventListener('click', () => {
-        const p = document.getElementById('knowHowPanel');
-        p.hidden = !p.hidden;
+    const knowHow = document.getElementById('knowHow');
+    const knowHowPanel = document.getElementById('knowHowPanel');
+    function showKnowHow(open) {
+        knowHowPanel.hidden = !open;
+        knowHow.setAttribute('aria-expanded', open);
+    }
+    knowHow.addEventListener('click', () => showKnowHow(knowHowPanel.hidden));
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape' || knowHowPanel.hidden) return;
+        if (knowHowPanel.contains(document.activeElement)) knowHow.focus();
+        showKnowHow(false);
     });
     function updateTimestamp() {
         const now = new Date();

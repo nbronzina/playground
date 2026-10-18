@@ -10,6 +10,7 @@
     --mk2-pad: clamp(12px, 1.8vw, 22px);
     --mk2-accent: #d4c5a0;
 
+    --hover-primary: var(--mk2-accent);
     --bg-primary: #0a0a0a;
     --bg-secondary: #111;
     --text-primary: #fff;
@@ -41,6 +42,7 @@ body {
     flex-wrap: wrap;
 }
 .header::after { display: none; }
+.header-btn:hover { color: var(--active-text); border-color: var(--mk2-accent); }
 
 /* === KNOW HOW PANEL === */
 .knowhow-panel {
@@ -365,6 +367,7 @@ body {
 .cuebar button { height: 26px; min-width: 0; padding: 0 10px; font-size: 10px; letter-spacing: .14em; align-self: flex-start; }
 .cuebar button.on { background: var(--mk2-accent); color: var(--active-text); }
 .cue-io { display: flex; gap: 8px; width: 100%; }
+.cue-io[hidden] { display: none; }
 .cue-io label {
     display: flex; flex-direction: column; gap: 4px;
     font-size: 10px; letter-spacing: .12em; color: var(--text-secondary); flex: 1; min-width: 0;
@@ -412,6 +415,7 @@ body {
 }
 .crate-head input[type="url"]::placeholder { color: var(--text-secondary); letter-spacing: .08em; }
 .crate-head input[type="url"]:focus { outline: 0; border-bottom-color: var(--text-primary); }
+.crate-head input[type="url"][aria-invalid="true"] { color: var(--mk2-accent); border-bottom-color: var(--mk2-accent); }
 .crate.over { outline: 1px dashed var(--text-primary); outline-offset: -6px; }
 .crate-items { display: flex; flex-wrap: wrap; gap: 8px; }
 .crate-empty { font-size: 10px; letter-spacing: .1em; color: var(--text-secondary); }
