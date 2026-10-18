@@ -1,6 +1,5 @@
 /* ============================================
-   PLAYGROUND INDEX STYLES - OPTIMIZED
-   Landing page for playground releases
+   PLAYGROUND HOME + ABOUT
    ============================================ */
 
 /* The umbrella has no accent of its own: the wordmark dot stays the text color.
@@ -10,309 +9,393 @@
     color-scheme: dark;
 }
 
-/* === SMOOTH SCROLL === */
+/* n0body lives on air: it borrows mk-air's red. */
+[data-piece="n0body"] { --accent: var(--accent-air); }
+
 html {
     scroll-behavior: smooth;
 }
 
-/* === HERO - MORE POWERFUL === */
+.header .brand {
+    color: var(--text-primary);
+}
+
+.header .brand:hover {
+    color: var(--text-primary);
+}
+
+.header .header-btn {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.9rem;
+}
+
+/* === HERO: the first thing you can play === */
 .hero {
+    position: relative;
+    z-index: 2;
+    overflow: hidden;
     text-align: center;
-    margin-bottom: 2rem;
-    padding: 1.5rem 0 2rem;
+    padding: clamp(3rem, 9vh, 6rem) 1.5rem clamp(2.5rem, 5.5vh, 4rem);
+    margin: 0;
+    cursor: crosshair;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
 .hero h1 {
-    font-size: 3.5rem;
+    font-size: clamp(3rem, 6.5vw, 6rem);
     font-weight: 600;
+    line-height: 1.05;
     letter-spacing: -0.02em;
-    margin-bottom: 1rem;
+    margin: 0 0 1.75rem;
 }
 
-.hero-tagline {
-    font-size: 1rem;
-    color: var(--text-secondary);
+.hero-dot {
+    display: inline-block;
+}
+
+.hero-dot.lit {
+    animation: dot-lit 0.9s cubic-bezier(0.2, 0.6, 0.3, 1);
+}
+
+@keyframes dot-lit {
+    0% { color: var(--lit); transform: scale(1.9); }
+    35% { color: var(--lit); }
+    100% { color: var(--text-primary); transform: scale(1); }
+}
+
+.hero .hero-line {
+    font-size: clamp(1.15rem, 1.7vw, 1.6rem);
     font-weight: 400;
-    letter-spacing: 0.03em;
-    margin-bottom: 1.5rem;
+    color: var(--text-primary);
+    letter-spacing: 0;
+    line-height: 1.4;
 }
 
-.hero-description {
-    font-size: 0.9rem;
+.hero .hero-sub {
+    margin-top: 0.75rem;
+    font-size: clamp(1rem, 1.15vw, 1.15rem);
+    font-weight: 400;
     color: var(--text-secondary);
-    font-weight: 300;
-    letter-spacing: 0.03em;
-    max-width: 500px;
-    margin: 0 auto;
-    line-height: 1.6;
+    letter-spacing: 0;
+    line-height: 1.5;
 }
 
-/* === COLUMN GRID === */
-.two-column-grid {
+.caret {
+    display: inline-block;
+    width: 0.55em;
+    height: 1.1em;
+    margin-left: 0.35em;
+    vertical-align: -0.2em;
+    background: var(--text-primary);
+    animation: caret-blink 1.1s steps(1) infinite;
+}
+
+@keyframes caret-blink {
+    50% { opacity: 0; }
+}
+
+.hero-ring {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 220px;
+    height: 220px;
+    border: 1px solid var(--text-primary);
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+}
+
+/* === SHELVES: tools / spaces / airtists side by side === */
+.shelves {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.5rem;
-    margin-bottom: 1.5rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2.5rem 2rem;
+    align-items: start;
 }
 
-.column {
+.shelf {
     display: flex;
     flex-direction: column;
-    gap: 0.8rem;
-}
-
-.column > .section-title {
-    margin-bottom: 0.7rem;
-}
-
-/* === RELEASE CARD === */
-.release-card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-primary);
-    padding: 1.5rem;
-    position: relative;
-    overflow: hidden;
-    transition: all 0.2s ease;
-    cursor: pointer;
-    text-decoration: none;
-    display: block;
-}
-
-.release-card:hover {
-    transform: translateY(-2px);
-    border-color: var(--border-secondary);
-}
-
-.release-card:focus-visible {
-    outline: 2px solid var(--accent-primary);
-    outline-offset: 2px;
-}
-
-/* === NON-CLICKABLE CARD (AIRTISTS) === */
-.release-card.no-link {
-    cursor: default;
-}
-
-.release-card.no-link:hover {
-    transform: none;
-    border-color: var(--border-primary);
-}
-
-.release-listen {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    margin-top: 0.5rem;
-}
-
-.release-listen a {
-    color: var(--text-primary);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-}
-
-.release-listen a:hover {
-    color: var(--accent-primary, var(--text-primary));
-}
-
-/* === RELEASE CARD HEADER === */
-.release-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 1rem;
     gap: 1rem;
 }
 
-.release-title {
-    font-size: 1.1rem;
-    font-weight: 600;
-    text-transform: lowercase;
-    letter-spacing: 0.05em;
-    color: var(--text-primary);
-    margin: 0;
-}
-
-/* === RELEASE DESCRIPTION === */
-.release-description {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    line-height: 1.6;
-    margin-bottom: 1rem;
-}
-
-/* === RELEASE META === */
-.release-meta {
+.shelf-head {
     display: flex;
-    gap: 0.5rem;
     flex-wrap: wrap;
-    margin-top: 1rem;
-}
-
-.release-tag {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-primary);
-    padding: 0.35rem 0.7rem;
-    border-radius: 2px;
-    text-transform: lowercase;
-}
-
-/* === SUPPORT SECTION === */
-.support-text {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    text-align: center;
-}
-
-.support-text a {
-    color: var(--text-primary);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-}
-
-.support-text a:hover {
-    color: var(--accent-primary, var(--text-primary));
-}
-
-/* === SECTION SPACING - UNIFIED === */
-.section {
-    margin-bottom: 2.5rem;
-}
-
-.section-title {
-    font-size: 1.25rem;
-    font-weight: 500;
-    letter-spacing: 0.04em;
-    text-transform: lowercase;
-    color: var(--text-primary);
-    margin-bottom: 1.5rem;
-    padding-bottom: 0.5rem;
+    align-items: baseline;
+    gap: 0.25rem 0.9rem;
+    padding-bottom: 0.7rem;
     border-bottom: 1px solid var(--border-primary);
 }
 
-/* === AIRTIST FEATURED === */
-.airtist-featured {
-    max-width: 500px;
-    margin: 0 auto;
+.shelf-head h2 {
+    font-size: 1.35rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-primary);
 }
 
-/* === RESPONSIVE === */
-@media (max-width: 768px) {
-    .two-column-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .airtist-featured {
-        max-width: 100%;
-    }
-
-    .hero {
-        padding: 1.5rem 0 2rem;
-        margin-bottom: 2rem;
-    }
-
-    .hero h1 {
-        font-size: 2.5rem;
-    }
-
-    .hero-tagline {
-        font-size: 0.9rem;
-    }
-
-    .hero-description {
-        font-size: 0.85rem;
-    }
-
-    .two-column-grid {
-        gap: 2.5rem;
-    }
-
-    .release-card {
-        padding: 1rem;
-    }
-
-    .release-title {
-        font-size: 1rem;
-    }
-
-    .release-description {
-        font-size: 0.75rem;
-    }
-
-    .section {
-        margin-bottom: 3rem;
-    }
-
-    .section-title {
-        font-size: 1.1rem;
-        margin-bottom: 1.5rem;
-    }
-}
-
-@media (max-width: 480px) {
-    .hero {
-        padding: 1rem 0 1.5rem;
-    }
-
-    .hero h1 {
-        font-size: 2rem;
-    }
-
-    .hero-tagline {
-        font-size: 0.85rem;
-    }
-
-    .hero-description {
-        font-size: 0.8rem;
-    }
-
-    .release-header {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    .release-card {
-        padding: 0.8rem;
-    }
-
-    .release-title {
-        font-size: 0.95rem;
-    }
-
-    .section {
-        margin-bottom: 2.5rem;
-    }
-}
-
-/* === ABOUT PAGE === */
-.about-content {
-    text-align: center;
-    max-width: 40rem;
-    margin: 0 auto 3rem;
-    line-height: 1.8;
-}
-
-.about-content p {
+.shelf-head p {
     font-size: 1rem;
     color: var(--text-secondary);
-    margin-bottom: 1.5rem;
 }
 
-.about-content .about-tagline {
-    font-size: clamp(4rem, 7vw, 6rem);
+/* === PIECE CARD === */
+.piece {
+    position: relative;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-top: 2px solid var(--accent);
+    padding: 1.4rem 1.5rem 1.3rem;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.piece:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+}
+
+.piece-name {
+    font-size: 1.6rem;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0;
+    margin-bottom: 0.6rem;
+}
+
+.piece-name a,
+.piece-name a:hover {
+    color: var(--text-primary);
+}
+
+/* The whole card is the link; the name carries it. */
+.piece-name a::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+}
+
+.piece-name a:focus-visible {
+    outline: none;
+}
+
+.piece-name a:focus-visible::after {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
+.piece-mark {
+    color: var(--accent);
+}
+
+.piece-line {
+    font-size: 1rem;
+    line-height: 1.55;
+    color: var(--text-primary);
+}
+
+.piece-listen {
+    position: relative;
+    z-index: 1;
+    margin-top: 0.9rem;
+    font-size: 0.95rem;
+}
+
+.piece-listen a {
+    color: var(--text-primary);
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
+    text-underline-offset: 0.25em;
+    padding: 0.3rem 0;
+}
+
+.piece-listen a:hover {
+    color: var(--accent);
+}
+
+.piece-listen a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.piece-meta {
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.coda {
+    margin: 4rem auto 0;
+    max-width: 64rem;
+    text-align: center;
+    text-wrap: balance;
+    font-size: clamp(1.05rem, 1.3vw, 1.3rem);
+    line-height: 1.5;
+    color: var(--text-primary);
+}
+
+/* === ABOUT === */
+.about {
+    max-width: 52rem;
+    padding-top: clamp(2.5rem, 8vh, 5rem);
+}
+
+.about-title {
+    font-size: clamp(2.5rem, 4.5vw, 3.5rem);
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    margin-bottom: 2.5rem;
+}
+
+.about-lead {
+    font-size: clamp(1.15rem, 1.6vw, 1.4rem);
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.about-def {
+    margin-top: 0.75rem;
+    font-size: clamp(1.5rem, 2.4vw, 2.1rem);
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--text-primary);
+}
+
+.about-pieces {
+    margin: 3.5rem 0;
+    border-top: 1px solid var(--border-primary);
+}
+
+.about-row {
+    display: grid;
+    grid-template-columns: 9rem minmax(0, 1fr);
+    gap: 0.4rem 2rem;
+    padding: 1.4rem 0;
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.about-row h2 {
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1.7;
+    color: var(--text-secondary);
+}
+
+.about-row p,
+.about-text {
+    font-size: 1.1rem;
+    line-height: 1.7;
+    color: var(--text-primary);
+}
+
+.about-text + .about-text {
+    margin-top: 1.5rem;
+}
+
+.about a {
+    color: var(--text-primary);
+    text-decoration: underline;
+    text-decoration-color: var(--border-secondary);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.25em;
+}
+
+.about a:hover {
+    text-decoration-color: var(--text-primary);
+}
+
+.about a:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+}
+
+.about-tagline {
+    margin-top: 4rem;
+    font-size: clamp(4rem, 8vw, 6rem);
     font-weight: 600;
     line-height: 1.05;
     letter-spacing: -0.02em;
     color: var(--text-primary);
-    margin: 3rem 0 0;
 }
 
 .about-signature {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    margin-top: 3rem;
-    font-size: 0.9rem;
+    margin-top: 2rem;
+    font-size: 1.05rem;
+    line-height: 1.7;
     color: var(--text-primary);
+}
+
+@keyframes dot-lit-calm {
+    0%, 35% { color: var(--lit); }
+    100% { color: var(--text-primary); }
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 1100px) {
+    .shelves {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 720px) {
+    .shelves {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2.75rem;
+    }
+
+    .hero {
+        padding: 3rem 1rem 2.5rem;
+    }
+
+    .hero h1 {
+        margin-bottom: 1.25rem;
+    }
+
+    .piece {
+        padding: 1.2rem 1.2rem 1.1rem;
+    }
+
+    .piece-name {
+        font-size: 1.45rem;
+    }
+
+    .coda {
+        margin-top: 3rem;
+    }
+
+    .about-row {
+        grid-template-columns: minmax(0, 1fr);
+        padding: 1.2rem 0;
+    }
+
+    .about-row p,
+    .about-text {
+        font-size: 1rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+
+    .caret {
+        animation: none;
+    }
+
+    .hero-dot.lit {
+        animation-name: dot-lit-calm;
+    }
+
+    .piece,
+    .piece:hover {
+        transform: none;
+        transition: none;
+    }
 }

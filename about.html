@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>play·ground · about</title>
-    <meta name="description" content="browser-based tools for making sound. ephemeral spaces for sharing it. just play.">
+    <title>about · play·ground</title>
+    <meta name="description" content="who makes play·ground and why. browser instruments and sound spaces by nicolás bronzina, madrid / buenos aires.">
 
     <!-- Favicon SVG -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f2f2f0'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
@@ -12,8 +12,8 @@
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://nbronzina.github.io/playground/about.html">
-    <meta property="og:title" content="play·ground · about">
-    <meta property="og:description" content="browser-based tools for making sound. ephemeral spaces for sharing it. just play.">
+    <meta property="og:title" content="about · play·ground">
+    <meta property="og:description" content="tools to make sound. spaces to be inside it. browser instruments and sound spaces by nicolás bronzina.">
     <meta property="og:image" content="https://nicolasbronzina.com/img/playground-og.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -21,8 +21,8 @@
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="https://nbronzina.github.io/playground/about.html">
-    <meta name="twitter:title" content="play·ground · about">
-    <meta name="twitter:description" content="browser-based tools for making sound. ephemeral spaces for sharing it. just play.">
+    <meta name="twitter:title" content="about · play·ground">
+    <meta name="twitter:description" content="tools to make sound. spaces to be inside it. browser instruments and sound spaces by nicolás bronzina.">
     <meta name="twitter:image" content="https://nicolasbronzina.com/img/playground-og.png">
 
     <!-- Apple Touch Icon -->
@@ -43,51 +43,51 @@
     <link rel="stylesheet" href="playground.css">
 </head>
 <body>
-    <div class="header">
-        <div>
-            <a href="index.html" class="brand wordmark">play<span class="separator">·</span>ground</a>
-            <div class="header-timestamp" id="timestamp"></div>
+    <header class="header">
+        <a href="index.html" class="brand wordmark">play<span class="separator">·</span>ground</a>
+    </header>
+
+    <main class="container about">
+        <h1 class="about-title">about</h1>
+
+        <p class="about-lead"><span class="wordmark">play<span class="separator">·</span>ground</span> is instruments and places for sound, in the browser.</p>
+        <p class="about-def">tools to make sound.<br>spaces to be inside it.</p>
+
+        <div class="about-pieces">
+            <section class="about-row" aria-labelledby="about-tools">
+                <h2 id="about-tools">tools</h2>
+                <p><a href="mk-1.html">mk-1</a> is a synth with drums and a looper. <a href="mk-2.html">mk-2</a> is two decks and a mixer.</p>
+            </section>
+            <section class="about-row" aria-labelledby="about-spaces">
+                <h2 id="about-spaces">spaces</h2>
+                <p><a href="https://mk-air.onrender.com/" target="_blank" rel="noopener">mk-air ↗</a> is a live radio with no archive. <a href="mk-dwell/">mk-dwell</a> is a field of sound you move through.</p>
+            </section>
+            <section class="about-row" aria-labelledby="about-airtists">
+                <h2 id="about-airtists">airtists</h2>
+                <p><a href="https://github.com/nbronzina/n0body" target="_blank" rel="noopener">n0body ↗</a> is an agent. it plays mk-1 and goes on air at mk-air. nobody tells it what to do.</p>
+            </section>
         </div>
-    </div>
 
-    <div class="container">
-        <!-- About Content -->
-        <div class="hero">
-            <h1 class="wordmark">play<span class="separator">·</span>ground</h1>
-        </div>
+        <!-- WHY: Nicolás escribe acá en primera persona por qué existe play·ground -->
 
-        <div class="section about-content">
-            <p>browser-based tools for making sound.<br>ephemeral spaces for sharing it.</p>
-            <p>no accounts. no setup. no saves.<br>not everything needs to last forever.</p>
-            <p class="about-tagline">just play.</p>
-            <div class="about-signature">
-                <span>—</span>
-                <span>nicolás bronzina</span>
-                <span>madrid / buenos aires</span>
-            </div>
-        </div>
+        <p class="about-text">no accounts. no install. nothing kept on a server.<br>not everything needs to last forever.</p>
+        <p class="about-text">web audio, by hand. no frameworks, no libraries. free.<br>source: <a href="https://github.com/nbronzina/playground" target="_blank" rel="noopener">github.com/nbronzina/playground ↗</a></p>
 
-        <!-- Footer -->
-        <div class="footer">
-            <div class="footer-content">
-                <span class="version">pg</span>
-                <span class="separator">•</span>
-                <span>designed, coded & built by <a href="https://nicolasbronzina.com" target="_blank">nicolás bronzina</a></span>
-            </div>
-        </div>
-    </div>
+        <p class="about-tagline">just play.</p>
+        <p class="about-signature">— nicolás bronzina<br>madrid / buenos aires</p>
+    </main>
 
-    <script>
-        // Timestamp
-        function updateTimestamp() {
-            const now = new Date();
-            const date = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-            const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            document.getElementById('timestamp').textContent = `${date} — ${time}`;
-        }
-
-        updateTimestamp();
-        setInterval(updateTimestamp, 1000);
-    </script>
+    <footer class="pg-footer">
+        <nav class="pg-footer-nav" aria-label="play·ground">
+            <a href="index.html" class="wordmark">play<span class="separator">·</span>ground</a>
+            <a href="mk-1.html">mk-1</a>
+            <a href="mk-2.html">mk-2</a>
+            <a href="https://mk-air.onrender.com/" target="_blank" rel="noopener">mk-air ↗</a>
+            <a href="mk-dwell/">mk-dwell</a>
+            <a href="about.html" aria-current="page">about</a>
+            <a href="https://buymeacoffee.com/nbronzina" target="_blank" rel="noopener">buy me a coffee ↗</a>
+        </nav>
+        <p class="pg-footer-credit">designed, coded &amp; built by <a href="https://nicolasbronzina.com" target="_blank" rel="noopener">nicolás bronzina ↗</a></p>
+    </footer>
 </body>
 </html>
