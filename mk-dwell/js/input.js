@@ -7,12 +7,6 @@ const DwellInput = (function() {
     let soundSpace = null;
     let isActive = false;
     let lastPosition = { x: 0.5, y: 0.5 };
-    let velocity = 0;
-    let lastMoveTime = 0;
-
-    // Smoothing for velocity calculation
-    const VELOCITY_SMOOTHING = 0.1;
-    const VELOCITY_DECAY = 0.95;
 
     // Zone colors (very subtle tints) - RGB values
     // Base is #0a0a0a (10, 10, 10)
@@ -78,9 +72,6 @@ const DwellInput = (function() {
         document.addEventListener('touchstart', handleTouch, { passive: true });
         document.addEventListener('touchmove', handleTouch, { passive: true });
         document.addEventListener('touchend', handleTouchEnd);
-
-        // Start velocity decay loop
-        requestAnimationFrame(updateVelocity);
     }
 
     function handleMove(e) {
@@ -107,21 +98,8 @@ const DwellInput = (function() {
     }
 
     function updatePosition(x, y, screenX, screenY) {
-        // Calculate velocity from movement
-        const dx = x - lastPosition.x;
-        const dy = y - lastPosition.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const now = performance.now();
-        const dt = now - lastMoveTime;
-
-        if (dt > 0) {
-            const instantVelocity = distance / (dt / 1000);
-            velocity = velocity * (1 - VELOCITY_SMOOTHING) + instantVelocity * VELOCITY_SMOOTHING;
-        }
-
         lastPosition.x = x;
         lastPosition.y = y;
-        lastMoveTime = now;
 
         // Update cursor position
         if (cursor) {
@@ -136,16 +114,6 @@ const DwellInput = (function() {
 
         // Update background color
         updateBackgroundColor(x, y);
-    }
-
-    function updateVelocity() {
-        // Decay velocity over time
-        velocity *= VELOCITY_DECAY;
-
-        // Could send velocity to audio for event density
-        // DwellAudio.setEventDensity(velocity);
-
-        requestAnimationFrame(updateVelocity);
     }
 
     function showCursor() {
@@ -176,9 +144,6 @@ const DwellInput = (function() {
         deactivate: deactivate,
         getPosition: function() {
             return { ...lastPosition };
-        },
-        getVelocity: function() {
-            return velocity;
         }
     };
 })();
