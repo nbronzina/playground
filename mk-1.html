@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-piece="mk-1">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -29,8 +29,8 @@
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%23f2f2f0'/%3E%3Ctext x='90' y='120' font-family='monospace' font-size='80' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
 
     <!-- Theme colors -->
-    <meta name="theme-color" content="#f2f2f0" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="color-scheme" content="dark">
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -45,16 +45,13 @@
 </head>
 <body>
     <div class="header">
-        <div>
+        <div class="header-brand">
             <a href="index.html" class="brand wordmark">play<span class="separator">·</span>ground mk-1</a>
             <div class="header-timestamp" id="timestamp"></div>
         </div>
         <div class="header-actions">
             <a href="https://mk-air.onrender.com/broadcast?from=mk1" target="_blank" class="header-btn">broadcast</a>
             <button id="shortcutsBtn" class="header-btn" aria-label="Show keyboard shortcuts">?</button>
-            <button id="themeToggle" class="header-btn" aria-label="Toggle dark mode">
-                <span id="themeIcon" aria-hidden="true">◐</span>
-            </button>
         </div>
     </div>
 
@@ -149,19 +146,13 @@
                     <span class="shortcut-desc">show shortcuts</span>
                 </div>
             </div>
+            <p class="modal-support">play<span class="separator">·</span>ground is free and open.
+if you find value, consider supporting:
+<a href="https://buymeacoffee.com/nbronzina" target="_blank">[buy me a coffee]</a></p>
         </div>
     </div>
 
-    <div class="container">
-        <div class="hero">
-            <h1>create · loop · play</h1>
-            <p>try the demo or just start creating</p>
-            <div class="hero-actions">
-                <button class="btn hero-btn" id="loadDemoBtn">load demo</button>
-                <button class="btn-secondary hero-btn" id="clearAllBtn">clear all</button>
-            </div>
-        </div>
-
+    <div class="container console">
         <div class="status-bar">
             <div class="status-item"><span class="status-value" id="sysStatus">ready</span></div>
             <div class="status-item">rec: <span class="status-value" id="recStatus">off</span></div>
@@ -173,296 +164,282 @@
                 <span class="beat-dot" data-beat="3"></span>
                 <span class="beat-dot" data-beat="4"></span>
             </div>
-        </div>
-
-        <!-- Visualizer -->
-        <div class="workspace">
-            <div class="module module-full">
-                <div class="module-header">
-                    <div class="module-title">wave</div>
-                    <div class="module-desc">visual audio feedback</div>
-                </div>
-                <div class="visualizer" style="height: 60px;">
-                    <canvas id="viz" aria-label="Audio waveform visualization" role="img"></canvas>
-                </div>
+            <div class="status-item status-message" id="statusMessage" aria-live="polite"></div>
+            <div class="status-item status-actions">
+                <button class="btn" id="loadDemoBtn">load demo</button>
+                <button class="btn-secondary" id="clearAllBtn">clear all</button>
+                <button id="initBtn" hidden></button>
             </div>
         </div>
 
-        <!-- Main Grid - Drums + Pattern -->
-        <div class="workspace">
-            <div class="module module-twothird">
-                <div class="module-header">
-                    <div class="module-title">drums</div>
-                    <div class="module-desc">tap pads or use keys 1-8 to play sounds</div>
+        <div class="console-grid">
+            <!-- Drums + Pattern -->
+            <div class="console-col">
+                <div class="module module-drums">
+                    <div class="module-header">
+                        <div class="module-title">drums</div>
+                        <div class="module-desc">tap pads or use keys 1-8 to play sounds</div>
+                    </div>
+                    <div class="pad-grid">
+                        <div class="pad" data-sound="kick">
+                            <span class="pad-key">1</span>
+                            <span class="pad-label">kick</span>
+                        </div>
+                        <div class="pad" data-sound="snare">
+                            <span class="pad-key">2</span>
+                            <span class="pad-label">snare</span>
+                        </div>
+                        <div class="pad" data-sound="hihat">
+                            <span class="pad-key">3</span>
+                            <span class="pad-label">hat</span>
+                        </div>
+                        <div class="pad" data-sound="clap">
+                            <span class="pad-key">4</span>
+                            <span class="pad-label">clap</span>
+                        </div>
+                        <div class="pad" data-sound="tom1">
+                            <span class="pad-key">5</span>
+                            <span class="pad-label">tom</span>
+                        </div>
+                        <div class="pad" data-sound="perc">
+                            <span class="pad-key">6</span>
+                            <span class="pad-label">perc</span>
+                        </div>
+                        <div class="pad" data-sound="cymbal">
+                            <span class="pad-key">7</span>
+                            <span class="pad-label">cymbal</span>
+                        </div>
+                        <div class="pad" data-sound="rim">
+                            <span class="pad-key">8</span>
+                            <span class="pad-label">rim</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="pad-grid">
-                    <div class="pad" data-sound="kick">
-                        <span class="pad-key">1</span>
-                        <span class="pad-label">kick</span>
+
+                <div class="module module-pattern">
+                    <div class="module-header">
+                        <div class="module-title">pattern</div>
+                        <div class="module-desc">program rhythms · play auto-records</div>
                     </div>
-                    <div class="pad" data-sound="snare">
-                        <span class="pad-key">2</span>
-                        <span class="pad-label">snare</span>
+                    <div id="sequencer">
+                        <div class="seq-row">
+                            <div class="seq-label">kick</div>
+                            <div class="seq-steps" data-drum="kick"></div>
+                        </div>
+                        <div class="seq-row">
+                            <div class="seq-label">snare</div>
+                            <div class="seq-steps" data-drum="snare"></div>
+                        </div>
+                        <div class="seq-row">
+                            <div class="seq-label">hihat</div>
+                            <div class="seq-steps" data-drum="hihat"></div>
+                        </div>
+                        <div class="seq-row">
+                            <div class="seq-label">clap</div>
+                            <div class="seq-steps" data-drum="clap"></div>
+                        </div>
+                        <div class="seq-row">
+                            <div class="seq-label">tom</div>
+                            <div class="seq-steps" data-drum="tom1"></div>
+                        </div>
+                        <div class="seq-row">
+                            <div class="seq-label">perc</div>
+                            <div class="seq-steps" data-drum="perc"></div>
+                        </div>
+                        <div class="seq-row">
+                            <div class="seq-label">cymbal</div>
+                            <div class="seq-steps" data-drum="cymbal"></div>
+                        </div>
+                        <div class="seq-row">
+                            <div class="seq-label">rim</div>
+                            <div class="seq-steps" data-drum="rim"></div>
+                        </div>
                     </div>
-                    <div class="pad" data-sound="hihat">
-                        <span class="pad-key">3</span>
-                        <span class="pad-label">hat</span>
-                    </div>
-                    <div class="pad" data-sound="clap">
-                        <span class="pad-key">4</span>
-                        <span class="pad-label">clap</span>
-                    </div>
-                    <div class="pad" data-sound="tom1">
-                        <span class="pad-key">5</span>
-                        <span class="pad-label">tom</span>
-                    </div>
-                    <div class="pad" data-sound="perc">
-                        <span class="pad-key">6</span>
-                        <span class="pad-label">perc</span>
-                    </div>
-                    <div class="pad" data-sound="cymbal">
-                        <span class="pad-key">7</span>
-                        <span class="pad-label">cymbal</span>
-                    </div>
-                    <div class="pad" data-sound="rim">
-                        <span class="pad-key">8</span>
-                        <span class="pad-label">rim</span>
+                    <div class="btn-group seq-actions">
+                        <button class="btn-secondary" id="playSeq">play+rec</button>
+                        <button class="btn-secondary" id="clearSeq">clear</button>
                     </div>
                 </div>
             </div>
 
-            <div class="module module-third">
-                <div class="module-header">
-                    <div class="module-title">pattern</div>
-                    <div class="module-desc">program rhythms · play auto-records</div>
-                </div>
-                <div id="sequencer">
-                    <div class="seq-row">
-                        <div class="seq-label">kick</div>
-                        <div class="seq-steps" data-drum="kick"></div>
+            <!-- Wave + Keys -->
+            <div class="console-col">
+                <div class="module module-wave">
+                    <div class="module-header">
+                        <div class="module-title">wave</div>
+                        <div class="module-desc">visual audio feedback</div>
                     </div>
-                    <div class="seq-row">
-                        <div class="seq-label">snare</div>
-                        <div class="seq-steps" data-drum="snare"></div>
-                    </div>
-                    <div class="seq-row">
-                        <div class="seq-label">hihat</div>
-                        <div class="seq-steps" data-drum="hihat"></div>
-                    </div>
-                    <div class="seq-row">
-                        <div class="seq-label">clap</div>
-                        <div class="seq-steps" data-drum="clap"></div>
-                    </div>
-                    <div class="seq-row">
-                        <div class="seq-label">tom</div>
-                        <div class="seq-steps" data-drum="tom1"></div>
-                    </div>
-                    <div class="seq-row">
-                        <div class="seq-label">perc</div>
-                        <div class="seq-steps" data-drum="perc"></div>
-                    </div>
-                    <div class="seq-row">
-                        <div class="seq-label">cymbal</div>
-                        <div class="seq-steps" data-drum="cymbal"></div>
-                    </div>
-                    <div class="seq-row">
-                        <div class="seq-label">rim</div>
-                        <div class="seq-steps" data-drum="rim"></div>
-                    </div>
-                </div>
-                <div class="btn-group" style="margin-top: 1rem;">
-                    <button class="btn-secondary" id="playSeq">play+rec</button>
-                    <button class="btn-secondary" id="clearSeq">clear</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Keys -->
-        <div class="workspace">
-            <div class="module module-full">
-                <div class="module-header">
-                    <div class="module-title">keys</div>
-                    <div class="module-desc">play melodies with a-k keys</div>
-                </div>
-                
-                <div class="synth-controls">
-                    <div class="synth-control-group">
-                        <div class="control-label" style="margin-bottom: 0.5rem;">
-                            <span>wave</span>
-                        </div>
-                        <div class="wave-grid" id="waveType" data-value="sine">
-                            <button class="wave-grid-btn selected" data-value="sine">sine</button>
-                            <button class="wave-grid-btn" data-value="square">square</button>
-                            <button class="wave-grid-btn" data-value="sawtooth">saw</button>
-                            <button class="wave-grid-btn" data-value="triangle">triangle</button>
-                            <button class="wave-grid-btn" data-value="pulse">pulse</button>
-                            <button class="wave-grid-btn" data-value="noise">noise</button>
-                            <button class="wave-grid-btn" data-value="string">string</button>
-                            <button class="wave-grid-btn" data-value="formant">voice</button>
-                            <button class="wave-grid-btn" data-value="vocoder">vocoder</button>
-                        </div>
+                    <div class="visualizer">
+                        <canvas id="viz" aria-label="Audio waveform visualization" role="img"></canvas>
                     </div>
                 </div>
 
-                <div class="keyboard">
-                    <div class="key" data-note="C4"><span class="key-label">a · c4</span></div>
-                    <div class="key black" data-note="C#4"><span class="key-label">w</span></div>
-                    <div class="key" data-note="D4"><span class="key-label">s · d4</span></div>
-                    <div class="key black" data-note="D#4"><span class="key-label">e</span></div>
-                    <div class="key" data-note="E4"><span class="key-label">d · e4</span></div>
-                    <div class="key" data-note="F4"><span class="key-label">f · f4</span></div>
-                    <div class="key black" data-note="F#4"><span class="key-label">t</span></div>
-                    <div class="key" data-note="G4"><span class="key-label">g · g4</span></div>
-                    <div class="key black" data-note="G#4"><span class="key-label">y</span></div>
-                    <div class="key" data-note="A4"><span class="key-label">h · a4</span></div>
-                    <div class="key black" data-note="A#4"><span class="key-label">u</span></div>
-                    <div class="key" data-note="B4"><span class="key-label">j · b4</span></div>
-                    <div class="key" data-note="C5"><span class="key-label">k · c5</span></div>
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
-                    <div class="control-group">
-                        <div class="control-label">
-                            <span>attack</span>
-                            <span class="control-value" id="attackVal">10ms</span>
-                        </div>
-                        <input type="range" id="attack" min="0" max="500" value="10">
+                <div class="module module-keys">
+                    <div class="module-header">
+                        <div class="module-title">keys</div>
+                        <div class="module-desc">play melodies with a-k keys</div>
                     </div>
-                    <div class="control-group">
-                        <div class="control-label">
-                            <span>release</span>
-                            <span class="control-value" id="releaseVal">300ms</span>
+
+                    <div class="synth-controls">
+                        <div class="synth-control-group">
+                            <div class="control-label">
+                                <span>wave</span>
+                            </div>
+                            <div class="wave-grid" id="waveType" data-value="sine">
+                                <button class="wave-grid-btn selected" data-value="sine">sine</button>
+                                <button class="wave-grid-btn" data-value="square">square</button>
+                                <button class="wave-grid-btn" data-value="sawtooth">saw</button>
+                                <button class="wave-grid-btn" data-value="triangle">triangle</button>
+                                <button class="wave-grid-btn" data-value="pulse">pulse</button>
+                                <button class="wave-grid-btn" data-value="noise">noise</button>
+                                <button class="wave-grid-btn" data-value="string">string</button>
+                                <button class="wave-grid-btn" data-value="formant">voice</button>
+                                <button class="wave-grid-btn" data-value="vocoder">vocoder</button>
+                            </div>
                         </div>
-                        <input type="range" id="release" min="50" max="2000" value="300">
+                    </div>
+
+                    <div class="keyboard">
+                        <div class="key" data-note="C4"><span class="key-label">a · c4</span></div>
+                        <div class="key black" data-note="C#4"><span class="key-label">w</span></div>
+                        <div class="key" data-note="D4"><span class="key-label">s · d4</span></div>
+                        <div class="key black" data-note="D#4"><span class="key-label">e</span></div>
+                        <div class="key" data-note="E4"><span class="key-label">d · e4</span></div>
+                        <div class="key" data-note="F4"><span class="key-label">f · f4</span></div>
+                        <div class="key black" data-note="F#4"><span class="key-label">t</span></div>
+                        <div class="key" data-note="G4"><span class="key-label">g · g4</span></div>
+                        <div class="key black" data-note="G#4"><span class="key-label">y</span></div>
+                        <div class="key" data-note="A4"><span class="key-label">h · a4</span></div>
+                        <div class="key black" data-note="A#4"><span class="key-label">u</span></div>
+                        <div class="key" data-note="B4"><span class="key-label">j · b4</span></div>
+                        <div class="key" data-note="C5"><span class="key-label">k · c5</span></div>
+                    </div>
+
+                    <div class="envelope">
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>attack</span>
+                                <span class="control-value" id="attackVal">10ms</span>
+                            </div>
+                            <input type="range" id="attack" min="0" max="500" value="10">
+                        </div>
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>release</span>
+                                <span class="control-value" id="releaseVal">300ms</span>
+                            </div>
+                            <input type="range" id="release" min="50" max="2000" value="300">
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Loop + Vibe + FX/Tempo (3 equal columns, same height) -->
-        <div class="workspace-three-cols">
-            <!-- Loop -->
-            <div class="module loop-vertical">
-                <div class="module-header">
-                    <div class="module-title">loop</div>
-                    <div class="module-desc">record & layer up to 4 loops + mic input</div>
-                </div>
-                
-                <div class="btn-group">
-                    <button class="btn-secondary slot-btn active" data-slot="A">A</button>
-                    <button class="btn-secondary slot-btn" data-slot="B">B</button>
-                    <button class="btn-secondary slot-btn" data-slot="C">C</button>
-                    <button class="btn-secondary slot-btn" data-slot="D">D</button>
-                </div>
-                
-                <button class="btn-secondary loop-mic-btn" id="micBtn">
-                    <span class="mic-indicator" id="micIndicator"></span>mic
-                </button>
-                
-                <div class="loop-info">
-                    <span id="slotInfo">slot A · empty</span>
-                </div>
-                
-                <div class="loop-actions">
-                    <button class="btn-secondary" id="recordBtn">rec manual</button>
-                    <button class="btn-secondary" id="overdubBtn">add layer</button>
-                    <button class="btn-secondary" id="playLoopBtn">play</button>
-                    <button class="btn-secondary" id="playAllBtn">play all</button>
-                    <button class="btn-secondary" id="clearLoopBtn">clear</button>
-                    <button class="btn" id="downloadBtn" style="display: none;">download</button>
-                    <button class="btn-secondary" id="exportAllBtn">export all</button>
-                </div>
-                
-                <div class="loop-bottom">
-                    <div class="control-group">
-                        <div class="control-label">
-                            <span>volume</span>
-                            <span class="control-value" id="masterVolVal">70%</span>
-                        </div>
-                        <input type="range" id="masterVol" min="0" max="100" value="70">
+            <!-- Loop + Vibe + FX/Tempo -->
+            <div class="console-col">
+                <div class="module module-loop">
+                    <div class="module-header">
+                        <div class="module-title">loop</div>
+                        <div class="module-desc">record & layer up to 4 loops + mic input</div>
                     </div>
-                    <button class="btn" id="initBtn">start</button>
-                </div>
-            </div>
 
-            <!-- Vibe -->
-            <div class="module vibe-vertical">
-                <div class="module-header">
-                    <div class="module-title">vibe</div>
-                    <div class="module-desc">your music companion</div>
+                    <div class="btn-group slot-group">
+                        <button class="btn-secondary slot-btn active" data-slot="A">A</button>
+                        <button class="btn-secondary slot-btn" data-slot="B">B</button>
+                        <button class="btn-secondary slot-btn" data-slot="C">C</button>
+                        <button class="btn-secondary slot-btn" data-slot="D">D</button>
+                    </div>
+
+                    <button class="btn-secondary loop-mic-btn" id="micBtn">
+                        <span class="mic-indicator" id="micIndicator"></span>mic
+                    </button>
+
+                    <div class="loop-info">
+                        <span id="slotInfo">slot A · empty</span>
+                    </div>
+
+                    <div class="loop-actions">
+                        <button class="btn-secondary" id="recordBtn">rec manual</button>
+                        <button class="btn-secondary" id="overdubBtn">add layer</button>
+                        <button class="btn-secondary" id="playLoopBtn">play</button>
+                        <button class="btn-secondary" id="playAllBtn">play all</button>
+                        <button class="btn-secondary" id="clearLoopBtn">clear</button>
+                        <button class="btn" id="downloadBtn" style="display: none;">download</button>
+                        <button class="btn-secondary" id="exportAllBtn">export all</button>
+                    </div>
                 </div>
-                <div class="vibe-container-vertical">
+
+                <div class="module module-vibe">
+                    <div class="module-header">
+                        <div class="module-title">vibe</div>
+                        <div class="module-desc">your music companion</div>
+                    </div>
                     <div class="vibe-matrix" id="vibeMatrix"></div>
                 </div>
-            </div>
 
-            <!-- FX + Tempo -->
-            <div class="module fx-vertical">
-                <div class="module-header">
-                    <div class="module-title">fx + tempo</div>
-                    <div class="module-desc">shape your sound</div>
-                </div>
-                <div class="control-group">
-                    <div class="control-label">
-                        <span>tempo</span>
-                        <span class="control-value" id="tempoVal">120</span>
+                <div class="module module-fx">
+                    <div class="module-header">
+                        <div class="module-title">fx + tempo</div>
+                        <div class="module-desc">shape your sound</div>
                     </div>
-                    <input type="range" id="tempo" min="60" max="200" value="120">
-                </div>
-                <div class="control-group">
-                    <div class="control-label">
-                        <span>reverb</span>
-                        <span class="control-value" id="reverbVal">0%</span>
+                    <div class="fx-grid">
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>tempo</span>
+                                <span class="control-value" id="tempoVal">120</span>
+                            </div>
+                            <input type="range" id="tempo" min="60" max="200" value="120">
+                        </div>
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>volume</span>
+                                <span class="control-value" id="masterVolVal">70%</span>
+                            </div>
+                            <input type="range" id="masterVol" min="0" max="100" value="70">
+                        </div>
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>reverb</span>
+                                <span class="control-value" id="reverbVal">0%</span>
+                            </div>
+                            <input type="range" id="reverb" min="0" max="100" value="0">
+                        </div>
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>delay</span>
+                                <span class="control-value" id="delayVal">0%</span>
+                            </div>
+                            <input type="range" id="delay" min="0" max="100" value="0">
+                        </div>
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>filter</span>
+                                <span class="control-value" id="filterVal">10000Hz</span>
+                            </div>
+                            <input type="range" id="filter" min="100" max="10000" value="10000">
+                        </div>
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>chorus</span>
+                                <span class="control-value" id="chorusVal">0%</span>
+                            </div>
+                            <input type="range" id="chorus" min="0" max="100" value="0">
+                        </div>
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>distort</span>
+                                <span class="control-value" id="distortVal">0%</span>
+                            </div>
+                            <input type="range" id="distort" min="0" max="100" value="0">
+                        </div>
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>crush</span>
+                                <span class="control-value" id="crushVal">0</span>
+                            </div>
+                            <input type="range" id="crush" min="0" max="8" value="0">
+                        </div>
                     </div>
-                    <input type="range" id="reverb" min="0" max="100" value="0">
                 </div>
-                <div class="control-group">
-                    <div class="control-label">
-                        <span>delay</span>
-                        <span class="control-value" id="delayVal">0%</span>
-                    </div>
-                    <input type="range" id="delay" min="0" max="100" value="0">
-                </div>
-                <div class="control-group">
-                    <div class="control-label">
-                        <span>filter</span>
-                        <span class="control-value" id="filterVal">10000Hz</span>
-                    </div>
-                    <input type="range" id="filter" min="100" max="10000" value="10000">
-                </div>
-                <div class="control-group">
-                    <div class="control-label">
-                        <span>chorus</span>
-                        <span class="control-value" id="chorusVal">0%</span>
-                    </div>
-                    <input type="range" id="chorus" min="0" max="100" value="0">
-                </div>
-                <div class="control-group">
-                    <div class="control-label">
-                        <span>distort</span>
-                        <span class="control-value" id="distortVal">0%</span>
-                    </div>
-                    <input type="range" id="distort" min="0" max="100" value="0">
-                </div>
-                <div class="control-group">
-                    <div class="control-label">
-                        <span>crush</span>
-                        <span class="control-value" id="crushVal">0</span>
-                    </div>
-                    <input type="range" id="crush" min="0" max="8" value="0">
-                </div>
-            </div>
-        </div>
-
-        <!-- Support -->
-        <div class="section">
-            <div class="card card-full support-card">
-                <div class="card-header">
-                    <div class="card-title">support</div>
-                </div>
-                <pre>play<span class="separator">·</span>ground is free and open.
-if you find value, consider supporting:
-<a href="https://buymeacoffee.com/nbronzina" target="_blank">[buy me a coffee]</a></pre>
             </div>
         </div>
 

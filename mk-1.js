@@ -189,6 +189,17 @@ const SCHEDULER = {
     LATE: 0.05
 };
 
+const LIMITER = {
+    THRESHOLD: -2,
+    KNEE: 0,
+    RATIO: 14,
+    ATTACK: 0.002,
+    RELEASE: 0.12,
+    CEILING: 0.9
+};
+
+const LAYER_SEARCH = 0.06;
+
 // ============================================
 // AUDIO ENGINE
 // ============================================
@@ -239,6 +250,18 @@ function createTanhCurve(drive) {
     for (let i = 0; i < 256; i++) {
         const x = (i / 128) - 1;
         curve[i] = Math.tanh(x * drive);
+    }
+    return curve;
+}
+
+// Identity up to the knee, then rounds into 1; odd size keeps 0 on a sample so the straight part stays exact
+function createCeilingCurve(knee) {
+    const size = 4097;
+    const curve = new Float32Array(size);
+    for (let i = 0; i < size; i++) {
+        const x = (2 * i) / (size - 1) - 1;
+        const over = Math.abs(x) - knee;
+        curve[i] = over > 0 ? Math.sign(x) * (knee + (1 - knee) * Math.tanh(over / (1 - knee))) : x;
     }
     return curve;
 }
@@ -520,15 +543,14 @@ function updateSequencerUI() {
     });
 }
 
-const HERO_TEXT = document.querySelector('.hero p').textContent;
+const statusMessage = document.getElementById('statusMessage');
 let messageTimeout = null;
 
 function showMessage(msg, duration = 1000) {
-    const heroP = document.querySelector('.hero p');
     clearTimeout(messageTimeout);
-    heroP.textContent = msg;
+    statusMessage.textContent = msg;
     messageTimeout = setTimeout(() => {
-        heroP.textContent = HERO_TEXT;
+        statusMessage.textContent = '';
     }, duration);
 }
 
@@ -566,6 +588,8 @@ let vibeDataArray = null;
 // ============================================
 function startMediaRecording() {
     const slotKey = recordingSlot;
+    const looped = loopSlots[slotKey].audioBuffer;
+    const under = isOverdub && looped ? looped.getChannelData(0).subarray(0, Math.round(overdubLength * looped.sampleRate)) : null;
     const chunks = [];
     document.getElementById('downloadBtn').style.display = 'none';
 
@@ -582,7 +606,8 @@ function startMediaRecording() {
 
         try {
             const arrayBuffer = await blob.arrayBuffer();
-            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            const take = await audioContext.decodeAudioData(arrayBuffer);
+            const audioBuffer = under && slot.loopSamples > 0 ? alignLayer(take, under, slot.loopSamples) : take;
             slot.audioBuffer = audioBuffer;
             slot.loopSamples = Math.min(slot.loopSamples || audioBuffer.length, audioBuffer.length);
             slot.duration = slot.loopSamples / audioBuffer.sampleRate;
@@ -595,6 +620,65 @@ function startMediaRecording() {
     };
 
     mediaRecorder.start();
+}
+
+// The recorder starts on its own clock and the limiter looks ahead, so a layer is placed by finding the loop it was played over inside the take
+function layerOffset(take, under, sampleRate) {
+    const block = 32;
+    const reach = Math.round(LAYER_SEARCH * sampleRate);
+    const span = Math.min(under.length, take.length - reach);
+    if (span <= 0) return 0;
+
+    const energy = (data, length) => {
+        const env = new Float32Array(Math.ceil(length / block));
+        for (let i = 0; i < length; i++) env[Math.floor(i / block)] += Math.abs(data[i]);
+        return env;
+    };
+    const envTake = energy(take, take.length);
+    const envUnder = energy(under, span);
+    const blocks = Math.ceil(reach / block);
+
+    let coarse = 0;
+    let best = 0;
+    for (let lag = -blocks; lag <= blocks; lag++) {
+        let sum = 0;
+        for (let i = Math.max(0, -lag); i < envUnder.length && i + lag < envTake.length; i++) {
+            sum += envUnder[i] * envTake[i + lag];
+        }
+        if (sum > best) {
+            best = sum;
+            coarse = lag * block;
+        }
+    }
+
+    const fineSpan = Math.min(span, sampleRate * 2);
+    let offset = coarse;
+    best = 0;
+    for (let lag = coarse - 2 * block; lag <= coarse + 2 * block; lag++) {
+        let sum = 0;
+        for (let i = Math.max(0, -lag); i < fineSpan && i + lag < take.length; i++) {
+            sum += under[i] * take[i + lag];
+        }
+        if (sum > best) {
+            best = sum;
+            offset = lag;
+        }
+    }
+    return offset;
+}
+
+function alignLayer(take, under, length) {
+    const offset = layerOffset(take.getChannelData(0), under, take.sampleRate);
+    const aligned = audioContext.createBuffer(take.numberOfChannels, length, take.sampleRate);
+    for (let ch = 0; ch < take.numberOfChannels; ch++) {
+        const source = take.getChannelData(ch);
+        const target = aligned.getChannelData(ch);
+        for (let i = 0; i < length; i++) {
+            const j = i + offset < 0 ? i + offset + length : i + offset;
+            target[i] = j < source.length ? source[j] : 0;
+        }
+    }
+    return aligned;
 }
 
 function addPressHandler(element, handler) {
@@ -691,17 +775,35 @@ function initSystem() {
         filterNode.frequency.value = AUDIO_CONSTANTS.DEFAULT_FILTER_FREQ;
         filterNode.Q.value = 1;
         
+        const limiter = audioContext.createDynamicsCompressor();
+        limiter.threshold.value = LIMITER.THRESHOLD;
+        limiter.knee.value = LIMITER.KNEE;
+        limiter.ratio.value = LIMITER.RATIO;
+        limiter.attack.value = LIMITER.ATTACK;
+        limiter.release.value = LIMITER.RELEASE;
+
+        // The compressor adds makeup gain (0.6 power of its full-range gain); the trim takes it back so everything under the threshold passes at unity and loops don't grow on every layer
+        const limiterTrim = audioContext.createGain();
+        limiterTrim.gain.value = Math.pow(10, 0.6 * LIMITER.THRESHOLD * (1 - 1 / LIMITER.RATIO) / 20);
+
+        // A dense hit still gets past the 2 ms attack; the ceiling rounds only that overshoot so output and recordings stay under 1
+        const ceiling = audioContext.createWaveShaper();
+        ceiling.curve = createCeilingCurve(LIMITER.CEILING);
+
         masterGain.connect(delayNode);
         masterGain.connect(reverbNode);
         masterGain.connect(filterNode);
         delayMix.connect(filterNode);
         reverbMix.connect(filterNode);
-        filterNode.connect(analyser);
+        filterNode.connect(limiter);
+        limiter.connect(limiterTrim);
+        limiterTrim.connect(ceiling);
+        ceiling.connect(analyser);
         analyser.connect(audioContext.destination);
 
-        // Recorded loops already carry the FX and master level, so they join after the FX chain
+        // Recorded loops already carry the FX and master level, so they join after the FX chain, still under the limiter
         loopBus = audioContext.createGain();
-        loopBus.connect(analyser);
+        loopBus.connect(limiter);
 
         // Distortion
         const distortionNode = audioContext.createWaveShaper();
@@ -837,8 +939,6 @@ function initSystem() {
         
         isActive = true;
         document.getElementById('sysStatus').textContent = 'active';
-        document.getElementById('initBtn').textContent = 'active';
-        document.getElementById('initBtn').classList.add('active');
 
         // Initialize voice management
         initSharedCurves();
@@ -1695,7 +1795,6 @@ function playNote(freq, skipRecording = false, time, releaseMs = releaseTime, wa
     }
 }
 
-document.getElementById('initBtn').addEventListener('click', () => initSystem());
 document.getElementById('micBtn').addEventListener('click', toggleMic);
 
 // pointerdown is not a user activation on touch screens; the release that follows is
@@ -1940,8 +2039,8 @@ function stopOverdub() {
         return;
     }
 
-    // The layer closes on the loop boundary so the new take keeps whole cycles; the extra 50 ms keeps the capture from ending short
-    overdubStop = setTimeout(finish, (stopAt - now) * 1000 + 50);
+    // The layer closes on the loop boundary so the new take keeps whole cycles; the extra time covers the recorder delay that alignLayer trims from the start
+    overdubStop = setTimeout(finish, (stopAt - now + LAYER_SEARCH) * 1000 + 50);
 }
 
 document.getElementById('recordBtn').addEventListener('click', () => {
@@ -2498,7 +2597,6 @@ function drawViz() {
         return;
     }
 
-    // Update colors if not cached (first run or theme change)
     if (!cachedVizBgColor || !cachedVizLineColor) {
         updateVizColors();
     }
@@ -2534,20 +2632,13 @@ function drawViz() {
     ctx.stroke();
 }
 
-let resizeTimeout;
 function resizeCanvas() {
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
 }
 
-window.addEventListener('resize', () => {
-    clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(resizeCanvas, 100);
-});
-
-window.addEventListener('orientationchange', () => {
-    setTimeout(resizeCanvas, 300);
-});
+// The display grows with the console, not only with the window
+new ResizeObserver(resizeCanvas).observe(canvas);
 
 function updateTimestamp() {
     const now = new Date();
@@ -2573,6 +2664,9 @@ function isSlotFree(key) {
     const beingRecorded = (isRecording || isOverdub) && key === recordingSlot;
     return !slot.audioBlob && !slot.audioBuffer && slot.loop.length === 0 && !beingRecorded;
 }
+
+// Kept for n0body, which clicked the old start button to wake the audio engine
+document.getElementById('initBtn').addEventListener('click', () => initSystem());
 
 document.getElementById('loadDemoBtn').addEventListener('click', () => {
     initSystem();
@@ -2671,16 +2765,6 @@ document.getElementById('clearAllBtn').addEventListener('click', () => {
     updateSlotUI();
 
     showMessage('all clear! start creating', 3000);
-});
-
-// Theme Toggle - Always starts in light mode
-const themeToggle = document.getElementById('themeToggle');
-const html = document.documentElement;
-
-themeToggle.addEventListener('click', () => {
-    html.classList.toggle('dark-mode');
-    // Update visualizer colors when theme changes
-    updateVizColors();
 });
 
 // ============================================
