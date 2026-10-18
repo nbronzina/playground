@@ -183,13 +183,22 @@ const ANIMATION_CONSTANTS = {
     VIZ_LINE_WIDTH: 2
 };
 
+const SCHEDULER = {
+    TICK_MS: 25,
+    LOOKAHEAD: 0.1,
+    LATE: 0.05
+};
+
 // ============================================
 // AUDIO ENGINE
 // ============================================
 let audioContext;
 let masterGain;
 let analyser;
+let loopBus;
 let isActive = false;
+let audioReady = null;
+let audioLoaded = false;
 
 // ============================================
 // VOICE MANAGEMENT (Memory Leak Prevention)
@@ -336,6 +345,23 @@ function registerSynthVoice(nodes, duration) {
     return voice;
 }
 
+function releaseSynthVoices() {
+    if (!audioContext) return;
+    const now = audioContext.currentTime;
+    const voices = activeSynthVoices;
+    activeSynthVoices = [];
+
+    voices.forEach(voice => {
+        if (voice.out) {
+            const gain = voice.out.gain;
+            gain.cancelScheduledValues(now);
+            gain.setValueAtTime(gain.value, now);
+            gain.setTargetAtTime(0, now, 0.01);
+        }
+        setTimeout(() => cleanupVoice(voice), 60);
+    });
+}
+
 // Periodic cleanup of any orphaned voices
 function startVoiceCleanup() {
     if (cleanupIntervalId) return;
@@ -398,18 +424,21 @@ let micGain = null;
 let isMicActive = false;
 
 let loopSlots = {
-    A: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, isPlaying: false },
-    B: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, isPlaying: false },
-    C: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, isPlaying: false },
-    D: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, isPlaying: false }
+    A: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, loopSamples: 0, isPlaying: false, playback: null },
+    B: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, loopSamples: 0, isPlaying: false, playback: null },
+    C: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, loopSamples: 0, isPlaying: false, playback: null },
+    D: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, loopSamples: 0, isPlaying: false, playback: null }
 };
 let activeSlot = 'A';
 let isRecording = false;
 let recordingStart = 0;
+let recordingSlot = 'A';
 let isOverdub = false;
+let overdubLength = 0;
+let overdubStop = null;
+let demoSlot = null;
 
 let mediaRecorder;
-let audioChunks = [];
 let mediaStreamDestination;
 
 let sequencerSteps = {
@@ -424,7 +453,9 @@ let sequencerSteps = {
 };
 let currentStep = 0;
 let isPlaying = false;
-let sequencerInterval;
+let nextStepTime = 0;
+let seqRun = 0;
+let clockId = null;
 
 // Undo/Redo history for sequencer
 let sequencerHistory = [];
@@ -489,13 +520,16 @@ function updateSequencerUI() {
     });
 }
 
-function showMessage(msg) {
+const HERO_TEXT = document.querySelector('.hero p').textContent;
+let messageTimeout = null;
+
+function showMessage(msg, duration = 1000) {
     const heroP = document.querySelector('.hero p');
-    const originalText = heroP.textContent;
+    clearTimeout(messageTimeout);
     heroP.textContent = msg;
-    setTimeout(() => {
-        heroP.textContent = originalText;
-    }, 1000);
+    messageTimeout = setTimeout(() => {
+        heroP.textContent = HERO_TEXT;
+    }, duration);
 }
 
 // Initialize history with empty state
@@ -531,48 +565,46 @@ let vibeDataArray = null;
 // HELPER FUNCTIONS
 // ============================================
 function startMediaRecording() {
-    audioChunks = [];
+    const slotKey = recordingSlot;
+    const chunks = [];
     document.getElementById('downloadBtn').style.display = 'none';
 
     mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
 
     mediaRecorder.ondataavailable = (event) => {
-        audioChunks.push(event.data);
+        chunks.push(event.data);
     };
 
     mediaRecorder.onstop = async () => {
-        const blob = new Blob(audioChunks, { type: 'audio/webm' });
-        loopSlots[activeSlot].audioBlob = blob;
+        const slot = loopSlots[slotKey];
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        slot.audioBlob = blob;
 
         try {
             const arrayBuffer = await blob.arrayBuffer();
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            loopSlots[activeSlot].audioBuffer = audioBuffer;
-            loopSlots[activeSlot].duration = audioBuffer.duration;
+            slot.audioBuffer = audioBuffer;
+            slot.loopSamples = Math.min(slot.loopSamples || audioBuffer.length, audioBuffer.length);
+            slot.duration = slot.loopSamples / audioBuffer.sampleRate;
+            if (slot.playback) swapSlotPlayback(slotKey);
         } catch (error) {
             console.error('Error decoding audio:', error);
         }
 
         updateSlotUI();
-        document.getElementById('downloadBtn').style.display = 'block';
     };
 
     mediaRecorder.start();
 }
 
-function addTouchClick(element, handler) {
-    let touchHandled = false;
-    element.addEventListener('touchstart', function(e) {
-        e.preventDefault();
-        touchHandled = true;
+function addPressHandler(element, handler) {
+    element.addEventListener('pointerdown', function(e) {
+        if (e.button !== 0) return;
         handler.call(this, e);
     });
-    element.addEventListener('click', function(e) {
-        if (!touchHandled) {
-            handler.call(this, e);
-        }
-        touchHandled = false;
-    });
+    element.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+    }, { passive: false });
 }
 
 function animateVibeMatrix() {
@@ -666,7 +698,11 @@ function initSystem() {
         reverbMix.connect(filterNode);
         filterNode.connect(analyser);
         analyser.connect(audioContext.destination);
-        
+
+        // Recorded loops already carry the FX and master level, so they join after the FX chain
+        loopBus = audioContext.createGain();
+        loopBus.connect(analyser);
+
         // Distortion
         const distortionNode = audioContext.createWaveShaper();
         distortionNode.curve = makeDistortionCurve(0);
@@ -734,34 +770,38 @@ function initSystem() {
         }
 
         // Start async setup (connects when ready)
-        setupBitcrusher();
+        const bitcrusherReady = setupBitcrusher();
 
         window.bitcrusherMix = bitcrusherMix;
 
         // Karplus-Strong worklet registration
         window.karplusStrongReady = false;
-        if (audioContext.audioWorklet) {
-            audioContext.audioWorklet.addModule('karplus-strong-processor.js').then(() => {
+        const karplusReady = audioContext.audioWorklet
+            ? audioContext.audioWorklet.addModule('karplus-strong-processor.js').then(() => {
                 window.karplusStrongReady = true;
-            }).catch(() => {});
-        }
+            }).catch(() => {})
+            : Promise.resolve();
 
         // Drum engine worklet registration
         window.drumEngineReady = false;
-        if (audioContext.audioWorklet) {
-            (async () => {
-                try {
-                    await audioContext.audioWorklet.addModule('drum-engine-processor.js');
-                    const drumEngine = new AudioWorkletNode(audioContext, 'drum-engine-processor');
-                    drumEngine.connect(masterGain);
-                    window.drumEngine = drumEngine;
-                    window.drumEngineReady = true;
-                } catch(e) {
-                    console.warn('Drum engine worklet failed, using fallback:', e);
-                    window.drumEngineReady = false;
-                }
-            })();
-        }
+        const drumEngineLoaded = (async () => {
+            if (!audioContext.audioWorklet) return;
+            try {
+                await audioContext.audioWorklet.addModule('drum-engine-processor.js');
+                const drumEngine = new AudioWorkletNode(audioContext, 'drum-engine-processor');
+                drumEngine.connect(masterGain);
+                window.drumEngine = drumEngine;
+                window.drumEngineReady = true;
+            } catch(e) {
+                console.warn('Drum engine worklet failed, using fallback:', e);
+                window.drumEngineReady = false;
+            }
+        })();
+
+        audioReady = Promise.all([bitcrusherReady, karplusReady, drumEngineLoaded]).then(() => {
+            audioLoaded = true;
+            applySliders();
+        });
 
         // Chorus effect using modulated delay
         const chorusDelay = audioContext.createDelay();
@@ -804,8 +844,16 @@ function initSystem() {
         initSharedCurves();
         startVoiceCleanup();
 
+        applySliders();
+
         if (audioContext.state === 'suspended') {
             audioContext.resume();
+        }
+
+        if (navigator.requestMIDIAccess) {
+            navigator.requestMIDIAccess({ sysex: false })
+                .then(onMIDISuccess)
+                .catch(onMIDIFailure);
         }
 
         drawViz();
@@ -814,15 +862,19 @@ function initSystem() {
         isActive = true;
         document.getElementById('sysStatus').textContent = 'active';
     }
+
+    return audioReady;
+}
+
+function applySliders() {
+    document.querySelectorAll('input[type="range"]').forEach(input => {
+        input.dispatchEvent(new Event('input'));
+    });
 }
 
 async function toggleMic() {
-    if (!audioContext) {
-        initSystem();
-        setTimeout(toggleMic, 100);
-        return;
-    }
-    
+    initSystem();
+
     if (!isMicActive) {
         try {
             micStream = await navigator.mediaDevices.getUserMedia({ 
@@ -842,14 +894,9 @@ async function toggleMic() {
             isMicActive = true;
             document.getElementById('micBtn').classList.add('active');
             document.getElementById('micIndicator').classList.add('active');
-            
-            const heroP = document.querySelector('.hero p');
-            const originalText = heroP.textContent;
-            heroP.textContent = 'mic active · ready to capture external audio';
-            setTimeout(() => {
-                heroP.textContent = originalText;
-            }, 3000);
-            
+
+            showMessage('mic active · ready to capture external audio', 3000);
+
         } catch (error) {
             console.error('Microphone access denied:', error);
             alert('Could not access microphone. Please check permissions.');
@@ -871,20 +918,28 @@ async function toggleMic() {
         isMicActive = false;
         document.getElementById('micBtn').classList.remove('active');
         document.getElementById('micIndicator').classList.remove('active');
-        
-        const heroP = document.querySelector('.hero p');
-        const originalText = heroP.textContent;
-        heroP.textContent = 'mic off';
-        setTimeout(() => {
-            heroP.textContent = originalText;
-        }, 2000);
+
+        showMessage('mic off', 2000);
     }
 }
 
-function playDrum(type, skipRecording = false) {
-    if (!audioContext) {
-        initSystem();
-        setTimeout(() => playDrum(type), 100);
+function flash(el, time, ms) {
+    if (!el) return;
+    const on = () => {
+        el.classList.add('active');
+        setTimeout(() => el.classList.remove('active'), ms);
+    };
+    const delay = (time - audioContext.currentTime) * 1000;
+    if (delay > 5) {
+        setTimeout(on, delay);
+    } else {
+        on();
+    }
+}
+
+function playDrum(type, skipRecording = false, time) {
+    if (!audioLoaded) {
+        initSystem().then(() => playDrum(type, skipRecording, time));
         return;
     }
 
@@ -892,29 +947,22 @@ function playDrum(type, skipRecording = false) {
         audioContext.resume();
     }
 
+    const now = Math.max(time || 0, audioContext.currentTime);
+    flash(document.querySelector(`[data-sound="${type}"]`), now, 150);
+
+    if (!skipRecording && (isRecording || isOverdub)) {
+        loopSlots[recordingSlot].loop.push({
+            type: 'drum',
+            sound: type,
+            time: now - recordingStart
+        });
+    }
+
     if (window.drumEngineReady && window.drumEngine) {
-        window.drumEngine.port.postMessage({ type: 'trigger', voice: type });
-        const pad = document.querySelector(`[data-sound="${type}"]`);
-        if (pad) {
-            pad.classList.add('active');
-            setTimeout(() => pad.classList.remove('active'), 150);
-        }
-        if (!skipRecording && (isRecording || isOverdub)) {
-            loopSlots[activeSlot].loop.push({
-                type: 'drum', sound: type,
-                time: audioContext.currentTime - recordingStart
-            });
-        }
+        window.drumEngine.port.postMessage({ type: 'trigger', voice: type, time: now });
         return;
     }
 
-    const pad = document.querySelector(`[data-sound="${type}"]`);
-    if (pad) {
-        pad.classList.add('active');
-        setTimeout(() => pad.classList.remove('active'), 150);
-    }
-
-    const now = audioContext.currentTime;
     const nodes = []; // Track all nodes for cleanup
     const curves = initSharedCurves(); // Use shared curves
     let maxDuration = 0.5; // Default duration
@@ -1312,22 +1360,17 @@ function playDrum(type, skipRecording = false) {
 
     // Register voice for cleanup
     if (nodes.length > 0) {
-        registerDrumVoice(nodes, maxDuration);
-    }
-
-    if (!skipRecording && (isRecording || isOverdub)) {
-        loopSlots[activeSlot].loop.push({
-            type: 'drum',
-            sound: type,
-            time: audioContext.currentTime - recordingStart
-        });
+        registerDrumVoice(nodes, now - audioContext.currentTime + maxDuration);
     }
 }
 
-function playNote(freq, skipRecording = false) {
+function playNote(freq, skipRecording = false, time, releaseMs = releaseTime, wave = document.getElementById('waveType').dataset.value) {
     if (!audioContext) {
         initSystem();
-        setTimeout(() => playNote(freq), 100);
+    }
+
+    if (wave === 'string' && !audioLoaded) {
+        audioReady.then(() => playNote(freq, skipRecording, time, releaseMs, wave));
         return;
     }
 
@@ -1335,31 +1378,29 @@ function playNote(freq, skipRecording = false) {
         audioContext.resume();
     }
 
+    const now = Math.max(time || 0, audioContext.currentTime);
+
     const noteEntry = Object.entries(notes).find(([key, f]) => f === freq);
     if (noteEntry) {
         const [noteName] = noteEntry;
-        const keyEl = document.querySelector(`[data-note="${noteName}"]`);
-        if (keyEl) {
-            keyEl.classList.add('active');
-            setTimeout(() => keyEl.classList.remove('active'), 200);
-        }
+        flash(document.querySelector(`[data-note="${noteName}"]`), now, 200);
     }
 
-    const wave = document.getElementById('waveType').dataset.value;
-    const now = audioContext.currentTime;
     const attack = attackTime / 1000;
-    const release = releaseTime / 1000;
+    const release = Math.max(releaseMs / 1000, attack + 0.05);
+    const tail = wave === 'string' ? Math.max(release, 1.5) : release;
     const nodes = []; // Track all nodes for cleanup
     const curves = initSharedCurves();
     let voiceAnimationIds = []; // Track animation frames for vocoder
 
     // Main output gain with ADSR
     const outputGain = audioContext.createGain();
+    outputGain.gain.value = 0;
     outputGain.gain.setValueAtTime(0, now);
     outputGain.gain.linearRampToValueAtTime(0.28, now + attack);
-    const sustainTime = Math.min(release * 0.3, 0.2);
-    outputGain.gain.setValueAtTime(0.2, now + attack + sustainTime);
-    outputGain.gain.exponentialRampToValueAtTime(0.001, now + release);
+    const sustainTime = Math.min(tail * 0.3, 0.2, (tail - attack) / 2);
+    outputGain.gain.linearRampToValueAtTime(0.2, now + attack + sustainTime);
+    outputGain.gain.exponentialRampToValueAtTime(0.001, now + tail);
     nodes.push(outputGain);
 
     // Filter with envelope
@@ -1395,7 +1436,7 @@ function playNote(freq, skipRecording = false) {
         noiseFilter.frequency.exponentialRampToValueAtTime(freq, now + release * 0.3);
         noiseSource.connect(noiseFilter);
         noiseFilter.connect(saturator);
-        noiseSource.start();
+        noiseSource.start(now);
         noiseSource.stop(now + release);
         nodes.push(noiseSource, noiseFilter);
 
@@ -1420,16 +1461,16 @@ function playNote(freq, skipRecording = false) {
         subGain.gain.value = 0.3;
         subOsc.connect(subGain);
         subGain.connect(saturator);
-        osc1.start();
-        osc2.start();
-        subOsc.start();
+        osc1.start(now);
+        osc2.start(now);
+        subOsc.start(now);
         osc1.stop(now + release);
         osc2.stop(now + release);
         subOsc.stop(now + release);
         nodes.push(osc1, osc2, pulseGain, subOsc, subGain);
 
     } else if (wave === 'string') {
-        const duration = Math.max(release, 1.5);
+        const duration = tail;
         const bodyFilter = audioContext.createBiquadFilter();
         bodyFilter.type = 'peaking';
         bodyFilter.frequency.setValueAtTime(freq * 2, now);
@@ -1448,7 +1489,7 @@ function playNote(freq, skipRecording = false) {
             stringGain.connect(saturator);
             setTimeout(() => {
                 karplusNode.port.postMessage({ stop: true });
-            }, duration * 1000);
+            }, (now + duration - audioContext.currentTime) * 1000);
             nodes.push(karplusNode, bodyFilter, stringGain);
         } else {
             // Fallback: pre-computed buffer for environments without AudioWorklet
@@ -1640,31 +1681,41 @@ function playNote(freq, skipRecording = false) {
     }
 
     // Register voice for cleanup
-    const voice = registerSynthVoice(nodes, release + 0.2);
+    const voice = registerSynthVoice(nodes, now - audioContext.currentTime + tail + 0.2);
     voice.animationIds = voiceAnimationIds;
+    voice.out = outputGain;
 
     if (!skipRecording && (isRecording || isOverdub)) {
-        loopSlots[activeSlot].loop.push({
+        loopSlots[recordingSlot].loop.push({
             type: 'synth',
             freq: freq,
             wave: wave,
-            time: audioContext.currentTime - recordingStart
+            time: now - recordingStart
         });
     }
 }
 
-document.getElementById('initBtn').addEventListener('click', initSystem);
+document.getElementById('initBtn').addEventListener('click', () => initSystem());
 document.getElementById('micBtn').addEventListener('click', toggleMic);
 
+// pointerdown is not a user activation on touch screens; the release that follows is
+['pointerup', 'touchend'].forEach(type => {
+    document.addEventListener(type, () => {
+        if (audioContext && audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+    });
+});
+
 document.querySelectorAll('.pad').forEach(pad => {
-    addTouchClick(pad, function() {
+    addPressHandler(pad, function() {
         const sound = this.dataset.sound;
         playDrum(sound);
     });
 });
 
 document.querySelectorAll('.key').forEach(key => {
-    addTouchClick(key, function() {
+    addPressHandler(key, function() {
         const note = this.dataset.note;
         playNote(notes[note]);
     });
@@ -1680,90 +1731,127 @@ drums.forEach(drum => {
         step.className = 'step';
         step.dataset.drum = drum;
         step.dataset.index = i;
-        addTouchClick(step, function() {
-            saveSequencerState();
+        addPressHandler(step, function() {
             sequencerSteps[drum][i] = !sequencerSteps[drum][i];
             this.classList.toggle('active');
+            saveSequencerState();
             updatePatternCount();
         });
         stepsContainer.appendChild(step);
     }
 });
 
-document.getElementById('playSeq').addEventListener('click', toggleSequencer);
+document.getElementById('playSeq').addEventListener('click', () => toggleSequencer());
+
+// The timer only wakes the scheduler; every sound is placed on audioContext.currentTime
+function startClock() {
+    if (clockId) return;
+    clockId = setInterval(clockTick, SCHEDULER.TICK_MS);
+    clockTick();
+}
+
+function clockTick() {
+    if (!audioLoaded) return;
+    const horizon = audioContext.currentTime + SCHEDULER.LOOKAHEAD;
+    let busy = false;
+
+    if (isPlaying) {
+        scheduleSequencer(horizon);
+        busy = true;
+    }
+
+    Object.values(loopSlots).forEach(slot => {
+        if (slot.playback && slot.playback.events) {
+            scheduleSlotEvents(slot.playback, horizon);
+            busy = true;
+        }
+    });
+
+    if (!busy) {
+        clearInterval(clockId);
+        clockId = null;
+    }
+}
+
+function scheduleSequencer(horizon) {
+    while (nextStepTime < horizon) {
+        const step = currentStep;
+        const time = nextStepTime;
+
+        if (time > audioContext.currentTime - SCHEDULER.LATE) {
+            drums.forEach(drum => {
+                if (sequencerSteps[drum][step]) {
+                    playDrum(drum, false, time);
+                }
+            });
+
+            const run = seqRun;
+            setTimeout(() => {
+                if (run === seqRun) showStep(step);
+            }, Math.max(0, (time - audioContext.currentTime) * 1000));
+        }
+
+        currentStep = (currentStep + 1) % 16;
+        nextStepTime += 60 / parseInt(document.getElementById('tempo').value) / 4;
+    }
+}
+
+function showStep(step) {
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('playing'));
+    document.querySelectorAll(`.step[data-index="${step}"]`).forEach(s => s.classList.add('playing'));
+
+    // Update beat indicator (4 beats per bar, 4 steps per beat)
+    document.querySelectorAll('.beat-dot').forEach(dot => dot.classList.remove('active'));
+    const activeDot = document.querySelector(`.beat-dot[data-beat="${Math.floor(step / 4) + 1}"]`);
+    if (activeDot) activeDot.classList.add('active');
+}
 
 function toggleSequencer(skipRecording = false) {
-    if (!audioContext) {
-        initSystem();
-        setTimeout(() => toggleSequencer(skipRecording), 100);
+    if (!audioLoaded) {
+        initSystem().then(() => toggleSequencer(skipRecording));
         return;
     }
 
     if (!isPlaying) {
         isPlaying = true;
-        const tempo = parseInt(document.getElementById('tempo').value);
-        const interval = (60 / tempo) * 1000 / 4;
+        seqRun++;
+        nextStepTime = audioContext.currentTime + 0.05;
 
         document.getElementById('playSeq').textContent = 'stop';
         document.getElementById('playSeq').classList.add('active');
 
         // Only auto-record if not called from API (skipRecording = false)
         if (!skipRecording && !isRecording && !isOverdub) {
-            isRecording = true;
-            recordingStart = audioContext.currentTime;
-            loopSlots[activeSlot].loop = [];
-
-            startMediaRecording();
-
-            document.getElementById('recordBtn').textContent = 'recording...';
-            document.getElementById('recordBtn').classList.add('active');
-            document.getElementById('recStatus').textContent = 'on';
+            startRecording();
         }
-        
-        sequencerInterval = setInterval(() => {
-            const steps = document.querySelectorAll('.step');
-            steps.forEach(s => s.classList.remove('playing'));
 
-            const currentSteps = document.querySelectorAll(`.step[data-index="${currentStep}"]`);
-            currentSteps.forEach(s => s.classList.add('playing'));
+        if (demoSlot) {
+            startSlot(demoSlot, nextStepTime);
+            updateSlotUI();
+        }
 
-            // Update beat indicator (4 beats per bar, 4 steps per beat)
-            const beatDots = document.querySelectorAll('.beat-dot');
-            beatDots.forEach(dot => dot.classList.remove('active'));
-            const currentBeat = Math.floor(currentStep / 4) + 1;
-            const activeDot = document.querySelector(`.beat-dot[data-beat="${currentBeat}"]`);
-            if (activeDot) activeDot.classList.add('active');
-
-            drums.forEach(drum => {
-                if (sequencerSteps[drum][currentStep]) {
-                    playDrum(drum);
-                }
-            });
-
-            currentStep = (currentStep + 1) % 16;
-        }, interval);
+        startClock();
     } else {
         stopSequencer();
     }
 }
 
 function stopSequencer(shouldStopRecording = true) {
-    clearInterval(sequencerInterval);
     isPlaying = false;
+    seqRun++;
     currentStep = 0;
     document.querySelectorAll('.step').forEach(s => s.classList.remove('playing'));
     document.querySelectorAll('.beat-dot').forEach(dot => dot.classList.remove('active'));
     document.getElementById('playSeq').textContent = 'play+rec';
     document.getElementById('playSeq').classList.remove('active');
-    
+
+    if (demoSlot) {
+        stopSlot(demoSlot);
+        updateSlotUI();
+    }
+
     if (shouldStopRecording && isRecording) {
-        isRecording = false;
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-        }
-        document.getElementById('recordBtn').textContent = 'rec manual';
-        document.getElementById('recordBtn').classList.remove('active');
-        document.getElementById('recStatus').textContent = 'off';
+        stopRecording();
     }
 }
 
@@ -1772,130 +1860,236 @@ document.getElementById('clearSeq').addEventListener('click', () => {
         sequencerSteps[drum] = Array(16).fill(false);
     });
     document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    saveSequencerState();
     updatePatternCount();
 });
 
-document.getElementById('recordBtn').addEventListener('click', () => {
-    if (!audioContext) {
-        initSystem();
-        setTimeout(() => document.getElementById('recordBtn').click(), 100);
-        return;
+function startRecording() {
+    recordingSlot = activeSlot;
+    stopSlot(recordingSlot);
+    if (recordingSlot === demoSlot) demoSlot = null;
+
+    isRecording = true;
+    isOverdub = false;
+    recordingStart = audioContext.currentTime;
+    loopSlots[recordingSlot].loop = [];
+    loopSlots[recordingSlot].loopSamples = 0;
+
+    startMediaRecording();
+
+    document.getElementById('recordBtn').textContent = 'recording...';
+    document.getElementById('recordBtn').classList.add('active');
+    document.getElementById('recStatus').textContent = 'on';
+    updateSlotUI();
+}
+
+function stopRecording() {
+    isRecording = false;
+    loopSlots[recordingSlot].loopSamples = Math.round((audioContext.currentTime - recordingStart) * audioContext.sampleRate);
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
     }
-    
-    if (!isRecording) {
-        isRecording = true;
+    document.getElementById('recordBtn').textContent = 'rec manual';
+    document.getElementById('recordBtn').classList.remove('active');
+    document.getElementById('recStatus').textContent = 'off';
+}
+
+function startOverdub() {
+    const now = audioContext.currentTime;
+    recordingSlot = activeSlot;
+    if (recordingSlot === demoSlot) demoSlot = null;
+
+    isOverdub = true;
+    recordingStart = now;
+    startSlot(recordingSlot, now);
+    overdubLength = loopSlots[recordingSlot].playback ? loopSlots[recordingSlot].playback.length : 0;
+
+    startMediaRecording();
+
+    document.getElementById('overdubBtn').textContent = 'layering...';
+    document.getElementById('overdubBtn').classList.add('active');
+    document.getElementById('recStatus').textContent = 'overdub';
+    updateSlotUI();
+}
+
+function stopOverdub() {
+    if (overdubStop) return;
+
+    const now = audioContext.currentTime;
+    const recorder = mediaRecorder;
+    let stopAt = now;
+    if (overdubLength > 0) {
+        const cycles = Math.max(1, Math.ceil((now - recordingStart) / overdubLength));
+        stopAt = recordingStart + cycles * overdubLength;
+    }
+
+    const finish = () => {
+        overdubStop = null;
         isOverdub = false;
-        recordingStart = audioContext.currentTime;
-        loopSlots[activeSlot].loop = [];
-
-        startMediaRecording();
-
-        document.getElementById('recordBtn').textContent = 'recording...';
-        document.getElementById('recordBtn').classList.add('active');
-        document.getElementById('recStatus').textContent = 'on';
-    } else {
-        isRecording = false;
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-        }
-        document.getElementById('recordBtn').textContent = 'rec manual';
-        document.getElementById('recordBtn').classList.remove('active');
-        document.getElementById('recStatus').textContent = 'off';
-    }
-});
-
-document.getElementById('overdubBtn').addEventListener('click', () => {
-    if (!audioContext) {
-        initSystem();
-        setTimeout(() => document.getElementById('overdubBtn').click(), 100);
-        return;
-    }
-    
-    if (!isOverdub && !isRecording) {
-        isOverdub = true;
-        recordingStart = audioContext.currentTime;
-
-        startMediaRecording();
-
-        document.getElementById('overdubBtn').textContent = 'layering...';
-        document.getElementById('overdubBtn').classList.add('active');
-        document.getElementById('recStatus').textContent = 'overdub';
-    } else if (isOverdub) {
-        isOverdub = false;
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
+        loopSlots[recordingSlot].loopSamples = Math.round((stopAt - recordingStart) * audioContext.sampleRate);
+        if (recorder && recorder.state !== 'inactive') {
+            recorder.stop();
         }
         document.getElementById('overdubBtn').textContent = 'add layer';
         document.getElementById('overdubBtn').classList.remove('active');
         document.getElementById('recStatus').textContent = 'off';
+    };
+
+    if (stopAt <= now) {
+        finish();
+        return;
+    }
+
+    // The layer closes on the loop boundary so the new take keeps whole cycles; the extra 50 ms keeps the capture from ending short
+    overdubStop = setTimeout(finish, (stopAt - now) * 1000 + 50);
+}
+
+document.getElementById('recordBtn').addEventListener('click', () => {
+    initSystem();
+    if (isOverdub) return;
+
+    if (!isRecording) {
+        startRecording();
+    } else {
+        stopRecording();
     }
 });
 
-document.getElementById('playLoopBtn').addEventListener('click', () => {
-    const slot = loopSlots[activeSlot];
-    
-    if (!audioContext) {
-        initSystem();
-        setTimeout(() => document.getElementById('playLoopBtn').click(), 100);
-        return;
+document.getElementById('overdubBtn').addEventListener('click', () => {
+    initSystem();
+
+    if (!isOverdub && !isRecording) {
+        startOverdub();
+    } else if (isOverdub) {
+        stopOverdub();
     }
-    
+});
+
+function slotLength(slot) {
+    if (slot.loopSamples > 0) return slot.loopSamples / audioContext.sampleRate;
+    if (slot.audioBuffer) return slot.audioBuffer.length / slot.audioBuffer.sampleRate;
+    const bar = 240 / parseInt(document.getElementById('tempo').value);
+    const last = slot.loop.reduce((max, event) => Math.max(max, event.time), 0);
+    return Math.max(1, Math.ceil(last / bar + 0.001)) * bar;
+}
+
+function startSlot(key, when) {
+    const slot = loopSlots[key];
+    stopSlot(key);
+    if (!slot.audioBuffer && slot.loop.length === 0) return;
+
+    const length = slotLength(slot);
+
     if (slot.audioBuffer) {
         const source = audioContext.createBufferSource();
         source.buffer = slot.audioBuffer;
-        source.connect(masterGain);
-        source.start(0);
+        source.loop = true;
+        source.loopStart = 0;
+        source.loopEnd = length;
+        source.connect(loopBus);
+        source.start(when);
+        slot.playback = { source, start: when, length };
+    } else {
+        slot.playback = {
+            events: slot.loop.slice().sort((a, b) => a.time - b.time),
+            start: when,
+            length,
+            index: 0,
+            cycle: when
+        };
+        startClock();
     }
-    
-    if (slot.loop.length > 0) {
-        slot.loop.forEach(event => {
-            setTimeout(() => {
-                if (event.type === 'drum') {
-                    playDrum(event.sound, true);
-                } else if (event.type === 'synth') {
-                    playNote(event.freq, true);
-                }
-            }, event.time * 1000);
-        });
+
+    slot.isPlaying = true;
+}
+
+function stopSlot(key) {
+    const slot = loopSlots[key];
+    const playback = slot.playback;
+    slot.playback = null;
+    slot.isPlaying = false;
+
+    if (playback && playback.source) {
+        const source = playback.source;
+        try { source.stop(); } catch(e) {}
+        setTimeout(() => source.disconnect(), 100);
     }
+}
+
+function swapSlotPlayback(key) {
+    const old = loopSlots[key].playback;
+    const ahead = audioContext.currentTime + SCHEDULER.LOOKAHEAD + 0.05;
+    const at = old.start + Math.ceil((ahead - old.start) / old.length) * old.length;
+
+    loopSlots[key].playback = null;
+    if (old.source) {
+        old.source.stop(at);
+        setTimeout(() => old.source.disconnect(), (at - audioContext.currentTime) * 1000 + 100);
+    }
+    startSlot(key, at);
+}
+
+function scheduleSlotEvents(playback, horizon) {
+    if (playback.events.length === 0 || playback.length <= 0) return;
+
+    for (;;) {
+        if (playback.index >= playback.events.length) {
+            playback.index = 0;
+            playback.cycle += playback.length;
+        }
+
+        const event = playback.events[playback.index];
+        const time = playback.cycle + event.time;
+        if (time >= horizon) break;
+
+        if (event.time < playback.length && time > audioContext.currentTime - SCHEDULER.LATE) {
+            if (event.type === 'drum') {
+                playDrum(event.sound, true, time);
+            } else if (event.type === 'synth') {
+                playNote(event.freq, true, time, undefined, event.wave);
+            }
+        }
+        playback.index++;
+    }
+}
+
+function clearSlot(key) {
+    stopSlot(key);
+    const slot = loopSlots[key];
+    slot.loop = [];
+    slot.audioBlob = null;
+    slot.audioBuffer = null;
+    slot.duration = 0;
+    slot.loopSamples = 0;
+    if (key === demoSlot) demoSlot = null;
+}
+
+document.getElementById('playLoopBtn').addEventListener('click', () => {
+    initSystem();
+
+    if (loopSlots[activeSlot].playback) {
+        stopSlot(activeSlot);
+    } else {
+        startSlot(activeSlot, audioContext.currentTime);
+    }
+    updateSlotUI();
 });
 
 document.getElementById('playAllBtn').addEventListener('click', () => {
-    if (!audioContext) {
-        initSystem();
-        setTimeout(() => document.getElementById('playAllBtn').click(), 100);
-        return;
+    initSystem();
+
+    const keys = Object.keys(loopSlots);
+    if (keys.some(key => loopSlots[key].playback)) {
+        keys.forEach(stopSlot);
+    } else {
+        const when = audioContext.currentTime;
+        keys.forEach(key => startSlot(key, when));
     }
-    
-    Object.keys(loopSlots).forEach(slotKey => {
-        const slot = loopSlots[slotKey];
-        
-        if (slot.audioBuffer) {
-            const source = audioContext.createBufferSource();
-            source.buffer = slot.audioBuffer;
-            source.connect(masterGain);
-            source.start(0);
-        }
-        
-        if (slot.loop.length > 0) {
-            slot.loop.forEach(event => {
-                setTimeout(() => {
-                    if (event.type === 'drum') {
-                        playDrum(event.sound, true);
-                    } else if (event.type === 'synth') {
-                        playNote(event.freq, true);
-                    }
-                }, event.time * 1000);
-            });
-        }
-    });
+    updateSlotUI();
 });
 
 document.getElementById('clearLoopBtn').addEventListener('click', () => {
-    loopSlots[activeSlot].loop = [];
-    loopSlots[activeSlot].audioBlob = null;
-    loopSlots[activeSlot].audioBuffer = null;
-    loopSlots[activeSlot].duration = 0;
+    clearSlot(activeSlot);
     updateSlotUI();
     document.getElementById('downloadBtn').style.display = 'none';
 });
@@ -1995,10 +2189,18 @@ function updateSlotUI() {
     } else {
         document.getElementById('downloadBtn').style.display = 'none';
     }
+
+    document.getElementById('playLoopBtn').textContent = slot.playback ? 'stop' : 'play';
+    document.getElementById('playAllBtn').textContent = Object.values(loopSlots).some(s => s.playback) ? 'stop all' : 'play all';
+}
+
+function setMasterVolume(value) {
+    if (masterGain) masterGain.gain.value = value;
+    if (loopBus) loopBus.gain.value = value / AUDIO_CONSTANTS.MASTER_VOLUME;
 }
 
 document.getElementById('masterVol').addEventListener('input', function() {
-    if (masterGain) masterGain.gain.value = this.value / 100;
+    setMasterVolume(this.value / 100);
     document.getElementById('masterVolVal').textContent = this.value + '%';
 });
 
@@ -2015,10 +2217,6 @@ document.getElementById('release').addEventListener('input', function() {
 document.getElementById('tempo').addEventListener('input', function() {
     document.getElementById('tempoVal').textContent = this.value;
     document.getElementById('tempoStatus').textContent = this.value;
-    if (isPlaying) {
-        stopSequencer(false);
-        setTimeout(() => toggleSequencer(), 50);
-    }
 });
 
 document.getElementById('reverb').addEventListener('input', function() {
@@ -2177,6 +2375,11 @@ customSelectInstances.waveType = {
 document.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
 
+    if (modal.classList.contains('active')) {
+        if (e.key === 'Escape') closeModal();
+        return;
+    }
+
     // Undo/Redo shortcuts
     if ((e.ctrlKey || e.metaKey) && key === 'z') {
         e.preventDefault();
@@ -2193,17 +2396,30 @@ document.addEventListener('keydown', (e) => {
         return;
     }
 
-    if (e.key === '?' && !modal.classList.contains('active')) {
+    if (e.key === '?') {
         e.preventDefault();
         openModal();
         return;
     }
-    
-    if (e.key === 'Escape' && modal.classList.contains('active')) {
-        closeModal();
+
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+
+    // Checked before the note map, which owns plain 'e'
+    if (e.shiftKey && key === 'e') {
+        exportAllSlots();
         return;
     }
-    
+
+    if (keyMap[key]) {
+        const val = keyMap[key];
+        if (drums.includes(val)) {
+            playDrum(val);
+        } else {
+            playNote(notes[val]);
+        }
+        return;
+    }
+
     if (key === 'enter') {
         initSystem();
         return;
@@ -2243,10 +2459,6 @@ document.addEventListener('keydown', (e) => {
         document.getElementById('downloadBtn').click();
         return;
     }
-    if (key === 'e') {
-        exportAllSlots();
-        return;
-    }
     if (key === 'm') {
         toggleMic();
         return;
@@ -2267,26 +2479,6 @@ document.addEventListener('keydown', (e) => {
     if (key === 'n') {
         document.querySelector('[data-slot="D"]').click();
         return;
-    }
-    
-    if (keyMap[key]) {
-        const val = keyMap[key];
-        
-        if (['kick', 'snare', 'hihat', 'clap', 'tom1', 'perc', 'cymbal', 'rim'].includes(val)) {
-            playDrum(val);
-            const pad = document.querySelector(`[data-sound="${val}"]`);
-            if (pad) {
-                pad.classList.add('active');
-                setTimeout(() => pad.classList.remove('active'), 150);
-            }
-        } else {
-            playNote(notes[val]);
-            const keyEl = document.querySelector(`[data-note="${val}"]`);
-            if (keyEl) {
-                keyEl.classList.add('active');
-                setTimeout(() => keyEl.classList.remove('active'), 200);
-            }
-        }
     }
 });
 
@@ -2376,17 +2568,17 @@ function updatePatternCount() {
     document.getElementById('patternCount').textContent = totalActive > 0 ? 1 : 0;
 }
 
+function isSlotFree(key) {
+    const slot = loopSlots[key];
+    const beingRecorded = (isRecording || isOverdub) && key === recordingSlot;
+    return !slot.audioBlob && !slot.audioBuffer && slot.loop.length === 0 && !beingRecorded;
+}
+
 document.getElementById('loadDemoBtn').addEventListener('click', () => {
-    if (!audioContext) {
-        initSystem();
-    }
-    
-    Object.keys(loopSlots).forEach(key => {
-        loopSlots[key].loop = [];
-        loopSlots[key].audioBlob = null;
-        loopSlots[key].audioBuffer = null;
-        loopSlots[key].duration = 0;
-    });
+    initSystem();
+
+    if (demoSlot) clearSlot(demoSlot);
+
     drums.forEach(drum => {
         sequencerSteps[drum] = Array(16).fill(false);
     });
@@ -2405,130 +2597,80 @@ document.getElementById('loadDemoBtn').addEventListener('click', () => {
     
     sequencerSteps.clap[4] = true;
     sequencerSteps.clap[12] = true;
-    
-    document.querySelectorAll('.step').forEach(step => {
-        const drum = step.dataset.drum;
-        const index = parseInt(step.dataset.index);
-        if (sequencerSteps[drum][index]) {
-            step.classList.add('active');
-        } else {
-            step.classList.remove('active');
+
+    updateSequencerUI();
+
+    const free = Object.keys(loopSlots).filter(isSlotFree);
+    if (free.length > 0) {
+        demoSlot = free[free.length - 1];
+        loopSlots[demoSlot].loop = [
+            { type: 'synth', freq: notes.C4, wave: 'sine', time: 0 },
+            { type: 'synth', freq: notes.E4, wave: 'sine', time: 0.5 },
+            { type: 'synth', freq: notes.G4, wave: 'sine', time: 1.0 },
+            { type: 'synth', freq: notes.C5, wave: 'sine', time: 1.5 },
+            { type: 'synth', freq: notes.G4, wave: 'sine', time: 2.0 },
+            { type: 'synth', freq: notes.E4, wave: 'sine', time: 2.5 },
+            { type: 'synth', freq: notes.C4, wave: 'sine', time: 3.0 }
+        ];
+        // Two bars at 120 bpm, so the melody lines up with the pattern
+        loopSlots[demoSlot].loopSamples = 4 * audioContext.sampleRate;
+
+        // Space records into the active slot; keep it off the melody
+        if (free.length > 1) {
+            activeSlot = free[0];
+            document.querySelectorAll('.slot-btn').forEach(b => b.classList.toggle('active', b.dataset.slot === activeSlot));
         }
-    });
-    
-    activeSlot = 'A';
-    document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('active'));
-    document.querySelector('[data-slot="A"]').classList.add('active');
-    
-    loopSlots.A.loop = [
-        { type: 'synth', freq: notes.C4, wave: 'sine', time: 0 },
-        { type: 'synth', freq: notes.E4, wave: 'sine', time: 0.5 },
-        { type: 'synth', freq: notes.G4, wave: 'sine', time: 1.0 },
-        { type: 'synth', freq: notes.C5, wave: 'sine', time: 1.5 },
-        { type: 'synth', freq: notes.G4, wave: 'sine', time: 2.0 },
-        { type: 'synth', freq: notes.E4, wave: 'sine', time: 2.5 },
-        { type: 'synth', freq: notes.C4, wave: 'sine', time: 3.0 }
-    ];
-    
+    }
+
     document.getElementById('tempo').value = 120;
     document.getElementById('tempoVal').textContent = '120';
     document.getElementById('tempoStatus').textContent = '120';
     customSelectInstances.waveType.value = 'sine';
 
+    saveSequencerState();
     updatePatternCount();
     updateSlotUI();
 
-    const heroP = document.querySelector('.hero p');
-    const originalText = heroP.textContent;
-    heroP.textContent = 'demo loaded! hit space to hear it';
-    setTimeout(() => {
-        heroP.textContent = originalText;
-    }, 4000);
+    showMessage(free.length > 0 ? 'demo loaded! hit space to hear it' : 'demo pattern loaded · slots full', 4000);
 });
 
 document.getElementById('clearAllBtn').addEventListener('click', () => {
     if (isMicActive) {
         toggleMic();
     }
-    
-    Object.keys(loopSlots).forEach(key => {
-        loopSlots[key].loop = [];
-        loopSlots[key].audioBlob = null;
-        loopSlots[key].audioBuffer = null;
-        loopSlots[key].duration = 0;
-        loopSlots[key].isPlaying = false;
-    });
-    
+
+    Object.keys(loopSlots).forEach(clearSlot);
+
     drums.forEach(drum => {
         sequencerSteps[drum] = Array(16).fill(false);
     });
-    
+
     document.querySelectorAll('.step').forEach(step => {
         step.classList.remove('active');
     });
-    
+
     if (isPlaying) {
         stopSequencer();
     }
-    
+
     activeSlot = 'A';
     document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('active'));
     document.querySelector('[data-slot="A"]').classList.add('active');
-    
-    document.getElementById('tempo').value = 120;
-    document.getElementById('tempoVal').textContent = '120';
-    document.getElementById('tempoStatus').textContent = '120';
 
     customSelectInstances.waveType.value = 'sine';
 
-    document.getElementById('attack').value = 10;
-    document.getElementById('attackVal').textContent = '10ms';
-    
-    document.getElementById('release').value = 300;
-    document.getElementById('releaseVal').textContent = '300ms';
-    
-    document.getElementById('reverb').value = 0;
-    document.getElementById('reverbVal').textContent = '0%';
-    if (window.reverbMix) window.reverbMix.gain.value = 0;
-    
-    document.getElementById('delay').value = 0;
-    document.getElementById('delayVal').textContent = '0%';
-    if (window.delayMix) window.delayMix.gain.value = 0;
-    
-    document.getElementById('filter').value = 10000;
-    document.getElementById('filterVal').textContent = '10000Hz';
-    if (window.filterNode) window.filterNode.frequency.value = 10000;
+    document.querySelectorAll('input[type="range"]').forEach(input => {
+        input.value = input.defaultValue;
+        input.dispatchEvent(new Event('input'));
+    });
 
-    document.getElementById('chorus').value = 0;
-    document.getElementById('chorusVal').textContent = '0%';
-    if (window.chorusMix) window.chorusMix.gain.value = 0;
-    if (window.chorusLFOGain) window.chorusLFOGain.gain.value = 0.002;
-
-    document.getElementById('distort').value = 0;
-    document.getElementById('distortVal').textContent = '0%';
-    if (window.distortionNode) window.distortionNode.curve = makeDistortionCurve(0);
-    if (window.distortionMix) window.distortionMix.gain.value = 0;
-
-    document.getElementById('crush').value = 0;
-    document.getElementById('crushVal').textContent = '0';
-    if (window.setCrushAmount) window.setCrushAmount(0);
-    if (window.bitcrusherMix) window.bitcrusherMix.gain.value = 0;
-
-    document.getElementById('masterVol').value = 70;
-    document.getElementById('masterVolVal').textContent = '70%';
-    if (masterGain) masterGain.gain.value = 0.7;
-    
     document.getElementById('downloadBtn').style.display = 'none';
-    
+
+    saveSequencerState();
     updatePatternCount();
     updateSlotUI();
-    
-    const heroP = document.querySelector('.hero p');
-    const originalText = heroP.textContent;
-    heroP.textContent = 'all clear! start creating';
-    setTimeout(() => {
-        heroP.textContent = originalText;
-    }, 3000);
+
+    showMessage('all clear! start creating', 3000);
 });
 
 // Theme Toggle - Always starts in light mode
@@ -2642,13 +2784,6 @@ function onMIDIFailure(error) {
     console.log('MIDI access denied or not supported:', error);
 }
 
-// Initialize MIDI on page load
-if (navigator.requestMIDIAccess) {
-    navigator.requestMIDIAccess({ sysex: false })
-        .then(onMIDISuccess)
-        .catch(onMIDIFailure);
-}
-
 // ============================================
 // MK1 CONTROL API
 // External automation interface for n0body performer
@@ -2692,9 +2827,6 @@ window.MK1 = (function() {
         'vocoder': 'vocoder'
     };
 
-    // Track active synth note for stop functionality
-    let activeSynthNodes = [];
-
     // Helper: clamp value to range
     function clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
@@ -2728,45 +2860,25 @@ window.MK1 = (function() {
         // === SYNTH ===
         synth: {
             play: function(note, duration) {
-                // Ensure audio system is initialized
-                if (!audioContext) {
-                    initSystem();
-                }
-
-                // Get frequency from note name
                 const freq = noteFrequencies[note];
                 if (!freq) return;
 
                 // Duration in seconds, default to current release time
                 const durationMs = duration ? duration * 1000 : releaseTime;
 
-                // Store original release
-                const originalRelease = releaseTime;
-
-                // Temporarily set release to match duration
-                releaseTime = Math.max(50, durationMs);
-
-                // Play the note
-                playNote(freq, true); // skipRecording = true for API calls
-
-                // Restore original release after a tick
-                setTimeout(() => {
-                    releaseTime = originalRelease;
-                }, 10);
+                playNote(freq, true, undefined, Math.max(50, durationMs)); // skipRecording = true for API calls
             },
 
             stop: function() {
-                // Future: implement note cutoff if needed
-                // Currently notes auto-release based on envelope
+                releaseSynthVoices();
             },
 
             setWaveform: function(type) {
                 const internalType = waveformMap[type];
                 if (!internalType) return;
 
-                // Update the custom select
                 if (customSelectInstances.waveType) {
-                    customSelectInstances.waveType.value = internalType === 'sawtooth' ? 'saw' : internalType;
+                    customSelectInstances.waveType.value = internalType;
                 }
             },
 
@@ -2854,12 +2966,13 @@ window.MK1 = (function() {
             },
 
             start: function() {
-                if (!isPlaying) {
-                    // Initialize audio if needed
-                    if (!audioContext) {
-                        initSystem();
-                    }
+                if (isPlaying) return;
+                if (audioLoaded) {
                     toggleSequencer(true); // skipRecording = true for API calls
+                } else {
+                    initSystem().then(() => {
+                        if (!isPlaying) toggleSequencer(true);
+                    });
                 }
             },
 
@@ -2983,9 +3096,7 @@ window.MK1 = (function() {
         master: {
             setVolume: function(value) {
                 const v = clamp(value, 0, 1);
-                if (masterGain) {
-                    masterGain.gain.value = v;
-                }
+                setMasterVolume(v);
 
                 // Update UI
                 const slider = document.getElementById('masterVol');
@@ -3021,6 +3132,9 @@ window.MK1 = (function() {
                     initSystem();
                 }
 
+                if (isOverdub) return;
+                if (isRecording) stopRecording();
+
                 // Switch to the target slot
                 activeSlot = normalizedSlot;
                 document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('active'));
@@ -3028,38 +3142,16 @@ window.MK1 = (function() {
                 if (slotBtn) slotBtn.classList.add('active');
 
                 // Start recording (clear existing content)
-                isRecording = true;
-                isOverdub = false;
-                recordingStart = audioContext.currentTime;
-                loopSlots[normalizedSlot].loop = [];
-
-                startMediaRecording();
-
-                document.getElementById('recordBtn').textContent = 'recording...';
-                document.getElementById('recordBtn').classList.add('active');
-                document.getElementById('recStatus').textContent = 'on';
-                updateSlotUI();
+                startRecording();
             },
 
             // Stop current recording
             stopRecording: function() {
                 if (isRecording) {
-                    isRecording = false;
-                    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                        mediaRecorder.stop();
-                    }
-                    document.getElementById('recordBtn').textContent = 'rec manual';
-                    document.getElementById('recordBtn').classList.remove('active');
-                    document.getElementById('recStatus').textContent = 'off';
+                    stopRecording();
                 }
                 if (isOverdub) {
-                    isOverdub = false;
-                    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                        mediaRecorder.stop();
-                    }
-                    document.getElementById('overdubBtn').textContent = 'add layer';
-                    document.getElementById('overdubBtn').classList.remove('active');
-                    document.getElementById('recStatus').textContent = 'off';
+                    stopOverdub();
                 }
                 updateSlotUI();
             },
@@ -3074,73 +3166,32 @@ window.MK1 = (function() {
                 const normalizedSlot = this._normalizeSlot(slot);
                 if (!normalizedSlot) return;
 
-                if (!audioContext) {
-                    initSystem();
-                }
-
-                const slotData = loopSlots[normalizedSlot];
-
-                // Play audio buffer if exists
-                if (slotData.audioBuffer) {
-                    const source = audioContext.createBufferSource();
-                    source.buffer = slotData.audioBuffer;
-                    source.connect(masterGain);
-                    source.start(0);
-
-                    // Track playback state
-                    slotData.isPlaying = true;
-                    source.onended = () => {
-                        slotData.isPlaying = false;
-                    };
-                }
-
-                // Replay event loop
-                if (slotData.loop.length > 0) {
-                    slotData.isPlaying = true;
-                    let maxTime = 0;
-
-                    slotData.loop.forEach(event => {
-                        if (event.time > maxTime) maxTime = event.time;
-                        setTimeout(() => {
-                            if (event.type === 'drum') {
-                                playDrum(event.sound, true);
-                            } else if (event.type === 'synth') {
-                                playNote(event.freq, true);
-                            }
-                        }, event.time * 1000);
-                    });
-
-                    // Clear playing state after all events finish
-                    setTimeout(() => {
-                        slotData.isPlaying = false;
-                    }, (maxTime + 1) * 1000);
-                }
+                initSystem();
+                startSlot(normalizedSlot, audioContext.currentTime);
+                updateSlotUI();
             },
 
             // Play all slots with content
             playAll: function() {
-                Object.keys(loopSlots).forEach(slotKey => {
-                    const slot = loopSlots[slotKey];
-                    if (slot.audioBuffer || slot.loop.length > 0) {
-                        this.play(slotKey);
-                    }
-                });
+                initSystem();
+                const when = audioContext.currentTime;
+                Object.keys(loopSlots).forEach(slotKey => startSlot(slotKey, when));
+                updateSlotUI();
             },
 
-            // Stop a specific slot (limited - can't stop audio buffer mid-play)
+            // Stop a specific slot
             stop: function(slot) {
                 const normalizedSlot = this._normalizeSlot(slot);
                 if (!normalizedSlot) return;
 
-                // Mark as not playing (note: can't actually stop AudioBufferSourceNode mid-play easily)
-                loopSlots[normalizedSlot].isPlaying = false;
+                stopSlot(normalizedSlot);
+                updateSlotUI();
             },
 
             // Stop all slots
             stopAll: function() {
-                Object.keys(loopSlots).forEach(slotKey => {
-                    loopSlots[slotKey].isPlaying = false;
-                });
+                Object.keys(loopSlots).forEach(stopSlot);
+                updateSlotUI();
             },
 
             // Check if a slot is playing
@@ -3167,14 +3218,7 @@ window.MK1 = (function() {
 
                 // Start overdub (keeps existing content)
                 if (!isOverdub && !isRecording) {
-                    isOverdub = true;
-                    recordingStart = audioContext.currentTime;
-
-                    startMediaRecording();
-
-                    document.getElementById('overdubBtn').textContent = 'layering...';
-                    document.getElementById('overdubBtn').classList.add('active');
-                    document.getElementById('recStatus').textContent = 'overdub';
+                    startOverdub();
                 }
                 updateSlotUI();
             },
@@ -3184,23 +3228,13 @@ window.MK1 = (function() {
                 const normalizedSlot = this._normalizeSlot(slot);
                 if (!normalizedSlot) return;
 
-                loopSlots[normalizedSlot].loop = [];
-                loopSlots[normalizedSlot].audioBlob = null;
-                loopSlots[normalizedSlot].audioBuffer = null;
-                loopSlots[normalizedSlot].duration = 0;
-                loopSlots[normalizedSlot].isPlaying = false;
+                clearSlot(normalizedSlot);
                 updateSlotUI();
             },
 
             // Clear all slots
             clearAll: function() {
-                Object.keys(loopSlots).forEach(slotKey => {
-                    loopSlots[slotKey].loop = [];
-                    loopSlots[slotKey].audioBlob = null;
-                    loopSlots[slotKey].audioBuffer = null;
-                    loopSlots[slotKey].duration = 0;
-                    loopSlots[slotKey].isPlaying = false;
-                });
+                Object.keys(loopSlots).forEach(clearSlot);
                 updateSlotUI();
                 document.getElementById('downloadBtn').style.display = 'none';
             },
@@ -3258,7 +3292,7 @@ window.MK1 = (function() {
             },
 
             init: function() {
-                initSystem();
+                return initSystem();
             },
 
             // Audio health monitoring

@@ -92,9 +92,55 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
             chp: this._mkF(), bbp: this._mkF()
         };
 
+        this.clapFilts = [this.clap.bf0, this.clap.bf1, this.clap.bf2, this.clap.bf3];
+
+        this.voices = [this.kick, this.snare, this.hihat, this.clap, this.tom, this.perc, this.cymbal, this.rim];
+        this.keys = ['kick', 'snare', 'hihat', 'clap', 'tom', 'perc', 'cymbal', 'rim'];
+        this.voiceIndex = { kick: 0, snare: 1, hihat: 2, clap: 3, tom1: 4, tom: 4, perc: 5, cymbal: 6, rim: 7 };
+
+        // Pending triggers as absolute sample frames, so a trigger sent ahead of time lands on its exact sample
+        this.qMax = 64;
+        this.qVoice = new Int8Array(this.qMax);
+        this.qFrame = new Float64Array(this.qMax);
+        this.qLen = 0;
+
         this.port.onmessage = (e) => {
-            if (e.data.type === 'trigger') this._trig(e.data.voice);
+            const d = e.data;
+            if (d.type !== 'trigger') return;
+            const v = this.voiceIndex[d.voice];
+            if (v === undefined || this.qLen >= this.qMax) return;
+            this.qVoice[this.qLen] = v;
+            this.qFrame[this.qLen] = typeof d.time === 'number' ? Math.round(d.time * sampleRate) : 0;
+            this.qLen++;
         };
+    }
+
+    _nextDue(v, n) {
+        let q = -1;
+        for (let j = 0; j < this.qLen; j++) {
+            if (this.qVoice[j] !== v || this.qFrame[j] - currentFrame >= n) continue;
+            if (q < 0 || this.qFrame[j] < this.qFrame[q]) q = j;
+        }
+        return q;
+    }
+
+    _dequeue(q) {
+        this.qLen--;
+        this.qVoice[q] = this.qVoice[this.qLen];
+        this.qFrame[q] = this.qFrame[this.qLen];
+    }
+
+    _render(v, out, o, n) {
+        switch (v) {
+            case 0: this._renderKick(out, o, n); break;
+            case 1: this._renderSnare(out, o, n); break;
+            case 2: this._renderHihat(out, o, n); break;
+            case 3: this._renderClap(out, o, n); break;
+            case 4: this._renderTom(out, o, n); break;
+            case 5: this._renderPerc(out, o, n); break;
+            case 6: this._renderCymbal(out, o, n); break;
+            case 7: this._renderRim(out, o, n); break;
+        }
     }
 
     // ========= Filter factory (constructor only) =========
@@ -266,7 +312,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
 
     // ========= Voice renderers =========
 
-    _renderKick(out, n) {
+    _renderKick(out, o, n) {
         const k = this.kick, sr = sampleRate;
         const t0 = k.t / sr;
         const t1 = (k.t + n) / sr;
@@ -287,7 +333,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                     const p = ph - (ph | 0);
                     const tri = 1 - 4 * Math.abs(p - 0.5);
                     const cl = tri * 3;
-                    out[i] += (cl > 0.8 ? 0.8 : cl < -0.8 ? -0.8 : cl) * gn;
+                    out[o + i] += (cl > 0.8 ? 0.8 : cl < -0.8 ? -0.8 : cl) * gn;
                     ph += fr / sr;
                     fr *= fm;
                     gn *= gm;
@@ -314,7 +360,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 let fr = bf0, gn = g0, ph = k.bp;
                 for (let i = 0; i < end; i++) {
                     const s = Math.sin(TWO_PI * ph);
-                    out[i] += Math.tanh(s * 2.5) * gn;
+                    out[o + i] += Math.tanh(s * 2.5) * gn;
                     ph += fr / sr;
                     fr *= fm;
                     gn *= gm;
@@ -336,7 +382,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 const gm = this._em(g0, g1, end);
                 let fr = f0, gn = g0, ph = k.sp;
                 for (let i = 0; i < end; i++) {
-                    out[i] += this._filt(k.sf, Math.sin(TWO_PI * ph)) * gn;
+                    out[o + i] += this._filt(k.sf, Math.sin(TWO_PI * ph)) * gn;
                     ph += fr / sr;
                     fr *= fm;
                     gn *= gm;
@@ -349,7 +395,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         if (k.t / sr >= 0.6) k.on = false;
     }
 
-    _renderSnare(out, n) {
+    _renderSnare(out, o, n) {
         const s = this.snare, sr = sampleRate;
         const t0 = s.t / sr;
 
@@ -368,7 +414,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 for (let i = 0; i < end; i++) {
                     const p = ph - (ph | 0);
                     const tri = 1 - 4 * Math.abs(p - 0.5);
-                    out[i] += Math.tanh(tri * 4.0) * gn;
+                    out[o + i] += Math.tanh(tri * 4.0) * gn;
                     ph += fr / sr;
                     fr *= fm;
                     gn *= gm;
@@ -396,7 +442,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 for (let i = 0; i < end; i++) {
                     const pa = p1 - (p1 | 0);
                     const mix = (1 - 4 * Math.abs(pa - 0.5)) + Math.sin(TWO_PI * p2);
-                    out[i] += this._filt(s.bf, mix) * gn;
+                    out[o + i] += this._filt(s.bf, mix) * gn;
                     p1 += fra / sr;
                     p2 += frb / sr;
                     fra *= fma;
@@ -425,7 +471,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 for (let i = 0; i < end; i++) {
                     const raw = nb[ni % nl];
                     ni++;
-                    out[i] += this._filt(s.nlp, this._filt(s.nhp, raw)) * gn;
+                    out[o + i] += this._filt(s.nlp, this._filt(s.nhp, raw)) * gn;
                     gn *= gm;
                 }
                 s.ni = ni;
@@ -436,7 +482,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         if (s.t / sr >= 0.2) s.on = false;
     }
 
-    _renderHihat(out, n) {
+    _renderHihat(out, o, n) {
         const h = this.hihat, sr = sampleRate;
         const t0 = h.t / sr;
 
@@ -456,7 +502,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                         mix += ((ph[j] - ((ph[j] | 0) + (ph[j] < 0 ? -1 : 0))) < 0.5 ? 1 : -1) * og[j];
                         ph[j] += fr[j] / sr;
                     }
-                    out[i] += this._filt(h.mf, mix) * gn;
+                    out[o + i] += this._filt(h.mf, mix) * gn;
                     gn *= gm;
                 }
             }
@@ -474,7 +520,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 const nb = this.nBuf, nl = this.nLen;
                 let ni = h.ni;
                 for (let i = 0; i < end; i++) {
-                    out[i] += this._filt(h.nf, nb[ni % nl]) * gn;
+                    out[o + i] += this._filt(h.nf, nb[ni % nl]) * gn;
                     ni++;
                     gn *= gm;
                 }
@@ -486,10 +532,10 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         if (h.t / sr >= 0.1) h.on = false;
     }
 
-    _renderClap(out, n) {
+    _renderClap(out, o, n) {
         const c = this.clap, sr = sampleRate;
         const nb = this.nBuf, nl = this.nLen;
-        const bFilts = [c.bf0, c.bf1, c.bf2, c.bf3];
+        const bFilts = this.clapFilts;
 
         // --- 4 noise bursts: staggered, BP filtered, gain envelopes ---
         for (let b = 0; b < 4; b++) {
@@ -517,7 +563,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
             const bf = bFilts[b];
 
             for (let i = lStart; i < lEnd; i++) {
-                out[i] += this._filt(bf, nb[ni % nl]) * gn;
+                out[o + i] += this._filt(bf, nb[ni % nl]) * gn;
                 ni++;
                 gn *= gm;
             }
@@ -543,7 +589,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 let ni = c.nOff[4] + (c.t + lStart - tailStart);
 
                 for (let i = lStart; i < lEnd; i++) {
-                    out[i] += this._filt(c.tf, nb[ni % nl]) * gn;
+                    out[o + i] += this._filt(c.tf, nb[ni % nl]) * gn;
                     ni++;
                     gn *= gm;
                 }
@@ -554,7 +600,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         if (c.t / sr >= 0.25) c.on = false;
     }
 
-    _renderTom(out, n) {
+    _renderTom(out, o, n) {
         const v = this.tom, sr = sampleRate;
         const t0 = v.t / sr;
 
@@ -571,7 +617,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 const gm = this._em(g0, g1, end);
                 let fr = f0, gn = g0, ph = v.bp;
                 for (let i = 0; i < end; i++) {
-                    out[i] += this._filt(v.bf, Math.sin(TWO_PI * ph)) * gn;
+                    out[o + i] += this._filt(v.bf, Math.sin(TWO_PI * ph)) * gn;
                     ph += fr / sr;
                     fr *= fm;
                     gn *= gm;
@@ -594,7 +640,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 let fr = f0, gn = g0, ph = v.op;
                 for (let i = 0; i < end; i++) {
                     const p = ph - (ph | 0);
-                    out[i] += (1 - 4 * Math.abs(p - 0.5)) * gn;
+                    out[o + i] += (1 - 4 * Math.abs(p - 0.5)) * gn;
                     ph += fr / sr;
                     fr *= fm;
                     gn *= gm;
@@ -615,7 +661,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 const nb = this.nBuf, nl = this.nLen;
                 let ni = v.ni;
                 for (let i = 0; i < end; i++) {
-                    out[i] += nb[ni % nl] * gn;
+                    out[o + i] += nb[ni % nl] * gn;
                     ni++;
                     gn *= gm;
                 }
@@ -627,7 +673,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         if (v.t / sr >= 0.45) v.on = false;
     }
 
-    _renderPerc(out, n) {
+    _renderPerc(out, o, n) {
         const p = this.perc, sr = sampleRate;
         const t0 = p.t / sr;
 
@@ -647,7 +693,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 for (let i = 0; i < end; i++) {
                     const mod = Math.sin(TWO_PI * mp) * modAmt;
                     const cFreq = 1800 + mod;
-                    out[i] += this._filt(p.cf, Math.sin(TWO_PI * cp)) * gn;
+                    out[o + i] += this._filt(p.cf, Math.sin(TWO_PI * cp)) * gn;
                     cp += cFreq / sr;
                     mp += 2400 / sr;
                     modAmt *= mm;
@@ -662,7 +708,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         if (p.t / sr >= 0.15) p.on = false;
     }
 
-    _renderCymbal(out, n) {
+    _renderCymbal(out, o, n) {
         const cy = this.cymbal, sr = sampleRate;
         const t0 = cy.t / sr;
 
@@ -682,7 +728,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                         mix += ((ph[j] - ((ph[j] | 0) + (ph[j] < 0 ? -1 : 0))) < 0.5 ? 1 : -1);
                         ph[j] += fr[j] / sr;
                     }
-                    out[i] += this._filt(cy.mf, mix) * gn;
+                    out[o + i] += this._filt(cy.mf, mix) * gn;
                     gn *= gm;
                 }
             }
@@ -700,7 +746,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 const nb = this.nBuf, nl = this.nLen;
                 let ni = cy.ni;
                 for (let i = 0; i < end; i++) {
-                    out[i] += this._filt(cy.nf, nb[ni % nl]) * gn;
+                    out[o + i] += this._filt(cy.nf, nb[ni % nl]) * gn;
                     ni++;
                     gn *= gm;
                 }
@@ -712,7 +758,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         if (cy.t / sr >= 1.1) cy.on = false;
     }
 
-    _renderRim(out, n) {
+    _renderRim(out, o, n) {
         const r = this.rim, sr = sampleRate;
         const t0 = r.t / sr;
 
@@ -730,7 +776,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 let fr = f0, gn = g0, ph = r.cp;
                 for (let i = 0; i < end; i++) {
                     const sq = ((ph - ((ph | 0) + (ph < 0 ? -1 : 0))) < 0.5) ? 1 : -1;
-                    out[i] += this._filt(r.chp, sq) * gn;
+                    out[o + i] += this._filt(r.chp, sq) * gn;
                     ph += fr / sr;
                     fr *= fm;
                     gn *= gm;
@@ -753,7 +799,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 let fr = f0, gn = g0, ph = r.bp;
                 for (let i = 0; i < end; i++) {
                     const p = ph - (ph | 0);
-                    out[i] += this._filt(r.bbp, 1 - 4 * Math.abs(p - 0.5)) * gn;
+                    out[o + i] += this._filt(r.bbp, 1 - 4 * Math.abs(p - 0.5)) * gn;
                     ph += fr / sr;
                     fr *= fm;
                     gn *= gm;
@@ -775,14 +821,19 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
 
         for (let i = 0; i < n; i++) out[i] = 0;
 
-        if (this.kick.on) this._renderKick(out, n);
-        if (this.snare.on) this._renderSnare(out, n);
-        if (this.hihat.on) this._renderHihat(out, n);
-        if (this.clap.on) this._renderClap(out, n);
-        if (this.tom.on) this._renderTom(out, n);
-        if (this.perc.on) this._renderPerc(out, n);
-        if (this.cymbal.on) this._renderCymbal(out, n);
-        if (this.rim.on) this._renderRim(out, n);
+        for (let v = 0; v < 8; v++) {
+            const voice = this.voices[v];
+            let pos = 0;
+            for (let q = this._nextDue(v, n); q >= 0; q = this._nextDue(v, n)) {
+                let at = this.qFrame[q] - currentFrame;
+                if (at < pos) at = pos;
+                if (at > pos && voice.on) this._render(v, out, pos, at - pos);
+                this._trig(this.keys[v]);
+                this._dequeue(q);
+                pos = at;
+            }
+            if (voice.on && pos < n) this._render(v, out, pos, n - pos);
+        }
 
         // Copy mono to remaining channels
         for (let c = 1; c < outputs[0].length; c++) {
