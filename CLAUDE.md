@@ -24,7 +24,7 @@ play·ground
 │   ├── mk-1        — synth with drums, looper and sequencer (mk-1.html, mk-1.js, mk-1.css)
 │   └── mk-2        — two decks and a mixer (mk-2.html, mk-2.css)
 ├── spaces          — to be inside it
-│   ├── mk-air      — live radio with no archive (separate repo, https://mk-air.onrender.com/)
+│   ├── mk-air      — live radio with no archive (mk-air/ here; signaling server in the mk-air repo on Render)
 │   └── mk-dwell    — field of generative sound you move through (mk-dwell/)
 ├── airtists        — who plays here when you don't
 │   └── n0body      — autonomous agent, plays mk-1 through window.MK1, goes on air at mk-air
@@ -41,10 +41,11 @@ playground/
 ├── README.md                     — repo front page (not published)
 ├── BRIEF.md                      — session brief template (not published)
 ├── _config.yml                   — Pages config: excludes the three notes above
-├── sitemap.xml                   — the 5 pages, for Search Console
-├── og/                           — 1200×630 share images: home, about, mk-1, mk-2, mk-dwell
+├── sitemap.xml                   — the 6 pages, for Search Console
+├── og/                           — 1200×630 share images: home, about, mk-1, mk-2, mk-air, mk-dwell
 ├── index.html                    — home: playable hero, tools / spaces / airtists
 ├── about.html
+├── air-client.js                 — window.PGAir: mk-air signaling v1 + WebRTC, shared by mk-1, mk-2, mk-air
 ├── playground-core.css           — tokens + shared base (header, footer, buttons, custom select, grain)
 ├── playground.css                — home + about only
 ├── mk-1.html
@@ -56,6 +57,10 @@ playground/
 ├── mk-2.html                     — markup + inline JS
 ├── mk-2.css
 ├── vinyl-playback-processor.js   — mk-2 deck playback: variable rate, scratch, 4 ms crossfade on jumps
+├── mk-air/
+│   ├── index.html                — on air now, listen (?r=id), go on air with the mic
+│   ├── css/air.css
+│   └── js/air.js
 └── mk-dwell/
     ├── index.html
     ├── css/dwell.css
@@ -96,7 +101,8 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - JetBrains Mono for UI text; load only the weights a page uses
 - Commit format: [module] description — e.g. [mk-1] fix looper drift
 - No comments explaining what code does — only why something non-obvious was done
-- window.MK1 is n0body's interface: keep its surface stable (drums, synth, sequencer, fx, tempo, master, looper, utils)
+- window.MK1 is n0body's interface: keep its surface stable (drums, synth, sequencer, fx, tempo, master, looper, air, utils)
+- mk-air signaling v1 (server in the mk-air repo): WebSocket /air, GET /air/now, GET /air/ice; origin allowlist; Opus stereo 128 kbps; one peer per listener. Pages use air-client.js, never their own socket code. `?air=<url>` points a page at a local server for testing
 
 **UI**
 - Dark only (#0a0a0a). No theme toggle
@@ -170,8 +176,8 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - Modulation: driftLFO → subOsc.detune (tape wobble, 0.1–0.3 Hz, ±15 cents)
 - Modulation: lfoGain → formant detune (slow organic movement, 1–2 Hz, ±20 cents)
 - Node lifecycle: stop() → setTimeout(disconnect, 100) in cleanupVoice and the looper
-- on air ↗ → https://mk-air.onrender.com/broadcast?from=mk1
-- Gaps: the fx sliders write AudioParam.value directly; the string voice is stopped by a setTimeout message; "on air ↗" and "know how" are 11.2 px
+- on air: one click sends mk-1's master (after the limiter) to mk-air, no mic; MK1.air.start({name}) / stop() / status() for n0body
+- Gaps: the fx sliders write AudioParam.value directly; the string voice is stopped by a setTimeout message
 
 **mk-2**
 - Two decks: grab the disc to scratch, let go and it keeps spinning; click the groove or the timeline to drop the needle; motor spin-up and brake; 33 / 45; pitch ±8; restart; « » 10 s; eject; load
@@ -183,7 +189,13 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - At rest: slipmat and strobe on empty platters, a gold line that breathes in the viz (still with reduced motion, paused in a hidden tab)
 - Keys: q/p play, w/o restart, e/i eject, ← → crossfade, double-click resets a knob or fader
 - Mobile (≤ 1000 px): one deck at a time with an A/B toggle; ≥ 40 px targets on touch
-- on air ↗ → https://mk-air.onrender.com/
+- on air: one click sends the speakers mix (after the limiter) to mk-air; the cue path never goes out
+
+**mk-air**
+- A radio that forgets: on air now (live list), listen with one tap at mk-air/?r=<id>, on-air light, time, who, listeners, stereo meter; paused / ended / not found / can't reach say what happened
+- Go on air from mk-1, mk-2 (one click, their own master) or with the mic here (music settings: no echo cancellation, noise suppression or gain control)
+- Nothing recorded; being on air is public (it shows in the list)
+- Signaling on Render (mk-air repo): wakes from the free tier's sleep with an honest "waking the radio"; STUN only until TURN credentials are configured
 
 **mk-dwell**
 - Entry screen (name, one line, enter) → inside, cursor or finger position → spatial field
@@ -204,6 +216,9 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - 2026-10-18 · Copy: apply the audit rewrites (one line per piece, the glossary above)
 - 2026-10-18 · About: structure + links to each piece + "just play." large. The first-person why is Nicolás's: a `<!-- WHY: -->` comment, no visible placeholder
 - 2026-10-18 · mk-2: a demo record synthesized in the browser (no external files), loaded on A at open; platter and viz alive at rest
+- 2026-10-19 · mk-air's pages live in play·ground (mk-air/); the mk-air repo is the signaling server only
+- 2026-10-19 · mk-1 and mk-2 go on air directly with their own master (WebRTC), no mic or tab capture; n0body through MK1.air
+- 2026-10-19 · mk-air accent is #ff5a4a
 
 ## Collaborators
 
