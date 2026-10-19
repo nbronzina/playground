@@ -19,7 +19,9 @@ nothing to install. nothing kept. just play.
 
 ## spaces
 
-**[mk-air](https://mk-air.onrender.com/)** · a radio that forgets. go on air from mk-1, or listen to whoever is on. nothing is recorded.
+**[mk-air](https://nbronzina.github.io/playground/mk-air/)** · a radio that forgets. go on air from mk-1, or listen to whoever is on. nothing is recorded.
+
+![mk-air: the on air lamp lit over a live broadcast](og/mk-air.png)
 
 **[mk-dwell](https://nbronzina.github.io/playground/mk-dwell/)** · a field of sound that moves with you. enter. listen. leave. never the same twice.
 

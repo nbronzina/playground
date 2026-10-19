@@ -1,0 +1,643 @@
+/* ============================================
+   MK-AIR
+   A dark booth with one red lamp
+   ============================================ */
+
+:root {
+    --air-pad: clamp(16px, 1.6vw, 40px);
+    --air-gap: clamp(12px, 1.1vw, 28px);
+    --fs-s: clamp(13px, .72vw, 18px);
+    --fs-m: clamp(15px, .9vw, 22px);
+    --fs-l: clamp(20px, 1.5vw, 36px);
+    --fs-xl: clamp(24px, 2.2vw, 54px);
+    --fs-clock: clamp(56px, 6.6vw, 168px);
+    --glow: rgba(255, 90, 74, .5);
+    --on-lamp: #0a0a0a;
+}
+
+.vh {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* === ONE SCREEN === */
+/* header, booth and the wave fill the screen; the footer waits below the fold */
+.screen {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+}
+
+/* === HEADER === */
+.header {
+    padding: .75rem var(--air-pad);
+    overflow: visible;
+}
+
+.brand {
+    font-size: var(--fs-m);
+}
+
+.brand a:hover {
+    color: var(--accent);
+}
+
+.header-btn {
+    font-size: var(--fs-s);
+}
+
+.header-btn:hover,
+.header-btn[aria-expanded="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-lamp);
+}
+
+.header-btn:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+}
+
+/* === KNOW HOW === */
+.knowhow-panel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: calc(100dvh - 100%);
+    overflow-y: auto;
+    padding: var(--air-pad);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--accent);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, .7);
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+    gap: 1.5rem 2.5rem;
+    font-size: var(--fs-s);
+    line-height: 1.7;
+    color: var(--text-primary);
+}
+
+.knowhow-panel[hidden] {
+    display: none;
+}
+
+.knowhow-panel:focus {
+    outline: none;
+}
+
+.knowhow-section h2 {
+    margin-bottom: .6rem;
+    font-size: var(--fs-s);
+    font-weight: 500;
+    letter-spacing: var(--letter-spacing-wider);
+    color: var(--accent);
+}
+
+.knowhow-section p + p {
+    margin-top: .4rem;
+}
+
+.knowhow-section em {
+    font-style: normal;
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.knowhow-section a {
+    text-decoration: underline;
+    text-underline-offset: .2em;
+}
+
+.nowrap {
+    white-space: nowrap;
+}
+
+/* === MAIN === */
+.air {
+    position: relative;
+    z-index: 2;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: var(--air-pad);
+    font-size: var(--fs-m);
+}
+
+/* === THE LAMP === */
+/* lit: dark text on the red (6.4:1), never white on it (3.1:1). Only the glow breathes, never the text */
+.lamp {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    padding: .45em 1em;
+    border: 2px solid var(--border-secondary);
+    border-radius: 6px;
+    font-size: var(--fs-s);
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: .12em;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    background: transparent;
+    /* a lamp switches, it doesn't fade: halfway through, its text would sit on its own color */
+    transition: box-shadow .6s ease;
+}
+
+.lamp[data-state="on"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-lamp);
+    box-shadow: 0 0 18px var(--glow), 0 0 64px rgba(255, 90, 74, .22);
+    animation: glow 2.6s ease-in-out infinite alternate;
+}
+
+.lamp[data-state="hold"] {
+    border-color: var(--accent);
+    color: var(--accent);
+    animation: hold 1.4s steps(1) infinite;
+}
+
+@keyframes glow {
+    from { box-shadow: 0 0 10px rgba(255, 90, 74, .32), 0 0 36px rgba(255, 90, 74, .1); }
+    to { box-shadow: 0 0 22px rgba(255, 90, 74, .6), 0 0 84px rgba(255, 90, 74, .28); }
+}
+
+@keyframes hold {
+    50% { border-color: var(--border-secondary); }
+}
+
+.lamp-big {
+    font-size: clamp(18px, 1.4vw, 34px);
+    padding: .5em 1.4em;
+    border-radius: 8px;
+}
+
+/* === HOME: who's on, and going on air === */
+.home {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--air-gap);
+    width: min(100%, 1640px);
+    margin: 0 auto;
+}
+
+.cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--air-gap);
+}
+
+.home[hidden] {
+    display: none;
+}
+
+.intro {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .6rem 1.25rem;
+    padding: calc(var(--air-gap) * .5) 0 calc(var(--air-gap) * .25);
+}
+
+.intro-line {
+    font-size: var(--fs-xl);
+    font-weight: 500;
+    line-height: 1.15;
+    letter-spacing: -.01em;
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: var(--air-pad);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+}
+
+.panel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: var(--air-gap);
+}
+
+.panel-head h2 {
+    font-size: var(--fs-s);
+    font-weight: 500;
+    letter-spacing: var(--letter-spacing-wider);
+    color: var(--text-secondary);
+}
+
+.now-count {
+    font-size: var(--fs-s);
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.now-list {
+    list-style: none;
+    max-height: max(168px, calc(100dvh - 560px));
+    overflow-y: auto;
+    border-top: 1px solid var(--border-primary);
+}
+
+.now-list:empty {
+    border-top: 0;
+}
+
+.now-list li {
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: .5rem 1.25rem;
+    padding: .95em .75em;
+    color: var(--text-primary);
+}
+
+.row:hover,
+.row:focus-visible {
+    background: var(--hover-primary);
+    color: var(--text-primary);
+}
+
+.row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.row-dot {
+    width: .6em;
+    height: .6em;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--glow);
+}
+
+.row-name {
+    font-size: var(--fs-l);
+    font-weight: 600;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.row-meta {
+    font-size: var(--fs-s);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.row-time {
+    min-width: 5ch;
+    font-size: var(--fs-m);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.now-empty {
+    max-width: 34em;
+    font-size: var(--fs-l);
+    line-height: 1.45;
+}
+
+.now-empty a {
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
+    text-underline-offset: .2em;
+}
+
+.note {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .75rem 1.25rem;
+    margin-top: var(--air-gap);
+}
+
+.note-text:empty {
+    display: none;
+}
+
+/* go on air */
+.field-label {
+    display: block;
+    margin-bottom: .4rem;
+    font-size: var(--fs-s);
+    color: var(--text-secondary);
+}
+
+.field {
+    width: 100%;
+    padding: .8em 1em;
+    font-family: inherit;
+    font-size: max(16px, var(--fs-m));
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 0;
+}
+
+.field::placeholder {
+    color: var(--text-secondary);
+    opacity: 1;
+}
+
+.field:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+}
+
+.btn-air {
+    width: 100%;
+    margin-top: var(--air-gap);
+    padding: 1em;
+    font-family: inherit;
+    font-size: var(--fs-m);
+    font-weight: 600;
+    letter-spacing: var(--letter-spacing-wide);
+    color: var(--on-lamp);
+    background: var(--accent);
+    border: 2px solid var(--accent);
+    cursor: pointer;
+    transition: box-shadow .2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.btn-air:hover {
+    box-shadow: 0 0 24px var(--glow);
+}
+
+.btn-air:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 3px;
+}
+
+.btn-air[aria-busy="true"] {
+    cursor: progress;
+}
+
+.go-meta {
+    margin-top: .75rem;
+    font-size: var(--fs-s);
+    color: var(--text-secondary);
+}
+
+.go-status {
+    margin-top: .75rem;
+    font-size: var(--fs-m);
+    min-height: 1.6em;
+}
+
+.btn-line {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: .55em 1.2em;
+    font-family: inherit;
+    font-size: var(--fs-s);
+    font-weight: 500;
+    letter-spacing: var(--letter-spacing-wide);
+    color: var(--text-primary);
+    background: transparent;
+    border: 1px solid var(--border-secondary);
+    cursor: pointer;
+    text-decoration: none;
+    transition: border-color .15s ease, background-color .15s ease;
+}
+
+.btn-line:hover {
+    color: var(--text-primary);
+    border-color: var(--accent);
+}
+
+.btn-line:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.btn-line[hidden] {
+    display: none;
+}
+
+/* === THE BOOTH: one broadcast, from either side === */
+.booth {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--air-gap) * .8);
+    width: min(100%, 920px);
+    margin: 0 auto;
+    text-align: center;
+}
+
+.booth[hidden] {
+    display: none;
+}
+
+.clock {
+    font-size: var(--fs-clock);
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums;
+}
+
+.clock[hidden] {
+    display: none;
+}
+
+.booth-name {
+    max-width: 100%;
+    font-size: var(--fs-l);
+    font-weight: 600;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.booth-name:empty {
+    display: none;
+}
+
+.booth-meta {
+    font-size: var(--fs-m);
+    color: var(--text-secondary);
+}
+
+.booth-meta:empty {
+    display: none;
+}
+
+.vu {
+    display: block;
+    width: min(100%, 560px);
+    height: clamp(26px, 3vh, 52px);
+}
+
+.vu[hidden] {
+    display: none;
+}
+
+.booth-status {
+    min-height: 1.6em;
+    font-size: var(--fs-m);
+}
+
+.booth-actions,
+.after,
+.share-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: .75rem;
+}
+
+.booth-actions[hidden],
+.after[hidden],
+.share[hidden] {
+    display: none;
+}
+
+.btn-play {
+    width: auto;
+    min-width: min(100%, 300px);
+    margin-top: 0;
+    padding: .85em 2.4em;
+    font-size: clamp(18px, 1.3vw, 32px);
+}
+
+.btn-play[hidden] {
+    display: none;
+}
+
+.share {
+    width: 100%;
+    padding: calc(var(--air-pad) * .8) var(--air-pad);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+}
+
+.share-label {
+    font-size: var(--fs-s);
+    color: var(--text-secondary);
+}
+
+.share-url {
+    margin: .35rem 0 .9rem;
+    font-size: var(--fs-m);
+    font-weight: 500;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    user-select: all;
+    -webkit-user-select: all;
+}
+
+.btn-off.armed {
+    color: var(--on-lamp);
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+/* === THE WAVE: what is on air right now, edge to edge === */
+.wave {
+    position: relative;
+    z-index: 2;
+    display: block;
+    flex: none;
+    width: 100%;
+    height: clamp(56px, 10vh, 150px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lamp,
+    .lamp[data-state="on"],
+    .lamp[data-state="hold"] {
+        animation: none;
+        transition: none;
+    }
+}
+
+/* === SMALL SCREENS === */
+@media (max-width: 860px) {
+    .knowhow-panel {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+
+    .home {
+        justify-content: flex-start;
+    }
+
+    .cols {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .now-list {
+        max-height: none;
+    }
+
+    .row {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        padding: .85em .5em;
+    }
+
+    .row-meta {
+        grid-column: 2 / -1;
+        grid-row: 2;
+        white-space: normal;
+    }
+
+    .booth {
+        justify-content: flex-start;
+        padding-top: .5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .header {
+        padding: .6rem 1rem;
+    }
+
+    .air {
+        padding: 1rem;
+    }
+
+    .panel {
+        padding: 1rem;
+    }
+
+    .intro {
+        padding-top: 0;
+    }
+}
+
+@media (pointer: coarse) {
+    .header-btn {
+        min-height: 40px;
+    }
+
+    .row {
+        min-height: 56px;
+    }
+}
