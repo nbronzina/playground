@@ -41,8 +41,14 @@
     <div class="screen">
     <header class="header">
         <h1 class="brand wordmark"><a href="index.html">play<span class="separator">·</span>ground</a> mk-1</h1>
+        <div class="air-info" id="airInfo">
+            <span class="air-clock" id="airClock" hidden></span>
+            <span class="air-status" id="airStatus" aria-live="polite"></span>
+            <button class="air-link" id="airLink" type="button" hidden><span class="air-url" id="airUrl"></span> <span class="air-copy" id="airCopy">copy</span></button>
+            <button class="header-btn" id="airEnd" type="button" hidden>end</button>
+        </div>
         <div class="header-actions">
-            <a href="https://mk-air.onrender.com/broadcast?from=mk1" target="_blank" rel="noopener" class="header-btn">on air ↗</a>
+            <button id="airBtn" class="header-btn air-btn" type="button" aria-pressed="false" data-state="off">on air</button>
             <button id="knowHow" class="header-btn" aria-expanded="false" aria-controls="knowHowPanel">know how</button>
         </div>
         <div class="knowhow-panel" id="knowHowPanel" hidden>
@@ -61,7 +67,7 @@
                     <li><kbd>m</kbd> mic · the vocoder turns it on with its first note</li>
                     <li><kbd>v</kbd> download · <kbd>shift+e</kbd> export all</li>
                     <li><kbd>?</kbd> know how · <kbd>esc</kbd> close</li>
-                    <li>on air ↗ opens mk-air · allow the mic, share this tab and tick "share tab audio" · chrome or edge on a computer</li>
+                    <li>on air · one click and what mk-1 plays goes out live, the mic too if it's on · nothing is recorded · it's public: it shows up on <a href="mk-air/">mk-air</a> and anyone with the link can listen · again to end</li>
                 </ul>
                 <div class="layout-selector">
                     <span>layout</span>
@@ -393,6 +399,7 @@
     </footer>
 
     <!-- JavaScript -->
+    <script src="air-client.js" defer></script>
     <script src="mk-1.js" defer></script>
 </body>
 </html>
