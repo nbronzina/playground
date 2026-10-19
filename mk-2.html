@@ -36,12 +36,21 @@
 
     <link rel="stylesheet" href="playground-core.css">
     <link rel="stylesheet" href="mk-2.css">
+
+    <script src="air-client.js" defer></script>
 </head>
 <body>
     <header class="header">
         <h1 class="brand wordmark"><a href="index.html">play<span class="separator">·</span>ground</a> mk-2</h1>
         <div class="header-actions">
-            <a class="header-btn" href="https://mk-air.onrender.com/broadcast?from=mk2" target="_blank" rel="noopener">on air ↗</a>
+            <div class="air" id="air" data-state="off">
+                <button id="airGo" class="header-btn" type="button">on air</button>
+                <span class="air-lamp" id="airLamp" hidden>on air</span>
+                <span class="air-time" id="airTime" hidden></span>
+                <span class="air-msg" id="airMsg" aria-live="polite"></span>
+                <button id="airShare" class="header-btn air-share" type="button" hidden><span id="airUrl"></span> &middot; <span id="airCopy">copy</span></button>
+                <button id="airEnd" class="header-btn air-end" type="button" hidden>end</button>
+            </div>
             <button id="knowHow" class="header-btn" aria-expanded="false" aria-controls="knowHowPanel">know how</button>
         </div>
         <div class="knowhow-panel" id="knowHowPanel" hidden>
@@ -54,11 +63,11 @@
                 <p>double-click any knob or fader = reset</p>
                 <p>drop your own file on a deck, or many in the crate &middot; the crate holds them undecoded and queues as next if a deck is busy &middot; youtube won't share its audio</p>
                 <p>cue needs two system outputs &middot; the browser asks for the mic once, just to list them</p>
-                <p>on air &#8599; opens mk-air &middot; allow the mic, share this tab with its audio &middot; chrome or edge on a computer</p>
+                <p><em>on air</em> one click and what plays through the speakers goes out live &middot; the cue stays in your headphones &middot; nothing is recorded &middot; it's public: it shows up on <a href="mk-air/">mk-air</a> and anyone with the link can listen &middot; <em>end</em> twice to stop</p>
             </section>
             <section class="knowhow-section">
                 <h2>sound</h2>
-                <p>two decks, a 3-band eq and a filter per channel, a limiter on the master &middot; the demo record is pressed in your browser when you first touch it, nothing is downloaded</p>
+                <p>two decks, a 3-band eq and a filter per channel, a limiter on the master &middot; the demo record is pressed in your browser when you first touch it, nothing is downloaded &middot; on air goes browser to browser, stereo at 128 kbps, nothing kept on a server</p>
             </section>
             <section class="knowhow-section">
                 <h2>who</h2>
@@ -785,7 +794,8 @@
     async loadWorklet(){
       if(!(await vinylP) || !this.buffer) return;
       if(!this.wp){
-        this.wp = new AudioWorkletNode(ctx, 'vinyl-playback-processor');
+        /* sin outputChannelCount la salida copia los canales de la entrada, que no tiene nada conectado: quedaba mono, solo el canal izquierdo. */
+        this.wp = new AudioWorkletNode(ctx, 'vinyl-playback-processor', {outputChannelCount:[2]});
         this.wp.connect(this.ch.input);
         this.wp.port.onmessage = (e) => { if(e.data.event === 'ended') this.finish(); };
       }
@@ -1187,6 +1197,128 @@
   }
   if(!canRoute()) msg('this browser cannot route outputs &middot; one output only');
 
+  /* ---------- al aire ----------
+     sale `out`: el master después del limiter, lo mismo que va a SPEAKERS.
+     el cue y la mezcla de auriculares cuelgan de otra rama, así que nunca salen. ni micrófono ni captura de pestaña. */
+  const airBox = document.getElementById('air');
+  const airGo = document.getElementById('airGo');
+  const airLamp = document.getElementById('airLamp');
+  const airTime = document.getElementById('airTime');
+  const airMsg = document.getElementById('airMsg');
+  const airShare = document.getElementById('airShare');
+  const airUrl = document.getElementById('airUrl');
+  const airCopy = document.getElementById('airCopy');
+  const airEnd = document.getElementById('airEnd');
+  const AIR_GONE = {
+    end: 'off air &middot; nothing kept',
+    lost: 'the line was down too long &middot; the room is gone',
+    replaced: 'it went on from another window',
+    server: 'the radio closed it',
+    full: 'the radio is full &middot; try again later',
+    refused: "this page can't reach the radio",
+    unreachable: "the radio isn't answering &middot; try again in a minute"
+  };
+  var air = null, airDest = null, airTick = 0, airArmed = 0, airQuiet = 0, airCopied = 0;
+  const listening = n => n ? n + ' listening' : 'nobody listening yet';
+
+  function airView(state, text){
+    const up = state === 'on' || state === 'hold';
+    airBox.dataset.state = state;
+    airGo.hidden = state !== 'off';
+    airLamp.hidden = airTime.hidden = airShare.hidden = airEnd.hidden = !up;
+    airLamp.textContent = state === 'hold' ? 'on hold' : 'on air';
+    airMsg.innerHTML = text || '';
+  }
+  function airClock(){
+    if(!air || !air.since) return;
+    const s = Math.max(0, Math.floor((Date.now() - air.since) / 1000)), h = Math.floor(s / 3600);
+    airTime.textContent = (h ? h + ':' + String(Math.floor(s % 3600 / 60)).padStart(2,'0') : Math.floor(s / 60)) + ':' + String(s % 60).padStart(2,'0');
+  }
+  function airDisarm(){
+    clearTimeout(airArmed); airArmed = 0;
+    airEnd.textContent = 'end';
+    airEnd.classList.remove('armed');
+  }
+
+  function goOnAir(){
+    if(air) return;
+    const AIR = window.PGAir;
+    if(!AIR || !window.RTCPeerConnection || !window.MediaStreamAudioDestinationNode){ airView('off', "this browser can't go on air"); return; }
+    audio();
+    if(!airDest) airDest = ctx.createMediaStreamDestination();
+    out.connect(airDest);
+    clearTimeout(airQuiet);
+    airView('going', 'going on air&hellip;');
+    let a;
+    try{ a = air = AIR.goLive({stream: airDest.stream, name: '', from: 'mk-2'}); }
+    catch(err){ out.disconnect(airDest); airView('off', "this browser can't go on air"); return; }
+    a.on('waking', () => airView('going', 'waking the radio&hellip; it can take a minute'));
+    a.on('live', e => {
+      airUrl.textContent = 'mk-air/?r=' + e.id;
+      airShare.title = e.link;
+      airView('on', listening(a.listeners));
+      airClock();
+      airTick = setInterval(airClock, 1000);
+    });
+    a.on('count', e => { if(a.state === 'live') airMsg.textContent = listening(e.listeners); });
+    a.on('reconnecting', () => airView('hold', 'lost the line &middot; reconnecting&hellip;'));
+    a.on('resumed', () => airView('on', listening(a.listeners)));
+    a.on('ended', e => {
+      clearInterval(airTick); airDisarm();
+      try{ out.disconnect(airDest); }catch(err){}
+      if(air === a) air = null;
+      airView('off', AIR_GONE[e.reason] || AIR_GONE.unreachable);
+      if(e.reason === 'end') airQuiet = setTimeout(() => { if(!air) airMsg.textContent = ''; }, 6000);
+    });
+  }
+
+  airGo.addEventListener('click', goOnAir);
+  /* render duerme: despertarlo cuando el puntero llega ahorra casi todo el arranque en frío antes del clic. */
+  const airWake = () => { if(window.PGAir) PGAir.wake(); };
+  airGo.addEventListener('pointerenter', airWake, {once:true});
+  airGo.addEventListener('focus', airWake, {once:true});
+
+  /* dos toques, sin diálogo: el primero solo pregunta. */
+  airEnd.addEventListener('click', () => {
+    if(!air) return;
+    if(!airArmed){
+      airEnd.textContent = 'end? press again';
+      airEnd.classList.add('armed');
+      airArmed = setTimeout(airDisarm, 3000);
+      return;
+    }
+    airDisarm();
+    air.end();
+  });
+
+  airShare.addEventListener('click', async () => {
+    if(!air || !air.link) return;
+    const link = air.link;
+    let ok = false;
+    try{ await navigator.clipboard.writeText(link); ok = true; }
+    catch(err){
+      const t = document.createElement('textarea');
+      t.value = link; t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select();
+      try{ ok = document.execCommand('copy'); }catch(e2){}
+      t.remove();
+    }
+    if(!ok){
+      airMsg.textContent = link;
+      getSelection().selectAllChildren(airMsg);
+    }
+    airCopy.textContent = ok ? 'copied' : 'selected';
+    clearTimeout(airCopied);
+    airCopied = setTimeout(() => { airCopy.textContent = 'copy'; }, 2000);
+  });
+
+  /* cerrar la pestaña es salir del aire: nadie tiene que escuchar una sala que está por desaparecer. */
+  addEventListener('pagehide', () => { if(air) air.end(); });
+  /* con un server local de prueba (?air=), los links a mk-air lo llevan; en producción no cambia nada. */
+  addEventListener('DOMContentLoaded', () => {
+    if(window.PGAir) document.querySelectorAll('a[href="mk-air/"]').forEach(a => { a.href = PGAir.withServer(a.getAttribute('href')); });
+  });
+
   const labA = document.getElementById('labA'), labB = document.getElementById('labB');
   const xf = new Fader(document.getElementById('xf'), x => {
     const a = Math.cos(x*Math.PI/2), b = Math.sin(x*Math.PI/2);
@@ -1446,8 +1578,6 @@
         if (knowHowPanel.hidden || knowHowPanel.contains(e.target) || knowHow.contains(e.target)) return;
         showKnowHow(false);
     });
-    // mk-air sleeps on Render's free tier; waking it on hover saves most of the cold start before the click lands
-    document.querySelectorAll('a[href^="https://mk-air.onrender.com"]').forEach(a => a.addEventListener('pointerenter', () => fetch('https://mk-air.onrender.com/', { mode: 'no-cors' }).catch(() => {}), { once: true }));
 </script>
 </body>
 </html>
