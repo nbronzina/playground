@@ -1,192 +1,335 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>play·ground · just play</title>
-    <meta name="description" content="browser-based audio tools & spaces. no manuals. no friction.">
-    <meta name="keywords" content="browser music, web audio, synth, drums, looper, sequencer, live broadcast, ephemeral audio, no install, free music tools">
+    <title>play·ground · sound tools and spaces in the browser</title>
+    <meta name="description" content="a playground for sound in the browser. a synth with drums, two decks and a mixer, a live radio with no archive, a field of sound you move through. no install. no account.">
+    <meta name="author" content="nicolás bronzina">
+    <link rel="canonical" href="https://nbronzina.github.io/playground/">
 
-    <!-- Favicon SVG -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f2f2f0'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
-    
-    <!-- Open Graph / Facebook -->
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="color-scheme" content="dark">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' font-weight='600' text-anchor='middle' fill='%23fff'%3Epg%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%230a0a0a'/%3E%3Ctext x='90' y='120' font-family='monospace' font-size='80' font-weight='600' text-anchor='middle' fill='%23fff'%3Epg%3C/text%3E%3C/svg%3E">
+
     <meta property="og:type" content="website">
+    <meta property="og:site_name" content="play·ground">
     <meta property="og:url" content="https://nbronzina.github.io/playground/">
-    <meta property="og:title" content="play·ground · just play">
-    <meta property="og:description" content="browser-based audio tools & spaces. no manuals. no friction.">
-    <meta property="og:image" content="https://nicolasbronzina.com/img/playground-og.png">
+    <meta property="og:title" content="play·ground · sound tools and spaces in the browser">
+    <meta property="og:description" content="tools to make sound. spaces to be inside it. nothing to install. nothing kept. just play.">
+    <meta property="og:image" content="https://nbronzina.github.io/playground/og/home.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    
-    <!-- Twitter -->
+    <meta property="og:image:alt" content="play·ground, tools to make sound and spaces to be inside it, over the home page with mk-1, mk-2, mk-air, mk-dwell and n0body">
+
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:url" content="https://nicolasbronzina.com/">
-    <meta name="twitter:title" content="play·ground · just play">
-    <meta name="twitter:description" content="browser-based audio tools & spaces. no manuals. no friction.">
-    <meta name="twitter:image" content="https://nicolasbronzina.com/img/playground-og.png">
-    
-    <!-- Apple Touch Icon -->
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%23f2f2f0'/%3E%3Ctext x='90' y='120' font-family='monospace' font-size='80' font-weight='600' text-anchor='middle' fill='%23000'%3Epg%3C/text%3E%3C/svg%3E">
+    <meta name="twitter:url" content="https://nbronzina.github.io/playground/">
+    <meta name="twitter:title" content="play·ground · sound tools and spaces in the browser">
+    <meta name="twitter:description" content="tools to make sound. spaces to be inside it. nothing to install. nothing kept. just play.">
+    <meta name="twitter:image" content="https://nbronzina.github.io/playground/og/home.png">
+    <meta name="twitter:image:alt" content="play·ground, tools to make sound and spaces to be inside it, over the home page with mk-1, mk-2, mk-air, mk-dwell and n0body">
 
-    <!-- Theme colors -->
-    <meta name="theme-color" content="#f2f2f0" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
-
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap">
 
-    <!-- Stylesheets -->
-    <link rel="preload" href="playground-core.css" as="style">
-    <link rel="preload" href="playground.css" as="style">
     <link rel="stylesheet" href="playground-core.css">
     <link rel="stylesheet" href="playground.css">
 </head>
 <body>
-    <div class="header">
-        <div>
-            <div class="brand wordmark">play<span class="separator">·</span>ground</div>
-            <div class="header-timestamp" id="timestamp"></div>
-        </div>
-        <div class="header-actions">
+    <header class="header">
+        <a href="index.html" class="brand wordmark" aria-current="page">play<span class="separator">·</span>ground</a>
+        <nav class="header-actions" aria-label="site">
             <a href="about.html" class="header-btn">about</a>
-            <button id="themeToggle" class="header-btn" aria-label="Toggle dark mode">
-                <span id="themeIcon" aria-hidden="true">◐</span>
-            </button>
-        </div>
-    </div>
+        </nav>
+    </header>
 
-    <div class="container">
-        <!-- Hero -->
-        <div class="hero">
-            <h1 class="wordmark">play<span class="separator">·</span>ground</h1>
-            <p class="hero-tagline">just play</p>
-            <p class="hero-description">browser-based audio tools & spaces.<br>no manuals. no friction.</p>
-        </div>
+    <main>
+        <section class="hero" id="hero" aria-labelledby="hero-title">
+            <h1 class="wordmark" id="hero-title">play<span class="separator hero-dot">·</span>ground</h1>
+            <p class="hero-line">tools to make sound. spaces to be inside it.</p>
+            <p class="hero-sub">nothing to install. nothing kept. just play.<span class="caret" aria-hidden="true"></span></p>
+        </section>
 
-        <!-- Tools & Spaces -->
-        <div class="section" id="tools">
-            <h2 class="section-title">releases</h2>
-            <div class="two-column-grid">
-                <!-- Tools Column -->
-                <div class="column">
-                    <h3 class="column-title">tools</h3>
-                    <a href="mk-1.html" class="release-card">
-                        <div class="release-header">
-                            <h3 class="release-title wordmark">play<span class="separator">·</span>ground mk-1</h3>
-                            <span class="status-badge live">live</span>
-                        </div>
-                        <p class="release-description">web-based music creation. drums, synth, looper, mic input.</p>
-                        <div class="release-meta">
-                            <span class="release-tag">8-track sequencer</span>
-                            <span class="release-tag">4-slot looper</span>
-                            <span class="release-tag">synthesizer</span>
-                        </div>
-                    </a>
-
-                    <a href="mk-2.html" class="release-card">
-                        <div class="release-header">
-                            <h3 class="release-title wordmark">play<span class="separator">·</span>ground mk-2</h3>
-                            <span class="status-badge live">live</span>
-                        </div>
-                        <p class="release-description">two decks and a mixer in the browser. drop two records, grab the disc, crossfade.</p>
-                        <div class="release-meta">
-                            <span class="release-tag">2 turntables</span>
-                            <span class="release-tag">mixer</span>
-                            <span class="release-tag">cue routing</span>
-                        </div>
-                    </a>
-                </div>
-
-                <!-- Spaces Column -->
-                <div class="column">
-                    <h3 class="column-title">spaces</h3>
-                    <a href="https://mk-air.onrender.com/" class="release-card">
-                        <div class="release-header">
-                            <h3 class="release-title wordmark">play<span class="separator">·</span>ground mk-air</h3>
-                            <span class="status-badge live">live</span>
-                        </div>
-                        <p class="release-description">ephemeral live audio broadcasts. no recording, no archive.</p>
-                        <div class="release-meta">
-                            <span class="release-tag">streaming</span>
-                            <span class="release-tag">live only</span>
-                            <span class="release-tag">no archive</span>
-                        </div>
-                    </a>
-
-                    <a href="mk-dwell/" class="release-card">
-                        <div class="release-header">
-                            <h3 class="release-title wordmark">play<span class="separator">·</span>ground mk-dwell</h3>
-                            <span class="status-badge live">live</span>
-                        </div>
-                        <p class="release-description">an explorable sound space. generative ambient. cursor-controlled.</p>
-                        <div class="release-meta">
-                            <span class="release-tag">generative</span>
-                            <span class="release-tag">ambient</span>
-                            <span class="release-tag">spatial</span>
-                        </div>
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Airtists -->
-        <div class="section" id="airtists">
-            <h2 class="section-title">airtists</h2>
-            <div class="airtist-featured">
-                <div class="release-card no-link">
-                    <div class="release-header">
-                        <h3 class="release-title">n0body</h3>
-                        <span class="status-badge airtist">airtist</span>
+        <div class="container">
+            <div class="shelves">
+                <section class="shelf" aria-labelledby="tools-title">
+                    <div class="shelf-head">
+                        <h2 id="tools-title">tools</h2>
+                        <p>to make sound.</p>
                     </div>
-                    <p class="release-description">play<span class="separator">·</span>ground's resident artist. autonomous. learning.</p>
-                    <p class="release-listen">catch live sets on <a href="https://mk-air.onrender.com/listen" target="_blank">mk-air</a></p>
-                    <div class="release-meta">
-                        <span class="release-tag">autonomous</span>
-                        <span class="release-tag">learning</span>
-                        <span class="release-tag">ephemeral</span>
+                    <article class="piece" data-piece="mk-1">
+                        <h3 class="piece-name"><a href="mk-1.html">mk<span class="piece-mark">-</span>1</a></h3>
+                        <p class="piece-line">a synth with drums. tap a pad, hold a key, loop it, sing over it.</p>
+                        <p class="piece-meta">8 pads · 4 loops</p>
+                    </article>
+                    <article class="piece" data-piece="mk-2">
+                        <h3 class="piece-name"><a href="mk-2.html">mk<span class="piece-mark">-</span>2</a></h3>
+                        <p class="piece-line">two decks and a mixer. drop two records, grab the disc, crossfade.</p>
+                        <p class="piece-meta">your files · cue out</p>
+                    </article>
+                </section>
+
+                <section class="shelf" aria-labelledby="spaces-title">
+                    <div class="shelf-head">
+                        <h2 id="spaces-title">spaces</h2>
+                        <p>to be inside it.</p>
                     </div>
-                </div>
-            </div>
-        </div>
+                    <article class="piece" data-piece="mk-air">
+                        <h3 class="piece-name"><a href="https://mk-air.onrender.com/" target="_blank" rel="noopener">mk<span class="piece-mark">-</span>air ↗</a></h3>
+                        <p class="piece-line">a radio that forgets. go on air from mk-1, or listen to whoever is on. nothing is recorded.</p>
+                        <p class="piece-meta">live only</p>
+                    </article>
+                    <article class="piece" data-piece="mk-dwell">
+                        <h3 class="piece-name"><a href="mk-dwell/">mk<span class="piece-mark">-</span>dwell</a></h3>
+                        <p class="piece-line">a field of sound that moves with you. enter. listen. leave. never the same twice.</p>
+                        <p class="piece-meta">headphones</p>
+                    </article>
+                </section>
 
-        <!-- Support -->
-        <div class="section">
-            <h2 class="section-title">support</h2>
-            <p class="support-text">support play<span class="separator">·</span>ground → <a href="https://buymeacoffee.com/nbronzina" target="_blank">buy me a coffee</a></p>
-        </div>
-
-        <!-- Footer -->
-        <div class="footer">
-            <div class="footer-content">
-                <span class="version">play<span class="separator">·</span>ground</span>
-                <span class="separator">•</span>
-                <span>designed, coded & built by <a href="https://nicolasbronzina.com" target="_blank">nicolás bronzina</a></span>
+                <section class="shelf" aria-labelledby="airtists-title">
+                    <div class="shelf-head">
+                        <h2 id="airtists-title">airtists</h2>
+                        <p>who plays here when you don't.</p>
+                    </div>
+                    <article class="piece" data-piece="n0body">
+                        <h3 class="piece-name"><a href="https://github.com/nbronzina/n0body" target="_blank" rel="noopener">n<span class="piece-mark">0</span>body ↗</a></h3>
+                        <p class="piece-line">not a person. an agent that plays mk-1 on its own and goes on air at mk-air. it learns between sets.</p>
+                        <p class="piece-listen"><a href="https://mk-air.onrender.com/listen" target="_blank" rel="noopener">listen on mk-air ↗</a></p>
+                        <p class="piece-meta">ai · plays mk-1</p>
+                    </article>
+                </section>
             </div>
+
+            <p class="coda">make it in mk-1. put it on air. n0body does the same, alone.</p>
         </div>
-    </div>
+    </main>
+
+    <footer class="pg-footer">
+        <nav class="pg-footer-nav" aria-label="play·ground">
+            <a href="index.html" class="wordmark" aria-current="page">play<span class="separator">·</span>ground</a>
+            <a href="mk-1.html">mk-1</a>
+            <a href="mk-2.html">mk-2</a>
+            <a href="https://mk-air.onrender.com/" target="_blank" rel="noopener">mk-air ↗</a>
+            <a href="mk-dwell/">mk-dwell</a>
+            <a href="about.html">about</a>
+            <a href="https://buymeacoffee.com/nbronzina" target="_blank" rel="noopener">buy me a coffee ↗</a>
+        </nav>
+        <p class="pg-footer-credit">designed, coded &amp; built by <a href="https://nicolasbronzina.com" target="_blank" rel="noopener">nicolás bronzina ↗</a></p>
+    </footer>
 
     <script>
-        // Theme Toggle
-        const themeToggle = document.getElementById('themeToggle');
-        const html = document.documentElement;
+    (() => {
+        const hero = document.getElementById('hero');
+        const dot = hero.querySelector('.hero-dot');
+        const calm = matchMedia('(prefers-reduced-motion: reduce)');
 
-        themeToggle.addEventListener('click', () => {
-            html.classList.toggle('dark-mode');
+        // Minor pentatonic from A3: any key, any spot, it stays in tune.
+        const SCALE = [0, 3, 5, 7, 10];
+        const ROOT = 57;
+        const STEPS = 16;
+        const ACCENTS = ['var(--accent-mk1)', 'var(--accent-mk2)', 'var(--accent-dwell)', 'var(--accent-air)'];
+
+        // Physical key rows (e.code) so the layout climbs the same on qwerty, azerty or dvorak.
+        const ROWS = [
+            ['KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyB', 'KeyN', 'KeyM', 'Comma', 'Period', 'Slash'],
+            ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon'],
+            ['KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyT', 'KeyY', 'KeyU', 'KeyI', 'KeyO', 'KeyP'],
+            ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0']
+        ];
+        const KEY_STEP = {};
+        ROWS.forEach((row, r) => row.forEach((code, i) => { KEY_STEP[code] = Math.min(STEPS - 1, i + r * 2); }));
+
+        const FREQ = new Float32Array(STEPS);
+        for (let s = 0; s < STEPS; s++) {
+            const midi = ROOT + 12 * Math.floor(s / SCALE.length) + SCALE[s % SCALE.length];
+            FREQ[s] = 440 * Math.pow(2, (midi - 69) / 12);
+        }
+
+        let ctx = null;
+        let bus = null;
+
+        // Created on the first gesture only: before that there is no AudioContext on the page.
+        function boot() {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return false;
+            ctx = new AC({ latencyHint: 'interactive' });
+
+            const curve = new Float32Array(1025);
+            const k = Math.tanh(1.6);
+            for (let i = 0; i < curve.length; i++) {
+                const x = (i / (curve.length - 1)) * 2 - 1;
+                curve[i] = Math.tanh(1.6 * x) / k;
+            }
+
+            bus = ctx.createGain();
+            bus.gain.value = 0.8;
+            const shaper = ctx.createWaveShaper();
+            shaper.curve = curve;
+            const out = ctx.createGain();
+            out.gain.value = 0.6;
+            const comp = ctx.createDynamicsCompressor();
+            comp.threshold.value = -14;
+            comp.knee.value = 6;
+            comp.ratio.value = 8;
+            comp.attack.value = 0.003;
+            comp.release.value = 0.2;
+
+            // A dotted-eighth echo at the 120 bpm house tempo: the room the note lands in.
+            const send = ctx.createGain();
+            send.gain.value = 0.22;
+            const delay = ctx.createDelay(1);
+            delay.delayTime.value = 0.375;
+            const damp = ctx.createBiquadFilter();
+            damp.type = 'lowpass';
+            damp.frequency.value = 2200;
+            const feedback = ctx.createGain();
+            feedback.gain.value = 0.32;
+
+            bus.connect(shaper);
+            shaper.connect(out);
+            bus.connect(send);
+            send.connect(delay);
+            delay.connect(damp);
+            damp.connect(feedback);
+            feedback.connect(delay);
+            damp.connect(out);
+            out.connect(comp);
+            comp.connect(ctx.destination);
+            return true;
+        }
+
+        function voice(step) {
+            const t = ctx.currentTime;
+            const f = FREQ[step] * Math.pow(2, (Math.random() * 8 - 4) / 1200);
+            const dur = 0.75 - step * 0.02;
+
+            const a = ctx.createOscillator();
+            const b = ctx.createOscillator();
+            const sub = ctx.createOscillator();
+            const subGain = ctx.createGain();
+            const lp = ctx.createBiquadFilter();
+            const amp = ctx.createGain();
+
+            a.type = 'sawtooth';
+            b.type = 'sawtooth';
+            sub.type = 'sine';
+            a.frequency.value = f;
+            b.frequency.value = f;
+            sub.frequency.value = f / 2;
+            a.detune.value = 7;
+            b.detune.value = -7;
+            subGain.gain.value = 0.35;
+
+            lp.type = 'lowpass';
+            lp.Q.value = 4;
+            lp.frequency.setValueAtTime(f * 1.2, t);
+            lp.frequency.exponentialRampToValueAtTime(Math.min(f * 10, 9000), t + 0.012);
+            lp.frequency.exponentialRampToValueAtTime(Math.max(f * 1.1, 200), t + dur * 0.7);
+
+            amp.gain.setValueAtTime(0.0001, t);
+            amp.gain.exponentialRampToValueAtTime(0.22, t + 0.006);
+            amp.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+            a.connect(lp);
+            b.connect(lp);
+            sub.connect(subGain);
+            subGain.connect(lp);
+            lp.connect(amp);
+            amp.connect(bus);
+
+            const end = t + dur + 0.02;
+            a.start(t);
+            b.start(t);
+            sub.start(t);
+            a.stop(end);
+            b.stop(end);
+            sub.stop(end);
+            a.onended = () => setTimeout(() => {
+                a.disconnect();
+                b.disconnect();
+                sub.disconnect();
+                subGain.disconnect();
+                lp.disconnect();
+                amp.disconnect();
+            }, 100);
+        }
+
+        const rings = [];
+        let ringIndex = 0;
+        for (let i = 0; i < 6; i++) {
+            const r = document.createElement('span');
+            r.className = 'hero-ring';
+            r.setAttribute('aria-hidden', 'true');
+            hero.appendChild(r);
+            rings.push(r);
+        }
+
+        function light(step, x, y) {
+            const accent = ACCENTS[step % ACCENTS.length];
+            dot.style.setProperty('--lit', accent);
+            dot.classList.remove('lit');
+            void dot.offsetWidth;
+            dot.classList.add('lit');
+            if (calm.matches) return;
+
+            const box = hero.getBoundingClientRect();
+            if (x === null) {
+                const title = dot.parentElement.getBoundingClientRect();
+                x = box.left + box.width * (0.08 + 0.84 * step / (STEPS - 1));
+                y = title.top + title.height / 2;
+            }
+            const ring = rings[ringIndex];
+            ringIndex = (ringIndex + 1) % rings.length;
+            ring.style.left = (x - box.left) + 'px';
+            ring.style.top = (y - box.top) + 'px';
+            ring.style.borderColor = accent;
+            ring.animate(
+                [
+                    { transform: 'translate(-50%, -50%) scale(0.15)', opacity: 0.9 },
+                    { transform: 'translate(-50%, -50%) scale(1)', opacity: 0 }
+                ],
+                { duration: 900, easing: 'cubic-bezier(0.2, 0.6, 0.3, 1)' }
+            );
+        }
+
+        function play(step, x, y) {
+            if (!ctx && !boot()) return;
+            if (ctx.state !== 'running') ctx.resume();
+            voice(step);
+            light(step, x, y);
+        }
+
+        function playAt(x, y) {
+            const box = hero.getBoundingClientRect();
+            const p = Math.min(1, Math.max(0, (x - box.left) / box.width));
+            play(Math.round(p * (STEPS - 1)), x, y);
+        }
+
+        // Mouse sounds on press; touch waits for a tap so a swipe through the hero just scrolls.
+        let lastPointer = '';
+        hero.addEventListener('pointerdown', e => {
+            lastPointer = e.pointerType;
+            if (e.pointerType === 'mouse' && e.button === 0) playAt(e.clientX, e.clientY);
+        });
+        hero.addEventListener('click', e => {
+            if (lastPointer === 'mouse') return;
+            playAt(e.clientX, e.clientY);
         });
 
-        // Timestamp
-        function updateTimestamp() {
-            const now = new Date();
-            const date = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-            const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            document.getElementById('timestamp').textContent = `${date} — ${time}`;
-        }
-        
-        updateTimestamp();
-        setInterval(updateTimestamp, 1000);
+        addEventListener('keydown', e => {
+            if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+            const el = e.target;
+            if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+            let step = KEY_STEP[e.code];
+            if (step === undefined) {
+                if (e.key.length !== 1 || e.key === ' ') return;
+                step = (e.key.codePointAt(0) * 7) % STEPS;
+            }
+            play(step, null, null);
+        });
+    })();
     </script>
 </body>
 </html>

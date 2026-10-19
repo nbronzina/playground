@@ -19,8 +19,15 @@ const DwellAudio = (function() {
 
     // Global atmosphere layers
     let droneNodes = [];
+    let droneGain = null;
     let textureNode = null;
-    let eventTimeout = null;
+    let nextEventTime = 0;
+
+    // Scheduling
+    let schedulerTimeout = null;
+    let spatialFramePending = false;
+    const SCHEDULE_AHEAD = 0.2;
+    const SCHEDULER_INTERVAL = 50;
 
     // Positioned sources
     let sources = [];
@@ -30,12 +37,15 @@ const DwellAudio = (function() {
     // Current cursor position (0-1)
     let position = { x: 0.5, y: 0.5 };
 
-    // Seeded random
-    let seed = Date.now();
+    // Seeded random (xorshift32: a short-period LCG repeats audibly inside the 4 s reverb IR)
+    let seed = (Date.now() >>> 0) || 1;
 
     function seededRandom() {
-        seed = (seed * 9301 + 49297) % 233280;
-        return seed / 233280;
+        seed ^= seed << 13;
+        seed ^= seed >>> 17;
+        seed ^= seed << 5;
+        seed >>>= 0;
+        return seed / 4294967296;
     }
 
     // Scales for melodic content
@@ -44,6 +54,18 @@ const DwellAudio = (function() {
 
     function noteToFreq(note) {
         return BASE_FREQ * Math.pow(2, note / 12);
+    }
+
+    // Free pitches land on the nearest scale note: inside the space nothing can sound wrong
+    function snapToScale(freq) {
+        const semitones = 12 * Math.log2(freq / BASE_FREQ);
+        const octave = Math.floor(semitones / 12) * 12;
+        let nearest = octave + SCALE[0];
+        for (let i = 1; i <= SCALE.length; i++) {
+            const note = octave + (i < SCALE.length ? SCALE[i] : 12);
+            if (Math.abs(note - semitones) < Math.abs(nearest - semitones)) nearest = note;
+        }
+        return noteToFreq(nearest);
     }
 
     // Create impulse response for reverb
@@ -217,15 +239,16 @@ const DwellAudio = (function() {
                 const gain = ctx.createGain();
                 gain.gain.value = 0;
 
-                // Fundamental 40Hz
+                // Fundamental E1 (~41Hz): a free 40Hz sat a quarter tone flat of the scale
+                const fundamental = snapToScale(40);
                 const osc1 = ctx.createOscillator();
                 osc1.type = 'sine';
-                osc1.frequency.value = 40;
+                osc1.frequency.value = fundamental;
 
-                // Harmonic at 80Hz for definition on smaller speakers
+                // Octave harmonic for definition on smaller speakers
                 const osc2 = ctx.createOscillator();
                 osc2.type = 'sine';
-                osc2.frequency.value = 80;
+                osc2.frequency.value = fundamental * 2;
 
                 const oscGain = ctx.createGain();
                 oscGain.gain.value = 1.4; // Boosted for presence
@@ -258,40 +281,47 @@ const DwellAudio = (function() {
                 clickGain.connect(gain);
                 gain.connect(output);
 
-                let clickTimeout;
-                function scheduleClick() {
-                    if (!isRunning) return;
+                let nextClickTime = 0;
 
-                    const interval = 100 + seededRandom() * 300; // Fast clicks
-                    clickTimeout = setTimeout(() => {
-                        if (!isRunning || !ctx) return;
-
-                        const now = ctx.currentTime;
-                        const clickOsc = ctx.createOscillator();
-                        const clickEnv = ctx.createGain();
-
-                        clickOsc.type = 'square';
-                        clickOsc.frequency.value = 1000 + seededRandom() * 2000;
-
-                        clickEnv.gain.setValueAtTime(0.6, now);
-                        clickEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.01);
-
-                        clickOsc.connect(clickEnv);
-                        clickEnv.connect(clickGain);
-
-                        clickOsc.start(now);
-                        clickOsc.stop(now + 0.02);
-
-                        scheduleClick();
-                    }, interval);
+                function clickInterval() {
+                    return 0.1 + seededRandom() * 0.3; // Fast clicks
                 }
 
-                scheduleClick();
+                function playClick(time) {
+                    const clickOsc = ctx.createOscillator();
+                    const clickEnv = ctx.createGain();
+
+                    clickOsc.type = 'square';
+                    clickOsc.frequency.value = snapToScale(1000 + seededRandom() * 2000);
+
+                    clickEnv.gain.setValueAtTime(0.6, time);
+                    clickEnv.gain.exponentialRampToValueAtTime(0.001, time + 0.01);
+
+                    clickOsc.connect(clickEnv);
+                    clickEnv.connect(clickGain);
+
+                    clickOsc.onended = () => {
+                        clickOsc.disconnect();
+                        clickEnv.disconnect();
+                    };
+
+                    clickOsc.start(time);
+                    clickOsc.stop(time + 0.02);
+                }
 
                 return {
                     gain,
                     nodes: [],
-                    cleanup: function() { clearTimeout(clickTimeout); }
+                    reset: function(time) {
+                        nextClickTime = time + clickInterval();
+                    },
+                    schedule: function(until) {
+                        nextClickTime = Math.max(nextClickTime, ctx.currentTime);
+                        while (nextClickTime < until) {
+                            playClick(nextClickTime);
+                            nextClickTime += clickInterval();
+                        }
+                    }
                 };
             }
         },
@@ -359,7 +389,8 @@ const DwellAudio = (function() {
                 y: def.y,
                 gain: source.gain,
                 nodes: source.nodes,
-                cleanup: source.cleanup
+                reset: source.reset,
+                schedule: source.schedule
             });
         });
     }
@@ -381,8 +412,15 @@ const DwellAudio = (function() {
     // GLOBAL ATMOSPHERE (existing system)
     // ============================================
 
+    function requestSpatialUpdate() {
+        if (spatialFramePending || !isRunning) return;
+        spatialFramePending = true;
+        requestAnimationFrame(updateSpatial);
+    }
+
     // Update spatial parameters based on position
     function updateSpatial() {
+        spatialFramePending = false;
         if (!audioContext || !isRunning) return;
 
         // X = panning (-1 to 1) - FULL stereo
@@ -407,8 +445,6 @@ const DwellAudio = (function() {
 
         // Update positioned sources
         updateSourceGains();
-
-        requestAnimationFrame(updateSpatial);
     }
 
     // === DRONE LAYER ===
@@ -449,8 +485,6 @@ const DwellAudio = (function() {
 
             droneNodes.push({ osc, lfo, oscGain, pan: voicePan });
         });
-
-        droneGain.gain.setTargetAtTime(0.5, audioContext.currentTime, 3); // Lower
 
         return droneGain;
     }
@@ -525,25 +559,23 @@ const DwellAudio = (function() {
         noiseL.start();
         noiseR.start();
 
-        textureGain.gain.setTargetAtTime(0.03, audioContext.currentTime, 4); // VERY quiet
-
         return { noiseL, noiseR, lfoL, lfoR, bpL, bpR, gain: textureGain };
     }
 
     // === EVENT LAYER ===
-    function scheduleEvent() {
-        if (!isRunning) return;
-
-        const interval = 5000 + seededRandom() * 15000;
-
-        eventTimeout = setTimeout(() => {
-            if (!isRunning) return;
-            playEvent();
-            scheduleEvent();
-        }, interval);
+    function eventInterval() {
+        return 5 + seededRandom() * 15;
     }
 
-    function playEvent() {
+    function scheduleEvents(until) {
+        nextEventTime = Math.max(nextEventTime, audioContext.currentTime);
+        while (nextEventTime < until) {
+            playEvent(nextEventTime);
+            nextEventTime += eventInterval();
+        }
+    }
+
+    function playEvent(time) {
         const octave = Math.floor(seededRandom() * 3) + 2;
         const scaleNote = SCALE[Math.floor(seededRandom() * SCALE.length)];
         const note = scaleNote + octave * 12;
@@ -555,15 +587,14 @@ const DwellAudio = (function() {
         osc.type = seededRandom() > 0.5 ? 'sine' : 'triangle';
         osc.frequency.value = freq;
 
-        const now = audioContext.currentTime;
         const attack = 0.5 + seededRandom() * 1;
         const hold = 1 + seededRandom() * 3;
         const release = 2 + seededRandom() * 4;
 
-        oscGain.gain.setValueAtTime(0, now);
-        oscGain.gain.linearRampToValueAtTime(0.08, now + attack);
-        oscGain.gain.setValueAtTime(0.08, now + attack + hold);
-        oscGain.gain.exponentialRampToValueAtTime(0.001, now + attack + hold + release);
+        oscGain.gain.setValueAtTime(0, time);
+        oscGain.gain.linearRampToValueAtTime(0.08, time + attack);
+        oscGain.gain.setValueAtTime(0.08, time + attack + hold);
+        oscGain.gain.exponentialRampToValueAtTime(0.001, time + attack + hold + release);
 
         const eventPan = audioContext.createStereoPanner();
         eventPan.pan.value = (seededRandom() - 0.5) * 1.5;
@@ -572,8 +603,28 @@ const DwellAudio = (function() {
         oscGain.connect(eventPan);
         eventPan.connect(pannerNode);
 
-        osc.start(now);
-        osc.stop(now + attack + hold + release + 0.1);
+        osc.onended = () => {
+            osc.disconnect();
+            oscGain.disconnect();
+            eventPan.disconnect();
+        };
+
+        osc.start(time);
+        osc.stop(time + attack + hold + release + 0.1);
+    }
+
+    // === SCHEDULER ===
+    // Timer only wakes the scheduler; every event is placed on the audio clock
+    function scheduler() {
+        if (!isRunning) return;
+
+        const until = audioContext.currentTime + SCHEDULE_AHEAD;
+        scheduleEvents(until);
+        sources.forEach(source => {
+            if (source.schedule) source.schedule(until);
+        });
+
+        schedulerTimeout = setTimeout(scheduler, SCHEDULER_INTERVAL);
     }
 
     // === PUBLIC API ===
@@ -589,34 +640,39 @@ const DwellAudio = (function() {
 
             isRunning = true;
 
-            // Start global atmosphere
-            createDrone();
-            textureNode = createTexture();
-            scheduleEvent();
+            // Built once: rebuilding on every entry stacked layers that never stopped
+            if (!droneGain) {
+                droneGain = createDrone();
+                textureNode = createTexture();
+                createSources();
+            }
 
-            // Start positioned sources
-            createSources();
+            const now = audioContext.currentTime;
 
-            // Start spatial update loop
-            updateSpatial();
+            // Reset so every entry emerges like the first
+            droneGain.gain.setValueAtTime(0, now);
+            droneGain.gain.setTargetAtTime(0.5, now, 3); // Lower
+            textureNode.gain.gain.setValueAtTime(0, now);
+            textureNode.gain.gain.setTargetAtTime(0.03, now, 4); // VERY quiet
+
+            nextEventTime = now + eventInterval();
+            sources.forEach(source => {
+                if (source.reset) source.reset(now);
+            });
+            scheduler();
+
+            requestSpatialUpdate();
 
             // Fade in master - gradual emergence from silence
-            masterGain.gain.setValueAtTime(0, audioContext.currentTime);
-            masterGain.gain.linearRampToValueAtTime(1, audioContext.currentTime + 4);
+            masterGain.gain.setValueAtTime(0, now);
+            masterGain.gain.linearRampToValueAtTime(1, now + 4);
         },
 
         stop: function() {
             if (!isRunning) return;
             isRunning = false;
 
-            if (eventTimeout) {
-                clearTimeout(eventTimeout);
-            }
-
-            // Cleanup positioned sources
-            sources.forEach(source => {
-                if (source.cleanup) source.cleanup();
-            });
+            clearTimeout(schedulerTimeout);
 
             if (masterGain) {
                 masterGain.gain.setTargetAtTime(0, audioContext.currentTime, 1);
@@ -626,6 +682,7 @@ const DwellAudio = (function() {
         setPosition: function(x, y) {
             position.x = Math.max(0, Math.min(1, x));
             position.y = Math.max(0, Math.min(1, y));
+            requestSpatialUpdate();
         },
 
         isRunning: function() {

@@ -4,10 +4,8 @@
    ============================================ */
 
 :root {
-    --dwell-bg: #0a0a0a;
-    --dwell-text: #1a1a1a;
-    --dwell-text-hover: #333;
-    --dwell-text-active: #666;
+    --dwell-bg: var(--bg-primary);
+    color-scheme: dark;
 }
 
 * {
@@ -25,13 +23,20 @@ html, body {
     cursor: none;
 }
 
+/* The core grain sits above .sound-space (no z-index): it lifted the black to ~#202020 and buried the zone tints. */
+body::before, body::after {
+    display: none;
+}
+
 /* Entry Screen */
 .entry-screen {
     position: fixed;
     inset: 0;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
+    padding-top: 5rem;
+    overflow-y: auto;
     background: var(--dwell-bg);
     z-index: 100;
     transition: opacity 1s ease-out;
@@ -44,59 +49,57 @@ html, body {
 }
 
 .entry-content {
+    margin: auto 0;
+    padding: 0 1.5rem;
     text-align: center;
 }
 
 .entry-title {
-    font-size: 1.2rem;
+    font-size: 1.5rem;
     font-weight: 300;
-    color: #555;
+    color: var(--text-primary);
     letter-spacing: 0.1em;
-    margin-bottom: 3rem;
+}
+
+.entry-line {
+    margin: 1.25rem 0 3rem;
+    font-size: 0.875rem;
+    font-weight: 300;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    letter-spacing: 0.05em;
+}
+
+.entry-line span {
+    display: inline-block;
 }
 
 .entry-button {
     background: none;
-    border: 1px solid #333;
+    border: 1px solid var(--border-secondary);
     border-radius: 2px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 400;
-    color: #555;
+    color: var(--text-primary);
     letter-spacing: 0.15em;
     cursor: pointer;
     padding: 0.8rem 2rem;
     transition: all 0.2s ease;
 }
 
-.entry-button:hover {
-    color: #888;
-    border-color: #555;
+.entry-button:hover,
+.entry-button:focus-visible {
+    border-color: var(--accent);
+    outline: none;
 }
 
 .entry-button:active {
-    color: #aaa;
+    color: var(--accent);
 }
 
-.entry-hint {
-    margin-top: 2rem;
-    font-size: 0.65rem;
-    font-weight: 300;
-    color: #555;
-    letter-spacing: 0.15em;
-}
-
-.entry-credit {
-    position: absolute;
-    bottom: 1.5rem;
-    right: 1.5rem;
-    font-size: 0.6rem;
-    font-weight: 300;
-    color: #555;
-}
-
-.entry-credit .separator {
-    margin: 0 0.08em;
+.entry-screen .pg-footer {
+    align-self: stretch;
 }
 
 /* Sound Space */
@@ -105,41 +108,20 @@ html, body {
     inset: 0;
     background: var(--dwell-bg);
     transition: background-color 2.5s ease-out;
+    /* A drag is the instrument: no pull-to-refresh, no pinch, no scroll */
+    touch-action: none;
 }
 
 .sound-space.hidden {
     display: none;
 }
 
-/* Hint text */
-.space-hint {
-    position: fixed;
-    bottom: 2rem;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.7rem;
-    font-weight: 300;
-    color: var(--dwell-text);
-    letter-spacing: 0.2em;
-    opacity: 0;
-    transition: opacity 2s ease;
-    pointer-events: none;
-}
-
-.space-hint.visible {
-    opacity: 1;
-}
-
-.space-hint.fade {
-    opacity: 0;
-}
-
 /* Custom cursor */
 .cursor {
     position: fixed;
-    width: 8px;
-    height: 8px;
-    background: var(--dwell-text);
+    width: 10px;
+    height: 10px;
+    background: var(--text-primary);
     border-radius: 50%;
     pointer-events: none;
     transform: translate(-50%, -50%);
@@ -163,27 +145,121 @@ html, body {
     }
 }
 
-/* Back link */
-.back-link {
+/* Back link and know how */
+.back-link,
+.knowhow-btn {
     position: fixed;
     top: 1.5rem;
-    left: 1.5rem;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
     font-weight: 400;
-    color: #555;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    background: none;
     text-decoration: none;
     letter-spacing: 0.1em;
     padding: 0.6rem 1rem;
-    border: 1px solid #333;
+    border: 1px solid var(--border-primary);
     border-radius: 2px;
     z-index: 200;
     transition: all 0.2s ease;
     cursor: pointer;
 }
 
-.back-link:hover {
-    color: #888;
-    border-color: #555;
+.back-link {
+    left: 1.5rem;
+}
+
+.knowhow-btn {
+    right: 1.5rem;
+}
+
+.back-link:hover,
+.back-link:focus-visible,
+.knowhow-btn:hover,
+.knowhow-btn:focus-visible {
+    color: var(--text-primary);
+    border-color: var(--border-secondary);
+    outline: none;
+}
+
+.knowhow-btn[aria-expanded="true"] {
+    color: var(--text-primary);
+    border-color: var(--accent);
+}
+
+.knowhow-panel {
+    position: fixed;
+    top: 4.75rem;
+    right: 1.5rem;
+    width: min(26rem, calc(100vw - 3rem));
+    max-height: calc(100dvh - 6.25rem);
+    overflow-y: auto;
+    padding: 1.25rem 1.5rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 2px;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    text-align: left;
+    z-index: 300;
+    cursor: default;
+}
+
+.knowhow-panel[hidden] {
+    display: none;
+}
+
+.knowhow-panel:focus {
+    outline: none;
+}
+
+.knowhow-section + .knowhow-section {
+    margin-top: 1rem;
+}
+
+.knowhow-section h2 {
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+}
+
+.knowhow-section em {
+    font-style: normal;
+    color: var(--text-primary);
+}
+
+.knowhow-section a {
+    color: var(--text-primary);
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
+    text-underline-offset: 0.25em;
+    white-space: nowrap;
+}
+
+.knowhow-section a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+    .back-link {
+        left: 1rem;
+    }
+
+    .knowhow-btn {
+        right: 1rem;
+    }
+
+    .knowhow-panel {
+        right: 1rem;
+        width: calc(100vw - 2rem);
+    }
 }
 
 /* Prevent text selection */

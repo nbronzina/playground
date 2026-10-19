@@ -10,81 +10,52 @@
     box-sizing: border-box;
 }
 
-/* === CSS VARIABLES === */
+/* === TOKENS === */
+/* One theme only: dark. Two text levels, three surfaces, one accent per piece. */
 :root {
-    /* Light mode (default) */
-    --bg-primary: #f2f2f0;
-    --bg-secondary: #fefefe;
-    --bg-tertiary: #fafafa;
-    --bg-input: #0f0f0f;
-    --border-primary: #e0e0e0;
-    --border-secondary: #2a2a2a;
-    --text-primary: #000;
-    --text-secondary: #666;
-    --text-tertiary: #999;
-    --text-invert: #fff;
-    --accent-primary: #000;
-    --accent-secondary: #e0e0e0;
-    --hover-primary: #f0f0f0;
-    --hover-secondary: #ccc;
-    --active-bg: #000;
-    --active-text: #fff;
-    --viz-bg: #fafafa;
-    --viz-line: #000;
-
-    /* Status colors */
-    --status-live: #00ff00;
-    --status-planned: #999;
-    --status-beta: #ff9500;
-
-    /* Accent */
-    --accent: #ff9500;
-    --accent-bg: rgba(255, 149, 0, 0.08);
-    --accent-text: #cc7700;
-
-    /* Typography scale */
-    --letter-spacing-tight: 0.02em;
-    --letter-spacing-normal: 0.03em;
-    --letter-spacing-wide: 0.05em;
-    --letter-spacing-wider: 0.08em;
-
-    /* Noise textures - consolidated */
-    --noise-main: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="1.2" numOctaves="6" seed="2" /></filter><rect width="100%" height="100%" filter="url(%23noise)" opacity="1"/></svg>');
-    --noise-card: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="5" /></filter><rect width="100%" height="100%" filter="url(%23n)"/></svg>');
-    --noise-header: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="250" height="250"><filter id="hn"><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="4" /></filter><rect width="100%" height="100%" filter="url(%23hn)"/></svg>');
-}
-
-:root.dark-mode {
-    /* Dark mode */
+    /* Surfaces */
     --bg-primary: #0a0a0a;
     --bg-secondary: #141414;
     --bg-tertiary: #0f0f0f;
-    --bg-input: #0f0f0f;
+
+    /* Text: both stay >= 7:1 on all three surfaces */
+    --text-primary: #fff;
+    --text-secondary: #b3b3b3;
+
+    /* Lines */
     --border-primary: #2a2a2a;
     --border-secondary: #444;
-    --text-primary: #e0e0e0;
-    --text-secondary: #999;
-    --text-tertiary: #666;
-    --text-invert: #000;
-    --accent-primary: #e0e0e0;
-    --accent-secondary: #2a2a2a;
+
+    /* States */
     --hover-primary: #1a1a1a;
     --hover-secondary: #444;
     --active-bg: #e0e0e0;
     --active-text: #000;
+
+    /* One piece, one accent. A page or a block picks its own with data-piece. */
+    --accent-mk1: #ff9500;
+    --accent-mk2: #d4c5a0;
+    --accent-dwell: #8cc7a8;
+    --accent-air: #ff5a4a;
+    --accent: var(--accent-mk1);
+
+    /* Old names still read by .btn, mk-1.css and mk-1.js */
+    --accent-primary: var(--text-primary);
     --viz-bg: #0a0a0a;
     --viz-line: #e0e0e0;
-    
-    /* Status colors dark mode */
-    --status-live: #00ff00;
-    --status-planned: #666;
-    --status-beta: #ff9500;
 
-    /* Accent */
-    --accent: #ff9500;
-    --accent-bg: rgba(255, 149, 0, 0.08);
-    --accent-text: #ff9500;
+    /* Typography scale */
+    --letter-spacing-normal: 0.03em;
+    --letter-spacing-wide: 0.05em;
+    --letter-spacing-wider: 0.08em;
+
+    --noise-main: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="1.2" numOctaves="3" seed="2" /></filter><rect width="100%" height="100%" filter="url(%23noise)" opacity="1"/></svg>');
 }
+
+[data-piece="mk-1"] { --accent: var(--accent-mk1); }
+[data-piece="mk-2"] { --accent: var(--accent-mk2); }
+[data-piece="mk-dwell"] { --accent: var(--accent-dwell); }
+[data-piece="mk-air"] { --accent: var(--accent-air); }
 
 /* === BODY BASE === */
 body {
@@ -104,12 +75,11 @@ body {
 }
 
 .wordmark .separator {
-    opacity: 1;
-    margin: 0;
-    padding: 0;
+    color: var(--accent);
 }
 
 /* === GRAIN TEXTURE OVERLAY (FIXED) === */
+/* soft-light at low opacity keeps the black at #0a0a0a; plain alpha lifted it to ~#1f1f1f */
 body::before {
     content: '';
     position: fixed;
@@ -117,23 +87,11 @@ body::before {
     left: 0;
     width: 100%;
     height: 100%;
-    opacity: 0.25;
+    opacity: 0.06;
+    mix-blend-mode: soft-light;
     z-index: 1;
     pointer-events: none;
     background-image: var(--noise-main);
-}
-
-/* === SUBTLE VIGNETTE === */
-body::after {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 1;
-    box-shadow: inset 0 0 200px rgba(0,0,0,0.12);
 }
 
 /* === HEADER === */
@@ -150,19 +108,6 @@ body::after {
     align-items: center;
 }
 
-.header::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0.12;
-    z-index: 1;
-    pointer-events: none;
-    background-image: var(--noise-header);
-}
-
 .brand {
     font-size: 1rem;
     font-weight: 600;
@@ -170,13 +115,6 @@ body::after {
     text-transform: lowercase;
     position: relative;
     z-index: 2;
-}
-
-.header-timestamp {
-    font-size: 0.7rem;
-    color: var(--text-tertiary);
-    font-weight: 400;
-    margin-top: 0.3rem;
 }
 
 .header-actions {
@@ -215,30 +153,8 @@ body::after {
     z-index: 2;
 }
 
-/* === HERO === */
-.hero {
-    text-align: center;
-    margin-bottom: 3rem;
-    padding: 2rem 0;
-}
-
-.hero h1 {
-    font-size: 3rem;
-    font-weight: 200;
-    letter-spacing: var(--letter-spacing-tight);
-    margin-bottom: 0.8rem;
-}
-
-.hero p {
-    font-size: 0.85rem;
-    color: var(--text-tertiary);
-    font-weight: 300;
-    letter-spacing: var(--letter-spacing-normal);
-    transition: all 0.3s ease;
-}
-
-/* === CARDS/MODULES === */
-.card, .module {
+/* === MODULES === */
+.module {
     background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     padding: 1.5rem;
@@ -248,51 +164,23 @@ body::after {
     transition: all 0.15s ease;
 }
 
-/* Grain texture on cards/modules */
-.card::after, .module::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0.12;
-    z-index: 1;
-    pointer-events: none;
-    background-image: var(--noise-card);
-}
-
-.card > *, .module > * {
+.module > * {
     position: relative;
     z-index: 2;
 }
 
-.card:hover {
-    border-color: var(--border-secondary);
-    transform: translateY(-2px);
-}
-
-/* === CARD HEADER === */
-.card-header, .module-header {
+/* === MODULE HEADER === */
+.module-header {
     margin-bottom: 1rem;
     padding-bottom: 0.8rem;
 }
 
-.card-title, .module-title {
+.module-title {
     font-size: 0.7rem;
     font-weight: 500;
     letter-spacing: var(--letter-spacing-wider);
     text-transform: lowercase;
-    color: var(--text-tertiary);
-}
-
-.card-desc, .module-desc {
-    font-size: 0.65rem;
-    font-weight: 400;
-    letter-spacing: var(--letter-spacing-normal);
-    color: #bbb;
-    margin-top: 0.3rem;
-    line-height: 1.4;
+    color: var(--text-secondary);
 }
 
 /* === BUTTONS === */
@@ -373,153 +261,80 @@ a:hover {
     color: var(--text-secondary);
 }
 
-/* === STATUS BADGES === */
-.status-badge {
-    display: inline-block;
-    padding: 0.3rem 0.6rem;
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: lowercase;
-    letter-spacing: var(--letter-spacing-wide);
-    border-radius: 2px;
-    border: 1px solid;
-}
-
-.status-badge.live {
-    color: #00cc00;
-    background: rgba(0, 204, 0, 0.15);
-    border-color: #00cc00;
-}
-
-.status-badge.planned {
-    color: #666;
-    background: rgba(102, 102, 102, 0.1);
-    border-color: #666;
-}
-
-.status-badge.beta {
-    color: #ff9500;
-    background: rgba(255, 149, 0, 0.15);
-    border-color: #ff9500;
-}
-
-/* === FOOTER === */
-.footer {
-    margin-top: 3rem;
-    padding: 2rem 0;
+/* === COMMON FOOTER (every page, same markup) ===
+   No background and no positioning of its own: it sits on #0a0a0a, on a piece's
+   panel or inside mk-dwell's fixed screens. A page moves it; these rules only dress it. */
+.pg-footer {
+    position: relative;
+    z-index: 2;
+    margin-top: 4rem;
+    padding: 2rem 1rem 2.5rem;
+    border-top: 1px solid var(--border-primary);
     text-align: center;
-    color: var(--text-tertiary);
-    font-size: 0.7rem;
-    letter-spacing: var(--letter-spacing-normal);
-    position: relative;
-    z-index: 2;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.875rem;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: 0;
+    color: var(--text-secondary);
 }
 
-.footer-content {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-
-.footer a {
-    color: var(--text-tertiary);
+.pg-footer a {
+    color: var(--text-primary);
     text-decoration: none;
-    border-bottom: 1px solid var(--border-secondary);
-    transition: color 0.2s;
+    text-underline-offset: 0.3em;
+    transition: color 0.15s ease;
 }
 
-.footer a:hover {
+.pg-footer a:hover {
     color: var(--text-primary);
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
 }
 
-.separator {
-    color: var(--border-primary);
-    margin: 0 0.5rem;
+.pg-footer a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
-.version {
-    color: var(--text-tertiary);
-    text-transform: lowercase;
-}
-
-/* === MODAL === */
-.modal-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    z-index: 1000;
+.pg-footer-nav {
+    display: flex;
+    flex-wrap: wrap;
     justify-content: center;
-    align-items: center;
-    backdrop-filter: blur(4px);
+    align-items: baseline;
+    gap: 0.25rem 1.5rem;
 }
 
-.modal-overlay.active {
-    display: flex;
+.pg-footer-nav a {
+    display: inline-block;
+    padding: 0.35rem 0;
 }
 
-.modal-content {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-primary);
-    padding: 2rem;
-    max-width: 600px;
-    width: 90%;
-    max-height: 80vh;
-    overflow-y: auto;
-    position: relative;
+.pg-footer-nav .wordmark {
+    font-weight: 600;
 }
 
-.modal-content::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0.12;
-    z-index: 1;
-    pointer-events: none;
-    background-image: var(--noise-card);
+.pg-footer-nav a[aria-current="page"] {
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 2px;
 }
 
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-    position: relative;
-    z-index: 2;
+.pg-footer-credit {
+    margin-top: 0.75rem;
+    color: var(--text-secondary);
 }
 
-.modal-title {
-    font-size: 0.7rem;
-    font-weight: 500;
-    text-transform: lowercase;
-    letter-spacing: var(--letter-spacing-wider);
-    color: var(--text-tertiary);
+@media (pointer: coarse) {
+    .pg-footer-nav a {
+        padding: 0.6rem 0.2rem;
+    }
 }
 
-.modal-close {
-    background: none;
-    border: 1px solid var(--border-primary);
-    color: var(--text-primary);
-    padding: 0.3rem 0.6rem;
-    cursor: pointer;
-    font-size: 0.7rem;
-    font-weight: 500;
-    text-transform: lowercase;
-    letter-spacing: var(--letter-spacing-wide);
-    transition: all 0.15s ease;
-}
-
-.modal-close:hover {
-    background: var(--hover-primary);
-    border-color: var(--border-secondary);
+@media (max-width: 480px) {
+    .pg-footer-nav {
+        gap: 0 1.1rem;
+    }
 }
 
 /* ======================== */
@@ -541,30 +356,18 @@ a:hover {
     font-size: 14px;
     font-weight: 400;
     background: transparent;
-    border: 1px solid rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     color: var(--text-primary);
     cursor: pointer;
     text-align: left;
 }
 
-:root.dark-mode .custom-select-trigger {
-    border-color: rgba(255, 255, 255, 0.15);
-}
-
 .custom-select-trigger:hover {
-    border-color: rgba(0, 0, 0, 0.3);
-}
-
-:root.dark-mode .custom-select-trigger:hover {
     border-color: rgba(255, 255, 255, 0.3);
 }
 
 .custom-select-trigger:focus {
     outline: none;
-    border-color: rgba(0, 0, 0, 0.5);
-}
-
-:root.dark-mode .custom-select-trigger:focus {
     border-color: rgba(255, 255, 255, 0.5);
 }
 
@@ -589,14 +392,10 @@ a:hover {
     padding: 0;
     list-style: none;
     background: var(--bg-secondary);
-    border: 1px solid rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     border-top: none;
     display: none;
     overflow: hidden;
-}
-
-:root.dark-mode .custom-select-dropdown {
-    border-color: rgba(255, 255, 255, 0.15);
 }
 
 .custom-select.open .custom-select-dropdown {
@@ -616,10 +415,6 @@ a:hover {
 }
 
 .custom-select-option:hover {
-    background: rgba(0, 0, 0, 0.05);
-}
-
-:root.dark-mode .custom-select-option:hover {
     background: rgba(255, 255, 255, 0.05);
 }
 
@@ -635,10 +430,6 @@ a:hover {
 
 .custom-select-option:focus {
     outline: none;
-    background: rgba(0, 0, 0, 0.05);
-}
-
-:root.dark-mode .custom-select-option:focus {
     background: rgba(255, 255, 255, 0.05);
 }
 
@@ -652,43 +443,26 @@ a:hover {
         font-size: 0.9rem;
     }
 
-    .hero h1 {
-        font-size: 2rem;
-    }
-
-    .hero p {
-        font-size: 0.8rem;
-    }
-
     .container {
         padding: 1.5rem 1rem;
     }
 
-    .card, .module {
+    .module {
         padding: 1rem;
     }
 
-    .card-header, .module-header {
+    .module-header {
         margin-bottom: 0.8rem;
         padding-bottom: 0.6rem;
     }
 
-    .card-title, .module-title {
+    .module-title {
         font-size: 0.65rem;
-    }
-
-    .card-desc, .module-desc {
-        font-size: 0.6rem;
     }
 
     .btn, .btn-secondary {
         font-size: 0.7rem;
         padding: 0.8rem;
-    }
-
-    .modal-content {
-        padding: 1.5rem;
-        max-height: 90vh;
     }
 }
 
@@ -701,19 +475,11 @@ a:hover {
         font-size: 0.8rem;
     }
 
-    .hero h1 {
-        font-size: 1.6rem;
-    }
-
-    .hero p {
-        font-size: 0.75rem;
-    }
-
     .container {
         padding: 1rem 0.8rem;
     }
 
-    .card, .module {
+    .module {
         padding: 0.8rem;
     }
 }

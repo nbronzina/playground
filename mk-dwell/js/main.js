@@ -9,7 +9,8 @@
     const entryScreen = document.getElementById('entry');
     const enterBtn = document.getElementById('enterBtn');
     const soundSpace = document.getElementById('space');
-    const hint = document.getElementById('hint');
+    const knowHowBtn = document.getElementById('knowHow');
+    const knowHowPanel = document.getElementById('knowHowPanel');
 
     // State
     let hasEntered = false;
@@ -25,9 +26,30 @@
             enter();
         });
 
+        // Know how
+        knowHowBtn.addEventListener('click', function() {
+            if (isKnowHowOpen()) {
+                closeKnowHow(false);
+            } else {
+                openKnowHow();
+            }
+        });
+        document.addEventListener('pointerdown', function(e) {
+            if (isKnowHowOpen() && !knowHowPanel.contains(e.target) && !knowHowBtn.contains(e.target)) {
+                closeKnowHow(false);
+            }
+        });
+
         // Keyboard support
         document.addEventListener('keydown', function(e) {
-            if (!hasEntered && (e.key === 'Enter' || e.key === ' ')) {
+            // Esc peels one layer at a time: know how first, then the space
+            if (e.key === 'Escape' && isKnowHowOpen()) {
+                closeKnowHow(true);
+                return;
+            }
+            // A focused link or button keeps its own Enter/Space
+            const onControl = e.target !== enterBtn && e.target.closest && e.target.closest('a, button');
+            if (!hasEntered && (e.key === 'Enter' || e.key === ' ') && !onControl && !isKnowHowOpen() && !e.ctrlKey && !e.metaKey && !e.altKey) {
                 e.preventDefault();
                 enter();
             }
@@ -38,9 +60,28 @@
         });
     }
 
+    function isKnowHowOpen() {
+        return !knowHowPanel.hidden;
+    }
+
+    function openKnowHow() {
+        knowHowPanel.hidden = false;
+        knowHowBtn.setAttribute('aria-expanded', 'true');
+        knowHowPanel.focus({ preventScroll: true });
+    }
+
+    function closeKnowHow(returnFocus) {
+        if (!isKnowHowOpen()) return;
+        knowHowPanel.hidden = true;
+        knowHowBtn.setAttribute('aria-expanded', 'false');
+        if (returnFocus) knowHowBtn.focus();
+    }
+
     function enter() {
         if (hasEntered) return;
         hasEntered = true;
+
+        closeKnowHow(false);
 
         // Start audio
         DwellAudio.start();
@@ -50,14 +91,12 @@
 
         // Show sound space after fade
         setTimeout(function() {
+            if (!hasEntered) return;
             entryScreen.style.display = 'none';
             soundSpace.classList.remove('hidden');
 
             // Activate input
             DwellInput.activate();
-
-            // Show hint
-            showHint();
         }, 1000);
     }
 
@@ -76,19 +115,6 @@
         entryScreen.classList.remove('fade-out');
 
         hasEntered = false;
-    }
-
-    function showHint() {
-        // Show hint after a moment
-        setTimeout(function() {
-            hint.classList.add('visible');
-
-            // Fade hint after interaction
-            setTimeout(function() {
-                hint.classList.remove('visible');
-                hint.classList.add('fade');
-            }, 4000);
-        }, 2000);
     }
 
     // Start when DOM ready
