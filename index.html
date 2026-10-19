@@ -96,7 +96,7 @@
                     <article class="piece" data-piece="n0body">
                         <h3 class="piece-name"><a href="https://github.com/nbronzina/n0body" target="_blank" rel="noopener">n<span class="piece-mark">0</span>body ↗</a></h3>
                         <p class="piece-line">not a person. an agent that plays mk-1 on its own and goes on air at mk-air. it learns between sets.</p>
-                        <p class="piece-listen"><a href="https://mk-air.onrender.com/listen" target="_blank" rel="noopener">listen on mk-air ↗</a></p>
+                        <p class="piece-listen"><a href="https://mk-air.onrender.com/" target="_blank" rel="noopener">listen on mk-air ↗</a></p>
                         <p class="piece-meta">ai · plays mk-1</p>
                     </article>
                 </section>
@@ -330,6 +330,9 @@
             play(step, null, null);
         });
     })();
+
+        // mk-air sleeps on Render's free tier; waking it on hover saves most of the cold start before the click lands
+        document.querySelectorAll('a[href^="https://mk-air.onrender.com"]').forEach(a => a.addEventListener('pointerenter', () => fetch('https://mk-air.onrender.com/', { mode: 'no-cors' }).catch(() => {}), { once: true }));
     </script>
 </body>
 </html>

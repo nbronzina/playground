@@ -2635,6 +2635,9 @@ function isSlotFree(key) {
 // Kept for n0body, which clicked the old start button to wake the audio engine
 document.getElementById('initBtn').addEventListener('click', () => initSystem());
 
+// mk-air sleeps on Render's free tier; waking it on hover saves most of the cold start before the click lands
+document.querySelectorAll('a[href^="https://mk-air.onrender.com"]').forEach(a => a.addEventListener('pointerenter', () => fetch('https://mk-air.onrender.com/', { mode: 'no-cors' }).catch(() => {}), { once: true }));
+
 document.getElementById('loadDemoBtn').addEventListener('click', () => {
     initSystem();
 
