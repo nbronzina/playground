@@ -176,7 +176,7 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - Modulation: driftLFO → subOsc.detune (tape wobble, 0.1–0.3 Hz, ±15 cents)
 - Modulation: lfoGain → formant detune (slow organic movement, 1–2 Hz, ±20 cents)
 - Node lifecycle: stop() → setTimeout(disconnect, 100) in cleanupVoice and the looper
-- on air: one click sends mk-1's master (after the limiter) to mk-air, no mic; MK1.air.start({name}) / stop() / status() for n0body
+- on air: one click sends mk-1's master (after the limiter) to mk-air, no mic; end takes two presses, as in mk-2 and mk-air. MK1.air.start({name}) / stop() / status() for n0body, which goes on air for every session
 - Gaps: the fx sliders write AudioParam.value directly; the string voice is stopped by a setTimeout message
 
 **mk-2**
