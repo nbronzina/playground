@@ -116,6 +116,12 @@
     animation: air-glow 2.6s ease-in-out infinite alternate;
 }
 
+#airEnd.armed,
+#airEnd.armed:hover {
+    border-color: var(--accent-air);
+    color: var(--accent-air);
+}
+
 @keyframes air-glow {
     from { box-shadow: 0 0 6px rgba(255, 90, 74, 0.3); }
     to { box-shadow: 0 0 18px rgba(255, 90, 74, 0.6), 0 0 44px rgba(255, 90, 74, 0.2); }

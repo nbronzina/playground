@@ -2652,6 +2652,7 @@ let airWait = null;
 let airClockId = null;
 let airNoteId = null;
 let airCopyId = null;
+let airArmed = null;
 
 const AIR_ENDS = {
     end: 'off air. nothing kept.',
@@ -2751,6 +2752,7 @@ function airStart(opts) {
         if (air !== session) return;
         air = null;
         airWait = null;
+        airDisarm();
         airShow('off');
         if (e.reason === 'end') airNote(session.id ? AIR_ENDS.end : 'off air.', 4000);
         else airNote(AIR_ENDS[e.reason] || AIR_ENDS.unreachable);
@@ -2761,6 +2763,27 @@ function airStart(opts) {
 
 function airStop() {
     if (air) air.end();
+}
+
+function airDisarm() {
+    clearTimeout(airArmed);
+    airArmed = null;
+    airEnd.textContent = 'end';
+    airEnd.classList.remove('armed');
+}
+
+// two presses, no dialog: a stray click shouldn't cut a set. Before going live there is nothing to cut
+function airAskEnd() {
+    if (!air) return;
+    if (!air.id) return airStop();
+    if (!airArmed) {
+        airEnd.textContent = 'end? press again';
+        airEnd.classList.add('armed');
+        airArmed = setTimeout(airDisarm, 3000);
+        return;
+    }
+    airDisarm();
+    airStop();
 }
 
 function airState() {
@@ -2799,10 +2822,10 @@ async function airCopyLink() {
 }
 
 airBtn.addEventListener('click', () => {
-    if (air) airStop();
+    if (air) airAskEnd();
     else airStart();
 });
-airEnd.addEventListener('click', airStop);
+airEnd.addEventListener('click', airAskEnd);
 airLink.addEventListener('click', airCopyLink);
 
 // mk-air's signaling sleeps on Render's free tier; a hover wakes it before the click lands
