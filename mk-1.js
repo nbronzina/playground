@@ -180,7 +180,6 @@ const LIMITER = {
     CEILING: 0.9
 };
 
-const LAYER_SEARCH = 0.06;
 
 // ============================================
 // AUDIO ENGINE
@@ -434,6 +433,45 @@ function makeImpulse(context, seconds) {
 let delayL = null;
 let delayR = null;
 
+// input → dry → output, input → (the effect) → wet → output
+function makeInsert() {
+    const input = audioContext.createGain();
+    const dry = audioContext.createGain();
+    const wet = audioContext.createGain();
+    const output = audioContext.createGain();
+    wet.gain.value = 0;
+    input.connect(dry);
+    dry.connect(output);
+    wet.connect(output);
+    return { input, dry, wet, output };
+}
+
+// distorted, the signal sits near 0.35 whatever comes in; this brings it back to about the dry level
+const DISTORTION_MAKEUP = 0.6;
+
+function applyDistortion(amount) {
+    if (!window.distortionNode) return;
+    window.distortionNode.curve = makeDistortionCurve(amount * 400);
+    setParam(window.distortionDry.gain, 1 - amount);
+    setParam(window.distortionMix.gain, amount * DISTORTION_MAKEUP);
+}
+
+// crush has no mix: from 1 up the sound is crushed, faded in over a few ms
+function applyCrush(amount) {
+    if (!window.setCrushAmount) return;
+    window.setCrushAmount(amount);
+    setParam(window.bitcrusherDry.gain, amount > 0 ? 0 : 1);
+    setParam(window.bitcrusherMix.gain, amount > 0 ? 1 : 0);
+}
+
+// chorus keeps some dry: at full it's an even blend, about as loud as dry alone
+function applyChorus(amount) {
+    if (!window.chorusMix) return;
+    setParam(window.chorusDry.gain, 1 - 0.4 * amount);
+    setParam(window.chorusMix.gain, 0.6 * amount);
+    setParam(window.chorusLFOGain.gain, 0.002 + amount * 0.003);
+}
+
 function syncDelay() {
     if (!delayL) return;
     const time = Math.min(1.9, 0.75 * 60 / parseInt(document.getElementById('tempo').value));
@@ -470,10 +508,10 @@ let isMicActive = false;
 let micPending = false;
 
 let loopSlots = {
-    A: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, loopSamples: 0, isPlaying: false, playback: null },
-    B: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, loopSamples: 0, isPlaying: false, playback: null },
-    C: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, loopSamples: 0, isPlaying: false, playback: null },
-    D: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, loopSamples: 0, isPlaying: false, playback: null }
+    A: { loop: [], audioBuffer: null, history: [], duration: 0, loopSamples: 0, isPlaying: false, playback: null },
+    B: { loop: [], audioBuffer: null, history: [], duration: 0, loopSamples: 0, isPlaying: false, playback: null },
+    C: { loop: [], audioBuffer: null, history: [], duration: 0, loopSamples: 0, isPlaying: false, playback: null },
+    D: { loop: [], audioBuffer: null, history: [], duration: 0, loopSamples: 0, isPlaying: false, playback: null }
 };
 let activeSlot = 'A';
 let isRecording = false;
@@ -484,7 +522,6 @@ let overdubLength = 0;
 let overdubStop = null;
 let demoSlot = null;
 
-let mediaRecorder;
 let mediaStreamDestination;
 
 let sequencerSteps = {
@@ -619,99 +656,110 @@ let vibeDataArray = null;
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
-function startMediaRecording() {
-    const slotKey = recordingSlot;
-    const looped = loopSlots[slotKey].audioBuffer;
-    const under = isOverdub && looped ? looped.getChannelData(0).subarray(0, Math.round(overdubLength * looped.sampleRate)) : null;
-    const chunks = [];
-    document.getElementById('downloadBtn').style.display = 'none';
+// ============================================
+// LOOPER RECORDING
+// ============================================
+// The recorder worklet captures what goes into the limiter, uncompressed, from one exact frame to another.
+// A take is a promise of an AudioBuffer exactly as long as asked
+let recorder = null;
+let takeCount = 0;
+const takes = new Map();
 
-    mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
-
-    mediaRecorder.ondataavailable = (event) => {
-        chunks.push(event.data);
-    };
-
-    mediaRecorder.onstop = async () => {
-        const slot = loopSlots[slotKey];
-        const blob = new Blob(chunks, { type: 'audio/webm' });
-        slot.audioBlob = blob;
-
-        try {
-            const arrayBuffer = await blob.arrayBuffer();
-            const take = await audioContext.decodeAudioData(arrayBuffer);
-            const audioBuffer = under && slot.loopSamples > 0 ? alignLayer(take, under, slot.loopSamples) : take;
-            slot.audioBuffer = audioBuffer;
-            slot.loopSamples = Math.min(slot.loopSamples || audioBuffer.length, audioBuffer.length);
-            slot.duration = slot.loopSamples / audioBuffer.sampleRate;
-            if (slot.playback) swapSlotPlayback(slotKey);
-        } catch (error) {
-            console.error('Error decoding audio:', error);
-        }
-
-        updateSlotUI();
-    };
-
-    mediaRecorder.start();
+function recordFrom(time) {
+    if (!recorder) return null;
+    const id = ++takeCount;
+    const start = Math.round(time * audioContext.sampleRate);
+    takes.set(id, { L: [], R: [], frames: 0, start, done: null });
+    recorder.port.postMessage({ type: 'start', take: id, frame: start });
+    return id;
 }
 
-// The recorder starts on its own clock and the limiter looks ahead, so a layer is placed by finding the loop it was played over inside the take
-function layerOffset(take, under, sampleRate) {
-    const block = 32;
-    const reach = Math.round(LAYER_SEARCH * sampleRate);
-    const span = Math.min(under.length, take.length - reach);
-    if (span <= 0) return 0;
-
-    const energy = (data, length) => {
-        const env = new Float32Array(Math.ceil(length / block));
-        for (let i = 0; i < length; i++) env[Math.floor(i / block)] += Math.abs(data[i]);
-        return env;
-    };
-    const envTake = energy(take, take.length);
-    const envUnder = energy(under, span);
-    const blocks = Math.ceil(reach / block);
-
-    let coarse = 0;
-    let best = 0;
-    for (let lag = -blocks; lag <= blocks; lag++) {
-        let sum = 0;
-        for (let i = Math.max(0, -lag); i < envUnder.length && i + lag < envTake.length; i++) {
-            sum += envUnder[i] * envTake[i + lag];
-        }
-        if (sum > best) {
-            best = sum;
-            coarse = lag * block;
-        }
-    }
-
-    const fineSpan = Math.min(span, sampleRate * 2);
-    let offset = coarse;
-    best = 0;
-    for (let lag = coarse - 2 * block; lag <= coarse + 2 * block; lag++) {
-        let sum = 0;
-        for (let i = Math.max(0, -lag); i < fineSpan && i + lag < take.length; i++) {
-            sum += under[i] * take[i + lag];
-        }
-        if (sum > best) {
-            best = sum;
-            offset = lag;
-        }
-    }
-    return offset;
+// ends the take after exactly `frames` samples
+function recordFor(id, frames) {
+    const take = takes.get(id);
+    if (!take) return Promise.resolve(null);
+    recorder.port.postMessage({ type: 'stop', take: id, frame: take.start + frames });
+    return new Promise(resolve => { take.done = resolve; });
 }
 
-function alignLayer(take, under, length) {
-    const offset = layerOffset(take.getChannelData(0), under, take.sampleRate);
-    const aligned = audioContext.createBuffer(take.numberOfChannels, length, take.sampleRate);
-    for (let ch = 0; ch < take.numberOfChannels; ch++) {
-        const source = take.getChannelData(ch);
-        const target = aligned.getChannelData(ch);
-        for (let i = 0; i < length; i++) {
-            const j = i + offset < 0 ? i + offset + length : i + offset;
-            target[i] = j < source.length ? source[j] : 0;
+function onRecorderMessage(e) {
+    const d = e.data;
+    const take = takes.get(d.take);
+    if (d.type === 'chunk') {
+        if (take) {
+            take.L.push(d.L.slice(0, d.frames));
+            take.R.push(d.R.slice(0, d.frames));
+            take.frames += d.frames;
         }
+        recorder.port.postMessage({ type: 'return', chunk: d }, [d.L.buffer, d.R.buffer]);
+    } else if (d.type === 'end' && take) {
+        takes.delete(d.take);
+        if (d.lost) console.warn('looper: ' + d.lost + ' frames could not be kept');
+        const buffer = audioContext.createBuffer(2, Math.max(1, take.frames), audioContext.sampleRate);
+        [take.L, take.R].forEach((parts, ch) => {
+            const data = buffer.getChannelData(ch);
+            let offset = 0;
+            parts.forEach(part => { data.set(part, offset); offset += part.length; });
+        });
+        if (take.done) take.done(take.frames ? buffer : null);
     }
-    return aligned;
+}
+
+// The layer joins the loop sample for sample; the loop repeats under it for as many whole cycles as the layer lasted
+function addLayerTo(under, underLength, layer) {
+    const length = layer.length;
+    const out = audioContext.createBuffer(2, length, audioContext.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+        const target = out.getChannelData(ch);
+        const top = layer.getChannelData(Math.min(ch, layer.numberOfChannels - 1));
+        const below = under && underLength > 0 ? under.getChannelData(Math.min(ch, under.numberOfChannels - 1)) : null;
+        for (let i = 0; i < length; i++) target[i] = top[i] + (below ? below[i % underLength] : 0);
+    }
+    return out;
+}
+
+// A slot remembers the takes it replaced, so the last layer can be taken back
+const SLOT_HISTORY = 4;
+
+function keepForUndo(slot) {
+    if (!slot.audioBuffer) return;
+    slot.history.push({ audioBuffer: slot.audioBuffer, loopSamples: slot.loopSamples });
+    if (slot.history.length > SLOT_HISTORY) slot.history.shift();
+}
+
+function setSlotAudio(key, buffer, loopSamples) {
+    const slot = loopSlots[key];
+    keepForUndo(slot);
+    slot.audioBuffer = buffer;
+    slot.loopSamples = loopSamples;
+    slot.duration = loopSamples / audioContext.sampleRate;
+    if (slot.playback) swapSlotPlayback(key);
+    updateSlotUI();
+}
+
+// 16-bit WAV of the loop, with the master's ceiling so peaks round off the way they did when heard
+function slotWav(slot) {
+    const length = slot.loopSamples || slot.audioBuffer.length;
+    const rate = slot.audioBuffer.sampleRate;
+    const bytes = new DataView(new ArrayBuffer(44 + length * 4));
+    const text = (o, t) => { for (let i = 0; i < t.length; i++) bytes.setUint8(o + i, t.charCodeAt(i)); };
+    text(0, 'RIFF'); bytes.setUint32(4, 36 + length * 4, true); text(8, 'WAVE');
+    text(12, 'fmt '); bytes.setUint32(16, 16, true); bytes.setUint16(20, 1, true); bytes.setUint16(22, 2, true);
+    bytes.setUint32(24, rate, true); bytes.setUint32(28, rate * 4, true); bytes.setUint16(32, 4, true); bytes.setUint16(34, 16, true);
+    text(36, 'data'); bytes.setUint32(40, length * 4, true);
+    const knee = LIMITER.CEILING;
+    const round = x => {
+        const over = Math.abs(x) - knee;
+        const y = over > 0 ? Math.sign(x) * (knee + (1 - knee) * Math.tanh(over / (1 - knee))) : x;
+        return Math.max(-32768, Math.min(32767, Math.round(y * 32767)));
+    };
+    const L = slot.audioBuffer.getChannelData(0);
+    const R = slot.audioBuffer.getChannelData(Math.min(1, slot.audioBuffer.numberOfChannels - 1));
+    for (let i = 0; i < length; i++) {
+        bytes.setInt16(44 + i * 4, round(L[i]), true);
+        bytes.setInt16(46 + i * 4, round(R[i]), true);
+    }
+    return new Blob([bytes], { type: 'audio/wav' });
 }
 
 function addPressHandler(element, handler) {
@@ -854,9 +902,19 @@ function initSystem() {
         const ceiling = audioContext.createWaveShaper();
         ceiling.curve = createCeilingCurve(LIMITER.CEILING);
 
-        masterGain.connect(delayIn);
-        masterGain.connect(reverbLowCut);
-        masterGain.connect(filterNode);
+        // Distortion, crush and chorus sit in series, each a crossfade from dry to processed, so turning one up
+        // changes the sound instead of piling a copy on top of it. Delay and reverb take what comes out of them
+        const insertDistortion = makeInsert();
+        const insertCrush = makeInsert();
+        const insertChorus = makeInsert();
+        masterGain.connect(insertDistortion.input);
+        insertDistortion.output.connect(insertCrush.input);
+        insertCrush.output.connect(insertChorus.input);
+        const fxOut = insertChorus.output;
+
+        fxOut.connect(delayIn);
+        fxOut.connect(reverbLowCut);
+        fxOut.connect(filterNode);
         delayMix.connect(filterNode);
         reverbMix.connect(filterNode);
         filterNode.connect(limiter);
@@ -865,51 +923,39 @@ function initSystem() {
         ceiling.connect(analyser);
         analyser.connect(audioContext.destination);
 
-        // Recorded loops already carry the FX and master level, so they join after the FX chain, still under the limiter
+        // Loops are recorded before the limiter and play back into it, so they meet everything else there once
         loopBus = audioContext.createGain();
         loopBus.connect(limiter);
 
-        // Distortion
         const distortionNode = audioContext.createWaveShaper();
         distortionNode.curve = makeDistortionCurve(0);
         distortionNode.oversample = '4x';
-        const distortionMix = audioContext.createGain();
-        distortionMix.gain.value = 0;
+        insertDistortion.input.connect(distortionNode);
+        distortionNode.connect(insertDistortion.wet);
 
-        masterGain.connect(distortionNode);
-        distortionNode.connect(distortionMix);
-        distortionMix.connect(filterNode);
-
-        // Bitcrusher - try AudioWorklet first, fallback to ScriptProcessor
+        // Bitcrusher - try AudioWorklet first, fallback to ScriptProcessor; until it's ready the insert stays dry
         let crushAmount = 0;
         let bitcrusherNode;
-        const bitcrusherMix = audioContext.createGain();
-        bitcrusherMix.gain.value = 0;
 
-        // Async setup for AudioWorklet with fallback
         async function setupBitcrusher() {
             if (audioContext.audioWorklet) {
                 try {
                     await audioContext.audioWorklet.addModule('bitcrusher-processor.js');
-                    bitcrusherNode = new AudioWorkletNode(audioContext, 'bitcrusher-processor');
+                    bitcrusherNode = new AudioWorkletNode(audioContext, 'bitcrusher-processor', { outputChannelCount: [2] });
 
                     window.setCrushAmount = (val) => {
                         crushAmount = val;
                         bitcrusherNode.port.postMessage({ crushAmount: val });
                     };
 
-                    masterGain.connect(bitcrusherNode);
-                    bitcrusherNode.connect(bitcrusherMix);
-                    bitcrusherMix.connect(filterNode);
-
-                    console.log('Bitcrusher: using AudioWorklet');
+                    insertCrush.input.connect(bitcrusherNode);
+                    bitcrusherNode.connect(insertCrush.wet);
                     return;
                 } catch (e) {
                     console.warn('AudioWorklet failed, falling back to ScriptProcessor:', e);
                 }
             }
 
-            // Fallback to ScriptProcessorNode
             bitcrusherNode = audioContext.createScriptProcessor(4096, 1, 1);
             let crushPhase = 0;
             let crushHeld = 0;
@@ -934,17 +980,11 @@ function initSystem() {
 
             window.setCrushAmount = (val) => { crushAmount = val; };
 
-            masterGain.connect(bitcrusherNode);
-            bitcrusherNode.connect(bitcrusherMix);
-            bitcrusherMix.connect(filterNode);
-
-            console.log('Bitcrusher: using ScriptProcessor (fallback)');
+            insertCrush.input.connect(bitcrusherNode);
+            bitcrusherNode.connect(insertCrush.wet);
         }
 
-        // Start async setup (connects when ready)
         const bitcrusherReady = setupBitcrusher();
-
-        window.bitcrusherMix = bitcrusherMix;
 
         // Karplus-Strong worklet registration
         window.karplusStrongReady = false;
@@ -954,13 +994,13 @@ function initSystem() {
             }).catch(() => {})
             : Promise.resolve();
 
-        // Drum engine worklet registration
+        // Drum engine worklet registration: stereo, each voice in its own place
         window.drumEngineReady = false;
         const drumEngineLoaded = (async () => {
             if (!audioContext.audioWorklet) return;
             try {
                 await audioContext.audioWorklet.addModule('drum-engine-processor.js');
-                const drumEngine = new AudioWorkletNode(audioContext, 'drum-engine-processor');
+                const drumEngine = new AudioWorkletNode(audioContext, 'drum-engine-processor', { outputChannelCount: [2] });
                 drumEngine.connect(masterGain);
                 window.drumEngine = drumEngine;
                 window.drumEngineReady = true;
@@ -970,38 +1010,59 @@ function initSystem() {
             }
         })();
 
-        audioReady = Promise.all([bitcrusherReady, karplusReady, drumEngineLoaded]).then(() => {
+        // The looper's recorder listens before the limiter; without AudioWorklet loops keep only their events
+        const recorderLoaded = (async () => {
+            if (!audioContext.audioWorklet) return;
+            try {
+                await audioContext.audioWorklet.addModule('recorder-processor.js');
+                recorder = new AudioWorkletNode(audioContext, 'recorder-processor', { numberOfOutputs: 0 });
+                recorder.port.onmessage = onRecorderMessage;
+                filterNode.connect(recorder);
+            } catch (e) {
+                console.warn('Recorder worklet failed, loops keep their events only:', e);
+                recorder = null;
+            }
+        })();
+
+        audioReady = Promise.all([bitcrusherReady, karplusReady, drumEngineLoaded, recorderLoaded]).then(() => {
             audioLoaded = true;
             applySliders();
         });
 
-        // Chorus effect using modulated delay
-        const chorusDelay = audioContext.createDelay();
-        chorusDelay.delayTime.value = 0.03; // 30ms base delay
+        // Chorus: two delay lines swept in opposite directions, one on each side
+        const chorusDelayL = audioContext.createDelay(0.1);
+        const chorusDelayR = audioContext.createDelay(0.1);
+        chorusDelayL.delayTime.value = 0.025;
+        chorusDelayR.delayTime.value = 0.032;
         const chorusLFO = audioContext.createOscillator();
         const chorusLFOGain = audioContext.createGain();
-        const chorusMix = audioContext.createGain();
-
+        const chorusInvert = audioContext.createGain();
+        const chorusSides = audioContext.createChannelMerger(2);
         chorusLFO.type = 'sine';
-        chorusLFO.frequency.value = 1.5; // 1.5 Hz modulation
-        chorusLFOGain.gain.value = 0.002; // Small modulation depth
-        chorusMix.gain.value = 0;
-
+        chorusLFO.frequency.value = 1.5;
+        chorusLFOGain.gain.value = 0.002;
+        chorusInvert.gain.value = -1;
         chorusLFO.connect(chorusLFOGain);
-        chorusLFOGain.connect(chorusDelay.delayTime);
+        chorusLFOGain.connect(chorusDelayL.delayTime);
+        chorusLFOGain.connect(chorusInvert);
+        chorusInvert.connect(chorusDelayR.delayTime);
         chorusLFO.start();
-
-        masterGain.connect(chorusDelay);
-        chorusDelay.connect(chorusMix);
-        chorusMix.connect(filterNode);
+        insertChorus.input.connect(chorusDelayL);
+        insertChorus.input.connect(chorusDelayR);
+        chorusDelayL.connect(chorusSides, 0, 0);
+        chorusDelayR.connect(chorusSides, 0, 1);
+        chorusSides.connect(insertChorus.wet);
 
         window.delayMix = delayMix;
         window.reverbMix = reverbMix;
         window.filterNode = filterNode;
         window.distortionNode = distortionNode;
-        window.distortionMix = distortionMix;
-        // bitcrusherNode and setCrushAmount are set in setupBitcrusher()
-        window.chorusMix = chorusMix;
+        window.distortionMix = insertDistortion.wet;
+        window.distortionDry = insertDistortion.dry;
+        window.bitcrusherMix = insertCrush.wet;
+        window.bitcrusherDry = insertCrush.dry;
+        window.chorusMix = insertChorus.wet;
+        window.chorusDry = insertChorus.dry;
         window.chorusLFOGain = chorusLFOGain;
 
         mediaStreamDestination = audioContext.createMediaStreamDestination();
@@ -1138,6 +1199,9 @@ function unflash(el, time) {
     });
 }
 
+// where each drum sits, as in drum-engine-processor.js: kick and snare in the middle, the kit spread around them
+const DRUM_PAN = { kick: 0, snare: 0, hihat: 0.35, clap: -0.15, tom1: -0.3, perc: -0.4, cymbal: 0.25, rim: 0.2 };
+
 // how loud a hit is for its velocity; the curve keeps soft hits audible
 function drumLevel(velocity) {
     return 0.15 + 0.85 * Math.pow(velocity, 1.4);
@@ -1174,9 +1238,12 @@ function playDrum(type, skipRecording = false, time, velocity = 1, variant) {
 
     const hitGain = audioContext.createGain();
     hitGain.gain.value = drumLevel(velocity);
-    hitGain.connect(masterGain);
+    const hitPan = audioContext.createStereoPanner();
+    hitPan.pan.value = DRUM_PAN[type] || 0;
+    hitGain.connect(hitPan);
+    hitPan.connect(masterGain);
 
-    const nodes = [hitGain]; // Track all nodes for cleanup
+    const nodes = [hitGain, hitPan]; // Track all nodes for cleanup
     const curves = initSharedCurves(); // Use shared curves
     let maxDuration = 0.5; // Default duration
 
@@ -2136,6 +2203,8 @@ document.getElementById('clearSeq').addEventListener('click', () => {
     updatePatternCount();
 });
 
+let takeId = null;
+
 function startRecording() {
     recordingSlot = activeSlot;
     stopSlot(recordingSlot);
@@ -2145,9 +2214,7 @@ function startRecording() {
     isOverdub = false;
     recordingStart = audioContext.currentTime;
     loopSlots[recordingSlot].loop = [];
-    loopSlots[recordingSlot].loopSamples = 0;
-
-    startMediaRecording();
+    takeId = recordFrom(recordingStart);
 
     document.getElementById('recordBtn').textContent = 'recording...';
     document.getElementById('recordBtn').classList.add('active');
@@ -2157,10 +2224,13 @@ function startRecording() {
 
 function stopRecording() {
     isRecording = false;
-    loopSlots[recordingSlot].loopSamples = Math.round((audioContext.currentTime - recordingStart) * audioContext.sampleRate);
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-    }
+    const key = recordingSlot;
+    const frames = Math.round((audioContext.currentTime - recordingStart) * audioContext.sampleRate);
+    if (!loopSlots[key].audioBuffer) loopSlots[key].loopSamples = frames;
+    recordFor(takeId, frames).then(take => {
+        if (take) setSlotAudio(key, take, take.length);
+    });
+    takeId = null;
     document.getElementById('recordBtn').textContent = 'rec manual';
     document.getElementById('recordBtn').classList.remove('active');
     document.getElementById('recStatus').textContent = 'off';
@@ -2175,8 +2245,7 @@ function startOverdub() {
     recordingStart = now;
     startSlot(recordingSlot, now);
     overdubLength = loopSlots[recordingSlot].playback ? loopSlots[recordingSlot].playback.length : 0;
-
-    startMediaRecording();
+    takeId = recordFrom(now);
 
     document.getElementById('overdubBtn').textContent = 'layering...';
     document.getElementById('overdubBtn').classList.add('active');
@@ -2188,20 +2257,24 @@ function stopOverdub() {
     if (overdubStop) return;
 
     const now = audioContext.currentTime;
-    const recorder = mediaRecorder;
-    let stopAt = now;
-    if (overdubLength > 0) {
-        const cycles = Math.max(1, Math.ceil((now - recordingStart) / overdubLength));
-        stopAt = recordingStart + cycles * overdubLength;
-    }
+    const key = recordingSlot;
+    const slot = loopSlots[key];
+    const under = slot.audioBuffer;
+    const underLength = slot.loopSamples;
+    // the layer closes on the loop boundary, so the take holds whole cycles
+    const cycles = overdubLength > 0 ? Math.max(1, Math.ceil((now - recordingStart) / overdubLength)) : 0;
+    const frames = cycles && underLength ? cycles * underLength : Math.round((now - recordingStart) * audioContext.sampleRate);
+    const stopAt = recordingStart + frames / audioContext.sampleRate;
+
+    recordFor(takeId, frames).then(layer => {
+        if (layer) setSlotAudio(key, addLayerTo(under, underLength, layer), layer.length);
+    });
+    takeId = null;
 
     const finish = () => {
         overdubStop = null;
         isOverdub = false;
-        loopSlots[recordingSlot].loopSamples = Math.round((stopAt - recordingStart) * audioContext.sampleRate);
-        if (recorder && recorder.state !== 'inactive') {
-            recorder.stop();
-        }
+        if (!slot.audioBuffer) slot.loopSamples = frames;
         document.getElementById('overdubBtn').textContent = 'add layer';
         document.getElementById('overdubBtn').classList.remove('active');
         document.getElementById('recStatus').textContent = 'off';
@@ -2212,8 +2285,8 @@ function stopOverdub() {
         return;
     }
 
-    // The layer closes on the loop boundary so the new take keeps whole cycles; the extra time covers the recorder delay that alignLayer trims from the start
-    overdubStop = setTimeout(finish, (stopAt - now + LAYER_SEARCH) * 1000 + 50);
+    // the take ends on its own frame; this only puts the buttons back when it does
+    overdubStop = setTimeout(finish, (stopAt - now) * 1000);
 }
 
 document.getElementById('recordBtn').addEventListener('click', () => {
@@ -2329,8 +2402,8 @@ function clearSlot(key) {
     stopSlot(key);
     const slot = loopSlots[key];
     slot.loop = [];
-    slot.audioBlob = null;
     slot.audioBuffer = null;
+    slot.history = [];
     slot.duration = 0;
     slot.loopSamples = 0;
     if (key === demoSlot) demoSlot = null;
@@ -2367,8 +2440,8 @@ document.getElementById('clearLoopBtn').addEventListener('click', () => {
 });
 
 document.getElementById('downloadBtn').addEventListener('click', () => {
-    const blob = loopSlots[activeSlot].audioBlob;
-    if (!blob) return;
+    if (!loopSlots[activeSlot].audioBuffer) return;
+    const blob = slotWav(loopSlots[activeSlot]);
 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2376,7 +2449,7 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
     a.href = url;
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const tempo = document.getElementById('tempo').value;
-    a.download = `playground-mk1-${activeSlot}-${tempo}bpm-${timestamp}.webm`;
+    a.download = `playground-mk1-${activeSlot}-${tempo}bpm-${timestamp}.wav`;
     document.body.appendChild(a);
     a.click();
 
@@ -2391,7 +2464,7 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
 // Export all non-empty slots
 function exportAllSlots() {
     const slotsWithContent = Object.entries(loopSlots)
-        .filter(([key, slot]) => slot.audioBlob !== null);
+        .filter(([key, slot]) => slot.audioBuffer !== null);
 
     if (slotsWithContent.length === 0) {
         showMessage('no audio to export');
@@ -2403,11 +2476,11 @@ function exportAllSlots() {
 
     slotsWithContent.forEach(([key, slot], index) => {
         setTimeout(() => {
-            const url = URL.createObjectURL(slot.audioBlob);
+            const url = URL.createObjectURL(slotWav(slot));
             const a = document.createElement('a');
             a.style.display = 'none';
             a.href = url;
-            a.download = `playground-mk1-${key}-${tempo}bpm-${timestamp}.webm`;
+            a.download = `playground-mk1-${key}-${tempo}bpm-${timestamp}.wav`;
             document.body.appendChild(a);
             a.click();
 
@@ -2422,6 +2495,21 @@ function exportAllSlots() {
 }
 
 document.getElementById('exportAllBtn').addEventListener('click', exportAllSlots);
+
+// takes the slot back to what it was before its last take or layer
+function undoLayer(key) {
+    const slot = loopSlots[key];
+    const previous = slot.history.pop();
+    if (!previous) return;
+    slot.audioBuffer = previous.audioBuffer;
+    slot.loopSamples = previous.loopSamples;
+    slot.duration = previous.loopSamples / audioContext.sampleRate;
+    if (slot.playback) swapSlotPlayback(key);
+    updateSlotUI();
+    showMessage('layer undone');
+}
+
+document.getElementById('undoLayerBtn').addEventListener('click', () => undoLayer(activeSlot));
 
 document.querySelectorAll('.slot-btn').forEach(btn => {
     btn.addEventListener('click', function() {
@@ -2456,11 +2544,8 @@ function updateSlotUI() {
         }
     });
     
-    if (slot.audioBlob) {
-        document.getElementById('downloadBtn').style.display = 'block';
-    } else {
-        document.getElementById('downloadBtn').style.display = 'none';
-    }
+    document.getElementById('downloadBtn').style.display = slot.audioBuffer ? 'block' : 'none';
+    document.getElementById('undoLayerBtn').style.display = slot.history.length ? 'block' : 'none';
 
     document.getElementById('playLoopBtn').textContent = slot.playback ? 'stop' : 'play';
     document.getElementById('playAllBtn').textContent = Object.values(loopSlots).some(s => s.playback) ? 'stop all' : 'play all';
@@ -2524,33 +2609,19 @@ document.getElementById('filter').addEventListener('input', function() {
 document.getElementById('distort').addEventListener('input', function() {
     const value = parseInt(this.value);
     document.getElementById('distortVal').textContent = value + '%';
-    if (window.distortionNode && window.distortionMix) {
-        // Update distortion curve based on amount (0-100 maps to 0-400 for curve)
-        window.distortionNode.curve = makeDistortionCurve(value * 4);
-        // Mix in the distortion (0% = no effect, 100% = full effect)
-        setParam(window.distortionMix.gain, value / 100);
-    }
+    applyDistortion(value / 100);
 });
 
 document.getElementById('crush').addEventListener('input', function() {
     const value = parseInt(this.value);
     document.getElementById('crushVal').textContent = value;
-    if (window.setCrushAmount && window.bitcrusherMix) {
-        window.setCrushAmount(value);
-        // Mix in the bitcrusher when active, faded so switching it on doesn't click
-        setParam(window.bitcrusherMix.gain, value > 0 ? 1 : 0);
-    }
+    applyCrush(value);
 });
 
 document.getElementById('chorus').addEventListener('input', function() {
     const value = parseInt(this.value);
     document.getElementById('chorusVal').textContent = value + '%';
-    if (window.chorusMix && window.chorusLFOGain) {
-        // Mix in the chorus effect
-        setParam(window.chorusMix.gain, value / 100);
-        // Increase modulation depth with intensity
-        setParam(window.chorusLFOGain.gain, 0.002 + (value / 100) * 0.003);
-    }
+    applyChorus(value / 100);
 });
 
 // Know how
@@ -2883,7 +2954,7 @@ function updatePatternCount() {
 function isSlotFree(key) {
     const slot = loopSlots[key];
     const beingRecorded = (isRecording || isOverdub) && key === recordingSlot;
-    return !slot.audioBlob && !slot.audioBuffer && slot.loop.length === 0 && !beingRecorded;
+    return !slot.audioBuffer && slot.loop.length === 0 && !beingRecorded;
 }
 
 // Kept for n0body, which clicked the old start button to wake the audio engine
@@ -3583,10 +3654,7 @@ window.MK1 = (function() {
 
             setDistortion: function(value) {
                 const v = clamp(value, 0, 1);
-                if (window.distortionNode && window.distortionMix) {
-                    window.distortionNode.curve = makeDistortionCurve(v * 400);
-                    setParam(window.distortionMix.gain, v);
-                }
+                applyDistortion(v);
 
                 // Update UI
                 const slider = document.getElementById('distort');
@@ -3597,10 +3665,7 @@ window.MK1 = (function() {
 
             setChorus: function(value) {
                 const v = clamp(value, 0, 1);
-                if (window.chorusMix && window.chorusLFOGain) {
-                    setParam(window.chorusMix.gain, v);
-                    setParam(window.chorusLFOGain.gain, 0.002 + v * 0.003);
-                }
+                applyChorus(v);
 
                 // Update UI
                 const slider = document.getElementById('chorus');
@@ -3612,10 +3677,7 @@ window.MK1 = (function() {
             setCrush: function(value) {
                 // 0-1 maps to the slider's 0-8: fewer bits and a lower sample rate together
                 const crushVal = Math.round(clamp(value, 0, 1) * 8);
-                if (window.setCrushAmount && window.bitcrusherMix) {
-                    window.setCrushAmount(crushVal);
-                    setParam(window.bitcrusherMix.gain, crushVal > 0 ? 1 : 0);
-                }
+                applyCrush(crushVal);
 
                 // Update UI
                 const slider = document.getElementById('crush');
@@ -3852,8 +3914,8 @@ window.MK1 = (function() {
                         reverb: window.reverbMix?.gain.value || 0,
                         delay: window.delayMix?.gain.value || 0,
                         filter: window.filterNode?.frequency.value || 10000,
-                        distortion: window.distortionMix?.gain.value || 0,
-                        chorus: window.chorusMix?.gain.value || 0
+                        distortion: (window.distortionMix?.gain.value || 0) / DISTORTION_MAKEUP,
+                        chorus: (window.chorusMix?.gain.value || 0) / 0.6
                     },
                     swing: swing,
                     sequencer: JSON.parse(JSON.stringify(sequencerSteps)),

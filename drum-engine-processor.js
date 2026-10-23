@@ -108,9 +108,18 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         this.qOpen = new Uint8Array(this.qMax);
         this.qLen = 0;
 
-        // Each voice renders into the scratch, then joins the mix at the level of its last hit
+        // Each voice renders into the scratch, then joins the mix at the level of its last hit and in its place:
+        // kick and snare in the middle, the rest spread like a kit seen from the front. Equal power, unity at centre
         this.level = new Float32Array(8).fill(1);
         this.scratch = new Float32Array(4096);
+        const pan = [0, 0, 0.35, -0.15, -0.3, -0.4, 0.25, 0.2];
+        this.panL = new Float32Array(8);
+        this.panR = new Float32Array(8);
+        for (let v = 0; v < 8; v++) {
+            const angle = (pan[v] + 1) * Math.PI / 4;
+            this.panL[v] = Math.cos(angle) * Math.SQRT2;
+            this.panR[v] = Math.sin(angle) * Math.SQRT2;
+        }
 
         this.port.onmessage = (e) => {
             const d = e.data;
@@ -147,12 +156,21 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         return 0.15 + 0.85 * Math.pow(velocity, 1.4);
     }
 
-    _mix(v, out, o, n) {
+    _mix(v, outL, outR, o, n) {
         const s = this.scratch;
         for (let i = 0; i < n; i++) s[i] = 0;
         this._render(v, s, 0, n);
-        const g = this.level[v];
-        for (let i = 0; i < n; i++) out[o + i] += s[i] * g;
+        if (outL === outR) {
+            const g = this.level[v];
+            for (let i = 0; i < n; i++) outL[o + i] += s[i] * g;
+            return;
+        }
+        const gL = this.level[v] * this.panL[v];
+        const gR = this.level[v] * this.panR[v];
+        for (let i = 0; i < n; i++) {
+            outL[o + i] += s[i] * gL;
+            outR[o + i] += s[i] * gR;
+        }
     }
 
     _render(v, out, o, n) {
@@ -844,9 +862,12 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
     process(inputs, outputs) {
         const out = outputs[0][0];
         if (!out) return true;
+        // a mono output (an older page that didn't ask for two channels) gets both sides summed into one
+        const outR = outputs[0][1] || out;
         const n = out.length;
 
         for (let i = 0; i < n; i++) out[i] = 0;
+        if (outR !== out) for (let i = 0; i < n; i++) outR[i] = 0;
 
         for (let v = 0; v < 8; v++) {
             const voice = this.voices[v];
@@ -854,18 +875,13 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
             for (let q = this._nextDue(v, n); q >= 0; q = this._nextDue(v, n)) {
                 let at = this.qFrame[q] - currentFrame;
                 if (at < pos) at = pos;
-                if (at > pos && voice.on) this._mix(v, out, pos, at - pos);
+                if (at > pos && voice.on) this._mix(v, out, outR, pos, at - pos);
                 this._trig(this.keys[v], this.qOpen[q] === 1);
                 this.level[v] = this._level(this.qVel[q]);
                 this._dequeue(q);
                 pos = at;
             }
-            if (voice.on && pos < n) this._mix(v, out, pos, n - pos);
-        }
-
-        // Copy mono to remaining channels
-        for (let c = 1; c < outputs[0].length; c++) {
-            outputs[0][c].set(out);
+            if (voice.on && pos < n) this._mix(v, out, outR, pos, n - pos);
         }
 
         return true;

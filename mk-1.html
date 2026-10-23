@@ -60,7 +60,7 @@
                     <li><kbd data-keys="black">w e t y u</kbd> black keys · hold for as long as the note lasts</li>
                     <li><kbd>← →</kbd> octave down, up</li>
                     <li><kbd>space</kbd> play the pattern and record into the slot · again to stop</li>
-                    <li><kbd>r</kbd> rec manual · <kbd>o</kbd> add layer</li>
+                    <li><kbd>r</kbd> rec manual · <kbd>o</kbd> add layer · undo layer takes the last one back</li>
                     <li><kbd>p</kbd> play · <kbd>l</kbd> play all</li>
                     <li><kbd data-keys="slots">q z b n</kbd> <span data-keys="slot-names">slots a b c d</span></li>
                     <li><kbd>c</kbd> clear slot · <kbd>x</kbd> clear pattern</li>
@@ -317,6 +317,7 @@
                         <button class="btn-secondary" id="playLoopBtn">play</button>
                         <button class="btn-secondary" id="playAllBtn">play all</button>
                         <button class="btn-secondary" id="clearLoopBtn">clear</button>
+                        <button class="btn-secondary" id="undoLayerBtn" style="display: none;">undo layer</button>
                         <button class="btn" id="downloadBtn" style="display: none;">download</button>
                         <button class="btn-secondary" id="exportAllBtn">export all</button>
                     </div>
