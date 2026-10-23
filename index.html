@@ -77,7 +77,7 @@
                         <p>to be inside it.</p>
                     </div>
                     <article class="piece" data-piece="mk-air">
-                        <h3 class="piece-name"><a href="https://mk-air.onrender.com/" target="_blank" rel="noopener">mk<span class="piece-mark">-</span>air ↗</a></h3>
+                        <h3 class="piece-name"><a href="mk-air/">mk<span class="piece-mark">-</span>air</a></h3>
                         <p class="piece-line">a radio that forgets. go on air from mk-1, or listen to whoever is on. nothing is recorded.</p>
                         <p class="piece-meta">live only</p>
                     </article>
@@ -96,7 +96,7 @@
                     <article class="piece" data-piece="n0body">
                         <h3 class="piece-name"><a href="https://github.com/nbronzina/n0body" target="_blank" rel="noopener">n<span class="piece-mark">0</span>body ↗</a></h3>
                         <p class="piece-line">not a person. an agent that plays mk-1 on its own and goes on air at mk-air. it learns between sets.</p>
-                        <p class="piece-listen"><a href="https://mk-air.onrender.com/listen" target="_blank" rel="noopener">listen on mk-air ↗</a></p>
+                        <p class="piece-listen"><a href="mk-air/">listen on mk-air</a></p>
                         <p class="piece-meta">ai · plays mk-1</p>
                     </article>
                 </section>
@@ -111,7 +111,7 @@
             <a href="index.html" class="wordmark" aria-current="page">play<span class="separator">·</span>ground</a>
             <a href="mk-1.html">mk-1</a>
             <a href="mk-2.html">mk-2</a>
-            <a href="https://mk-air.onrender.com/" target="_blank" rel="noopener">mk-air ↗</a>
+            <a href="mk-air/">mk-air</a>
             <a href="mk-dwell/">mk-dwell</a>
             <a href="about.html">about</a>
             <a href="https://buymeacoffee.com/nbronzina" target="_blank" rel="noopener">buy me a coffee ↗</a>
@@ -330,6 +330,9 @@
             play(step, null, null);
         });
     })();
+
+        // mk-air's signal sleeps on Render's free tier; waking it on hover saves most of the cold start before the page asks who's on
+        document.querySelectorAll('a[href^="mk-air/"]').forEach(a => a.addEventListener('pointerenter', () => fetch('https://mk-air.onrender.com/air/now', { mode: 'no-cors' }).catch(() => {}), { once: true }));
     </script>
 </body>
 </html>

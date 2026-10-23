@@ -76,6 +76,43 @@ body {
 .header-btn[aria-expanded="true"] { background: var(--mk2-accent); color: var(--active-text); border-color: var(--mk2-accent); }
 .header-btn:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
 
+/* === ON AIR === */
+/* the lamp borrows mk-air's red: on this page it only ever means the master is going out */
+.header-actions { align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.air {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: .5rem;
+    font-size: var(--mk2-fs-label);
+    letter-spacing: .05em;
+}
+.air [hidden],
+.air-msg:empty { display: none; }
+.air-lamp {
+    display: inline-flex;
+    align-items: center;
+    padding: .5rem .8rem;
+    border: 1px solid var(--accent-air);
+    background: var(--accent-air);
+    color: var(--bg-primary);
+    font-weight: 600;
+    line-height: normal;
+    box-shadow: 0 0 14px rgba(255, 90, 74, .45);
+}
+.air[data-state="hold"] .air-lamp {
+    background: transparent;
+    color: var(--accent-air);
+    box-shadow: none;
+    animation: air-hold 1.4s steps(1) infinite;
+}
+@keyframes air-hold { 50% { border-color: var(--border-secondary); } }
+.air-time { font-variant-numeric: tabular-nums; font-weight: 500; }
+.air-time:not([hidden]) + .air-msg:not(:empty)::before { content: "\00b7"; margin-right: .5rem; }
+.air-end.armed,
+.air-end.armed:hover { background: transparent; border-color: var(--accent-air); color: var(--accent-air); }
+
 /* === KNOW HOW PANEL === */
 .knowhow-panel {
     position: absolute;
@@ -562,6 +599,15 @@ body {
 
 /* === RESPONSIVE === */
 @media (max-width: 1000px) {
+    /* on air gets its own row under the wordmark; know how stays up top */
+    .header { gap: .6rem .5rem; }
+    .header-actions { display: contents; }
+    .air { order: 1; margin-left: auto; }
+    #knowHow { order: 2; }
+    .air:not([data-state="off"]),
+    .air:has(.air-msg:not(:empty)) { order: 3; flex: 1 0 100%; justify-content: flex-start; margin-left: 0; }
+    .air:not([data-state="off"]) ~ #knowHow,
+    .air:has(.air-msg:not(:empty)) ~ #knowHow { margin-left: auto; }
     .rig { grid-template-columns: 1fr; }
     .deck-toggle { display: flex; }
     .deck[data-id="B"] { display: none; }
@@ -582,10 +628,11 @@ body {
         --mk2-btn-s: 40px;
         --mk2-fader: 40px;
     }
-    .header-btn { min-height: 40px; }
+    .header-btn, .air-lamp { min-height: 40px; }
     .track { padding: 11px 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
+    .air[data-state="hold"] .air-lamp { animation: none; }
 }

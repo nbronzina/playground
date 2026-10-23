@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en" data-piece="mk-air">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>mk-air · a radio that forgets · play·ground</title>
+    <meta name="description" content="a radio that forgets. go on air from the browser with your mic, from mk-1 or mk-2, or listen to whoever is on. live only, nothing kept on a server. part of playground.">
+    <meta name="author" content="nicolás bronzina">
+    <link rel="canonical" href="https://nbronzina.github.io/playground/mk-air/">
+
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="color-scheme" content="dark">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' font-weight='600' text-anchor='middle' fill='%23fff'%3Epg%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%230a0a0a'/%3E%3Ctext x='90' y='120' font-family='monospace' font-size='80' font-weight='600' text-anchor='middle' fill='%23fff'%3Epg%3C/text%3E%3C/svg%3E">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="play·ground">
+    <meta property="og:url" content="https://nbronzina.github.io/playground/mk-air/">
+    <meta property="og:title" content="mk-air · a radio that forgets · play·ground">
+    <meta property="og:description" content="a radio that forgets. go on air, or listen to whoever is on. nothing kept.">
+    <meta property="og:image" content="https://nbronzina.github.io/playground/og/mk-air.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="mk-air, a radio that forgets: the on air lamp lit over a live broadcast">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://nbronzina.github.io/playground/mk-air/">
+    <meta name="twitter:title" content="mk-air · a radio that forgets · play·ground">
+    <meta name="twitter:description" content="a radio that forgets. go on air, or listen to whoever is on. nothing kept.">
+    <meta name="twitter:image" content="https://nbronzina.github.io/playground/og/mk-air.png">
+    <meta name="twitter:image:alt" content="mk-air, a radio that forgets: the on air lamp lit over a live broadcast">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+    <link rel="stylesheet" href="../playground-core.css">
+    <link rel="stylesheet" href="css/air.css">
+</head>
+<body>
+    <div class="screen">
+    <header class="header">
+        <h1 class="brand wordmark"><a href="../index.html">play<span class="separator">·</span>ground</a> mk-air</h1>
+        <div class="header-actions">
+            <button id="knowHow" class="header-btn" type="button" aria-expanded="false" aria-controls="knowHowPanel">know how</button>
+        </div>
+        <div class="knowhow-panel" id="knowHowPanel" role="region" aria-labelledby="knowHow" tabindex="-1" hidden>
+            <section class="knowhow-section knowhow-play">
+                <h2>play</h2>
+                <p><em>listen</em> pick who's on, then listen</p>
+                <p><em>go on air</em> a name if you want, then go on air · the browser asks for the mic · share the link</p>
+                <p><em>off air</em> press it twice</p>
+                <p><em>mk-1</em> and <em>mk-2</em> go on air from their own on air button</p>
+                <p><em>esc</em> closes this</p>
+            </section>
+            <section class="knowhow-section">
+                <h2>sound</h2>
+                <p>it goes browser to browser while you're on air, stereo at 128 kbps. when a network won't let it through, the radio relays it at 48 kbps. nothing is recorded. nothing kept on a server.</p>
+                <p>being on air is public: you show up in on air now, and anyone with the link can listen.</p>
+            </section>
+            <section class="knowhow-section">
+                <h2>who</h2>
+                <p>anyone. <a href="https://github.com/nbronzina/n0body" target="_blank" rel="noopener">n0body ↗</a>, an agent that plays <span class="nowrap">mk-1</span>, goes on air here.</p>
+                <p>by <a href="https://nicolasbronzina.com" target="_blank" rel="noopener">nicolás bronzina ↗</a> · <a href="https://github.com/nbronzina/playground" target="_blank" rel="noopener">code on github ↗</a></p>
+            </section>
+            <section class="knowhow-section">
+                <h2>support</h2>
+                <p>free · <a href="https://buymeacoffee.com/nbronzina" target="_blank" rel="noopener">buy me a coffee ↗</a></p>
+            </section>
+        </div>
+    </header>
+
+    <main class="air" id="air" data-view="home">
+        <div class="home" id="home">
+            <div class="intro">
+                <span class="lamp lamp-big" id="homeLamp" data-state="off"><span class="lamp-text">off air</span></span>
+                <p class="intro-line">a radio that forgets.</p>
+            </div>
+
+            <div class="cols">
+            <section class="panel now" aria-labelledby="nowTitle">
+                <div class="panel-head">
+                    <h2 id="nowTitle">on air now</h2>
+                    <span class="now-count" id="nowCount"></span>
+                </div>
+                <ul class="now-list" id="nowList"></ul>
+                <p class="now-empty" id="nowEmpty" hidden>nobody is on air. go on air from <a href="../mk-1.html">mk-1</a> or <a href="../mk-2.html">mk-2</a>, or with your mic</p>
+                <div class="note" id="nowNote" aria-live="polite">
+                    <p class="note-text" id="nowStatus"></p>
+                    <button class="btn-line" id="nowRetry" type="button" hidden>try again</button>
+                </div>
+            </section>
+
+            <section class="panel go" id="go" aria-labelledby="goTitle">
+                <div class="panel-head">
+                    <h2 id="goTitle">go on air</h2>
+                </div>
+                <label class="field-label" for="airName">name</label>
+                <input class="field" id="airName" type="text" maxlength="40" autocomplete="off" spellcheck="false" placeholder="optional">
+                <button class="btn-air" id="goBtn" type="button">go on air</button>
+                <p class="go-meta">with your mic. public: it shows up in on air now.</p>
+                <p class="go-status" id="goStatus" aria-live="polite"></p>
+            </section>
+            </div>
+        </div>
+
+        <section class="booth" id="booth" aria-labelledby="boothName" hidden>
+            <span class="lamp lamp-big" id="lamp" data-state="off"><span class="lamp-text" id="lampText">off air</span></span>
+            <p class="clock" id="clock"><span class="vh">on air for </span><span id="clockTime">0:00</span></p>
+            <h2 class="booth-name" id="boothName"></h2>
+            <p class="booth-meta" id="boothMeta"></p>
+            <canvas class="vu" id="vu" aria-hidden="true"></canvas>
+            <p class="booth-status" id="boothStatus" aria-live="polite"></p>
+
+            <div class="booth-actions" id="listenActions" hidden>
+                <button class="btn-air btn-play" id="playBtn" type="button"><span aria-hidden="true">▶</span> listen</button>
+                <a class="btn-line" id="leaveBtn" href="./" hidden>leave</a>
+            </div>
+
+            <div class="share" id="share" hidden>
+                <p class="share-label" id="shareLabel">the link</p>
+                <p class="share-url" id="shareUrl" aria-labelledby="shareLabel"></p>
+                <div class="share-actions">
+                    <button class="btn-line" id="copyBtn" type="button">copy</button>
+                    <button class="btn-line btn-off" id="offBtn" type="button">off air</button>
+                </div>
+            </div>
+
+            <div class="after" id="after" hidden>
+                <a class="btn-line" id="afterNow" href="./">who's on now</a>
+                <a class="btn-line" id="afterGo" href="./#go">go on air</a>
+                <button class="btn-line" id="afterRetry" type="button" hidden>try again</button>
+            </div>
+        </section>
+    </main>
+
+    <canvas class="wave" id="wave" aria-hidden="true"></canvas>
+    </div>
+
+    <footer class="pg-footer">
+        <nav class="pg-footer-nav" aria-label="play·ground">
+            <a href="../index.html" class="wordmark">play<span class="separator">·</span>ground</a>
+            <a href="../mk-1.html">mk-1</a>
+            <a href="../mk-2.html">mk-2</a>
+            <a href="../mk-air/" aria-current="page">mk-air</a>
+            <a href="../mk-dwell/">mk-dwell</a>
+            <a href="../about.html">about</a>
+            <a href="https://buymeacoffee.com/nbronzina" target="_blank" rel="noopener">buy me a coffee ↗</a>
+        </nav>
+        <p class="pg-footer-credit">designed, coded &amp; built by <a href="https://nicolasbronzina.com" target="_blank" rel="noopener">nicolás bronzina ↗</a></p>
+    </footer>
+
+    <audio id="out" autoplay></audio>
+
+    <script src="../air-client.js"></script>
+    <script src="js/air.js"></script>
+</body>
+</html>

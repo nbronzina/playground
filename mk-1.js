@@ -2635,6 +2635,210 @@ function isSlotFree(key) {
 // Kept for n0body, which clicked the old start button to wake the audio engine
 document.getElementById('initBtn').addEventListener('click', () => initSystem());
 
+// ============================================
+// ON AIR
+// ============================================
+// What goes out is the stream the looper records: the master after the limiter and the ceiling, nothing else
+const airBtn = document.getElementById('airBtn');
+const airClock = document.getElementById('airClock');
+const airStatus = document.getElementById('airStatus');
+const airLink = document.getElementById('airLink');
+const airUrl = document.getElementById('airUrl');
+const airCopy = document.getElementById('airCopy');
+const airEnd = document.getElementById('airEnd');
+
+let air = null;
+let airWait = null;
+let airClockId = null;
+let airNoteId = null;
+let airCopyId = null;
+let airArmed = null;
+
+const AIR_ENDS = {
+    end: 'off air. nothing kept.',
+    lost: 'the line was down too long. off air.',
+    replaced: 'it went on from another window.',
+    server: 'the radio closed it.',
+    full: 'the radio is full. try again later.',
+    refused: "this page can't reach the radio.",
+    unreachable: "the radio isn't answering. try again in a minute."
+};
+
+function airTime(since) {
+    const s = Math.max(0, Math.floor((Date.now() - since) / 1000));
+    const pad = n => (n < 10 ? '0' : '') + n;
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return h ? h + ':' + pad(m) + ':' + pad(s % 60) : m + ':' + pad(s % 60);
+}
+
+function airNote(text, ms) {
+    clearTimeout(airNoteId);
+    airStatus.textContent = text;
+    if (ms) airNoteId = setTimeout(() => { airStatus.textContent = ''; }, ms);
+}
+
+function airListening(n) {
+    airNote(n ? n + ' listening' : 'nobody listening yet');
+}
+
+// off · busy (connecting, waking) · on · hold (the line dropped, the room waits)
+function airShow(state) {
+    const live = state === 'on' || state === 'hold';
+    airBtn.dataset.state = state;
+    airBtn.setAttribute('aria-pressed', state === 'off' ? 'false' : 'true');
+    airClock.hidden = !live;
+    airLink.hidden = !live;
+    airEnd.hidden = !live;
+    clearInterval(airClockId);
+    if (live && air && air.since) {
+        const since = air.since;
+        airClock.textContent = airTime(since);
+        airClockId = setInterval(() => { airClock.textContent = airTime(since); }, 1000);
+    }
+}
+
+function airFailure(code) {
+    return Object.assign(new Error(code), { code });
+}
+
+function airStart(opts) {
+    const o = opts || {};
+    if (air) return air.id ? Promise.resolve({ id: air.id, link: air.link }) : airWait;
+    if (!window.PGAir) {
+        airNote("the radio didn't load. reload the page.");
+        return Promise.reject(airFailure('unreachable'));
+    }
+
+    initSystem();
+    let session;
+    try {
+        session = PGAir.goLive({
+            stream: mediaStreamDestination.stream,
+            name: typeof o.name === 'string' ? o.name : '',
+            from: typeof o.from === 'string' && o.from ? o.from : 'mk-1'
+        });
+    } catch (e) {
+        airNote("the radio didn't load. reload the page.");
+        return Promise.reject(airFailure('unreachable'));
+    }
+    air = session;
+    airShow('busy');
+    airNote('going on air…');
+
+    airWait = new Promise((resolve, reject) => {
+        session.on('live', e => resolve({ id: e.id, link: e.link }));
+        session.on('ended', e => { if (!session.id) reject(airFailure(e.reason)); });
+    });
+    // the header tells what happened; a caller that doesn't wait shouldn't get an unhandled rejection
+    airWait.catch(() => {});
+
+    session.on('waking', () => airNote('waking the radio… up to a minute'));
+    session.on('live', e => {
+        airUrl.textContent = 'mk-air/?r=' + e.id;
+        airShow('on');
+        airListening(session.listeners);
+    });
+    session.on('count', e => { if (session.state === 'live') airListening(e.listeners); });
+    session.on('reconnecting', () => {
+        airShow('hold');
+        airNote('the line dropped. reconnecting…');
+    });
+    session.on('resumed', () => {
+        airShow('on');
+        airListening(session.listeners);
+    });
+    session.on('ended', e => {
+        if (air !== session) return;
+        air = null;
+        airWait = null;
+        airDisarm();
+        airShow('off');
+        if (e.reason === 'end') airNote(session.id ? AIR_ENDS.end : 'off air.', 4000);
+        else airNote(AIR_ENDS[e.reason] || AIR_ENDS.unreachable);
+    });
+
+    return airWait;
+}
+
+function airStop() {
+    if (air) air.end();
+}
+
+function airDisarm() {
+    clearTimeout(airArmed);
+    airArmed = null;
+    airEnd.textContent = 'end';
+    airEnd.classList.remove('armed');
+}
+
+// two presses, no dialog: a stray click shouldn't cut a set. Before going live there is nothing to cut
+function airAskEnd() {
+    if (!air) return;
+    if (!air.id) return airStop();
+    if (!airArmed) {
+        airEnd.textContent = 'end? press again';
+        airEnd.classList.add('armed');
+        airArmed = setTimeout(airDisarm, 3000);
+        return;
+    }
+    airDisarm();
+    airStop();
+}
+
+function airState() {
+    if (!air) return { state: 'off', id: null, link: null, listeners: 0 };
+    return { state: air.state, id: air.id, link: air.link, listeners: air.listeners };
+}
+
+async function airCopyLink() {
+    if (!air || !air.link) return;
+    const link = air.link;
+    let copied = false;
+    try {
+        await navigator.clipboard.writeText(link);
+        copied = true;
+    } catch (e) {
+        const field = document.createElement('textarea');
+        field.value = link;
+        field.setAttribute('readonly', '');
+        field.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+        document.body.appendChild(field);
+        field.select();
+        try { copied = document.execCommand('copy'); } catch (err) { copied = false; }
+        field.remove();
+    }
+    if (!copied) {
+        // nothing to copy with: the whole link, selected, for ctrl+c
+        airNote(link);
+        const range = document.createRange();
+        range.selectNodeContents(airStatus);
+        getSelection().removeAllRanges();
+        getSelection().addRange(range);
+    }
+    airCopy.textContent = copied ? 'copied' : 'selected';
+    clearTimeout(airCopyId);
+    airCopyId = setTimeout(() => { airCopy.textContent = 'copy'; }, 2000);
+}
+
+airBtn.addEventListener('click', () => {
+    if (air) airAskEnd();
+    else airStart();
+});
+airEnd.addEventListener('click', airAskEnd);
+airLink.addEventListener('click', airCopyLink);
+
+// mk-air's signaling sleeps on Render's free tier; a hover wakes it before the click lands
+airBtn.addEventListener('pointerenter', () => { if (window.PGAir && !air) PGAir.wake(); }, { once: true });
+
+addEventListener('pagehide', airStop);
+
+// a local test server (?air=) stays on when following a link to mk-air; in production this is a no-op
+if (window.PGAir) document.querySelectorAll('a[href^="mk-air/"]').forEach(a => {
+    const href = PGAir.withServer(a.getAttribute('href'));
+    if (href !== a.href) a.href = href;
+});
+
 document.getElementById('loadDemoBtn').addEventListener('click', () => {
     initSystem();
 
@@ -3306,6 +3510,23 @@ window.MK1 = (function() {
                 status.isRecording = isRecording;
                 status.isOverdub = isOverdub;
                 return status;
+            }
+        },
+
+        // === ON AIR ===
+        air: {
+            // Resolves with { id, link } once the room is live; rejects with err.code ('unreachable', 'refused', 'full', 'end'…)
+            start: function(opts) {
+                return airStart(opts);
+            },
+
+            stop: function() {
+                airStop();
+            },
+
+            // state: 'off' | 'connecting' | 'waking' | 'live' | 'reconnecting'
+            status: function() {
+                return airState();
             }
         },
 
