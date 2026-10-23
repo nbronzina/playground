@@ -57,7 +57,8 @@
                 <ul class="knowhow-keys">
                     <li><kbd>1–8</kbd> drums</li>
                     <li><kbd data-keys="white">a s d f g h j k</kbd> white keys</li>
-                    <li><kbd data-keys="black">w e t y u</kbd> black keys</li>
+                    <li><kbd data-keys="black">w e t y u</kbd> black keys · hold for as long as the note lasts</li>
+                    <li><kbd>← →</kbd> octave down, up</li>
                     <li><kbd>space</kbd> play the pattern and record into the slot · again to stop</li>
                     <li><kbd>r</kbd> rec manual · <kbd>o</kbd> add layer</li>
                     <li><kbd>p</kbd> play · <kbd>l</kbd> play all</li>
@@ -65,6 +66,7 @@
                     <li><kbd>c</kbd> clear slot · <kbd>x</kbd> clear pattern</li>
                     <li><kbd>ctrl+z</kbd> undo · <kbd>ctrl+shift+z</kbd> redo the pattern</li>
                     <li><kbd>m</kbd> mic · the vocoder turns it on with its first note</li>
+                    <li>midi keyboard or pads · how hard you play, the sustain pedal, pitch bend and the mod wheel · channel 10 plays the drums</li>
                     <li><kbd>v</kbd> download · <kbd>shift+e</kbd> export all</li>
                     <li><kbd>?</kbd> know how · <kbd>esc</kbd> close</li>
                     <li>on air · one click and what mk-1 plays goes out live, the mic too if it's on · nothing is recorded · it's public: it shows up on <a href="mk-air/">mk-air</a> and anyone with the link can listen · end twice to stop</li>
@@ -163,8 +165,13 @@
                 </div>
 
                 <div class="module module-pattern">
-                    <div class="module-header">
+                    <div class="module-header module-header-row">
                         <h2 class="module-title">pattern</h2>
+                        <label class="header-control" for="swing">
+                            <span>swing</span>
+                            <input type="range" id="swing" min="0" max="100" value="0">
+                            <span class="control-value" id="swingVal">0%</span>
+                        </label>
                     </div>
                     <div id="sequencer">
                         <div class="seq-row">
@@ -219,8 +226,13 @@
                 </div>
 
                 <div class="module module-keys">
-                    <div class="module-header">
+                    <div class="module-header module-header-row">
                         <h2 class="module-title">keys</h2>
+                        <div class="octave" role="group" aria-label="octave">
+                            <button class="octave-btn" id="octDown" type="button" aria-label="octave down">−</button>
+                            <span class="octave-val" id="octVal" aria-live="polite">c4</span>
+                            <button class="octave-btn" id="octUp" type="button" aria-label="octave up">+</button>
+                        </div>
                     </div>
 
                     <div class="synth-controls">
@@ -355,7 +367,7 @@
                                 <span>filter</span>
                                 <span class="control-value" id="filterVal">10000Hz</span>
                             </div>
-                            <input type="range" id="filter" min="100" max="10000" value="10000">
+                            <input type="range" id="filter" min="0" max="100" value="100">
                         </div>
                         <div class="control-group">
                             <div class="control-label">

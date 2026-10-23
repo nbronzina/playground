@@ -36,6 +36,8 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
 
         this.hihat = {
             on: false, t: 0,
+            // 1 closed, longer when struck open
+            len: 1,
             // 8 oscillator phases and randomized frequencies
             ph: new Float32Array(8),
             fr: new Float32Array(8),
@@ -102,7 +104,13 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         this.qMax = 64;
         this.qVoice = new Int8Array(this.qMax);
         this.qFrame = new Float64Array(this.qMax);
+        this.qVel = new Float32Array(this.qMax);
+        this.qOpen = new Uint8Array(this.qMax);
         this.qLen = 0;
+
+        // Each voice renders into the scratch, then joins the mix at the level of its last hit
+        this.level = new Float32Array(8).fill(1);
+        this.scratch = new Float32Array(4096);
 
         this.port.onmessage = (e) => {
             const d = e.data;
@@ -111,6 +119,8 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
             if (v === undefined || this.qLen >= this.qMax) return;
             this.qVoice[this.qLen] = v;
             this.qFrame[this.qLen] = typeof d.time === 'number' ? Math.round(d.time * sampleRate) : 0;
+            this.qVel[this.qLen] = typeof d.velocity === 'number' ? Math.max(0, Math.min(1, d.velocity)) : 1;
+            this.qOpen[this.qLen] = d.open ? 1 : 0;
             this.qLen++;
         };
     }
@@ -128,6 +138,21 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         this.qLen--;
         this.qVoice[q] = this.qVoice[this.qLen];
         this.qFrame[q] = this.qFrame[this.qLen];
+        this.qVel[q] = this.qVel[this.qLen];
+        this.qOpen[q] = this.qOpen[this.qLen];
+    }
+
+    // the same curve as mk-1.js drumLevel: soft hits stay audible
+    _level(velocity) {
+        return 0.15 + 0.85 * Math.pow(velocity, 1.4);
+    }
+
+    _mix(v, out, o, n) {
+        const s = this.scratch;
+        for (let i = 0; i < n; i++) s[i] = 0;
+        this._render(v, s, 0, n);
+        const g = this.level[v];
+        for (let i = 0; i < n; i++) out[o + i] += s[i] * g;
     }
 
     _render(v, out, o, n) {
@@ -221,13 +246,14 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
 
     // ========= Trigger =========
 
-    _trig(voice) {
+    _trig(voice, open) {
         const key = voice === 'tom1' ? 'tom' : voice;
         const v = this[key];
         if (!v) return;
 
         v.on = true;
         v.t = 0;
+        if (key === 'hihat') v.len = open ? 6 : 1;
 
         switch (key) {
             case 'kick':
@@ -485,14 +511,15 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
     _renderHihat(out, o, n) {
         const h = this.hihat, sr = sampleRate;
         const t0 = h.t / sr;
+        const metal = 0.055 * h.len, noiseEnv = 0.045 * h.len, noiseLen = 0.06 * h.len;
 
-        // --- Metal: 8 square oscs → HP(6000) → gain 0.18→0.001/55ms ---
-        if (t0 < 0.055) {
-            const end = Math.min(n, ((0.055 * sr) | 0) - h.t);
+        // --- Metal: 8 square oscs → HP(6000) → gain 0.18→0.001/55ms (×len open) ---
+        if (t0 < metal) {
+            const end = Math.min(n, ((metal * sr) | 0) - h.t);
             if (end > 0) {
                 const te = (h.t + end) / sr;
-                const g0 = this._ea(0.18, 0.001, t0, 0.055);
-                const g1 = this._ea(0.18, 0.001, te, 0.055);
+                const g0 = this._ea(0.18, 0.001, t0, metal);
+                const g1 = this._ea(0.18, 0.001, te, metal);
                 const gm = this._em(g0, g1, end);
                 let gn = g0;
                 const ph = h.ph, fr = h.fr, og = this.hhOscG;
@@ -508,13 +535,13 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
             }
         }
 
-        // --- Noise: HP(9000) → gain 0.3→0.001/45ms, buffer 60ms ---
-        if (t0 < 0.06) {
-            const end = Math.min(n, ((0.06 * sr) | 0) - h.t);
+        // --- Noise: HP(9000) → gain 0.3→0.001/45ms, buffer 60ms (×len open) ---
+        if (t0 < noiseLen) {
+            const end = Math.min(n, ((noiseLen * sr) | 0) - h.t);
             if (end > 0) {
                 const te = (h.t + end) / sr;
-                const g0 = this._ea(0.3, 0.001, t0, 0.045);
-                const g1 = this._ea(0.3, 0.001, Math.min(te, 0.045), 0.045);
+                const g0 = this._ea(0.3, 0.001, t0, noiseEnv);
+                const g1 = this._ea(0.3, 0.001, Math.min(te, noiseEnv), noiseEnv);
                 const gm = this._em(g0, g1, end);
                 let gn = g0;
                 const nb = this.nBuf, nl = this.nLen;
@@ -529,7 +556,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         }
 
         h.t += n;
-        if (h.t / sr >= 0.1) h.on = false;
+        if (h.t / sr >= 0.1 * h.len) h.on = false;
     }
 
     _renderClap(out, o, n) {
@@ -827,12 +854,13 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
             for (let q = this._nextDue(v, n); q >= 0; q = this._nextDue(v, n)) {
                 let at = this.qFrame[q] - currentFrame;
                 if (at < pos) at = pos;
-                if (at > pos && voice.on) this._render(v, out, pos, at - pos);
-                this._trig(this.keys[v]);
+                if (at > pos && voice.on) this._mix(v, out, pos, at - pos);
+                this._trig(this.keys[v], this.qOpen[q] === 1);
+                this.level[v] = this._level(this.qVel[q]);
                 this._dequeue(q);
                 pos = at;
             }
-            if (voice.on && pos < n) this._render(v, out, pos, n - pos);
+            if (voice.on && pos < n) this._mix(v, out, pos, n - pos);
         }
 
         // Copy mono to remaining channels
