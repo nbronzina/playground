@@ -524,16 +524,22 @@ let demoSlot = null;
 
 let mediaStreamDestination;
 
+// Drum steps are 0 off, 1 on, 2 accent; the keys row holds a MIDI note or null
 let sequencerSteps = {
-    kick: Array(16).fill(false),
-    snare: Array(16).fill(false),
-    hihat: Array(16).fill(false),
-    clap: Array(16).fill(false),
-    tom1: Array(16).fill(false),
-    perc: Array(16).fill(false),
-    cymbal: Array(16).fill(false),
-    rim: Array(16).fill(false)
+    kick: Array(16).fill(0),
+    snare: Array(16).fill(0),
+    hihat: Array(16).fill(0),
+    clap: Array(16).fill(0),
+    tom1: Array(16).fill(0),
+    perc: Array(16).fill(0),
+    cymbal: Array(16).fill(0),
+    rim: Array(16).fill(0),
+    keys: Array(16).fill(null)
 };
+// an accented step hits about 3 dB harder
+const ACCENT = 1.4;
+// the last note played on the keys, keyboard or MIDI: what a tap on the keys row writes
+let lastNote = 60;
 let currentStep = 0;
 let isPlaying = false;
 // 0–1: how far the off-beat 16ths lean back, up to half a step (an MPC's 75%)
@@ -593,16 +599,33 @@ function restoreSequencerState(state) {
     updatePatternCount();
 }
 
+const NOTE_NAMES = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'];
+const noteName = midi => NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1);
+const midiFreq = midi => 440 * Math.pow(2, (midi - 69) / 12);
+const freqMidi = freq => Math.round(69 + 12 * Math.log2(freq / 440));
+
+function paintStep(el, value) {
+    if (el.dataset.drum === 'keys') {
+        el.classList.toggle('active', value !== null && value !== undefined);
+        el.textContent = value === null || value === undefined ? '' : noteName(value);
+        return;
+    }
+    el.classList.toggle('active', !!value);
+    el.classList.toggle('accent', value === 2);
+}
+
 function updateSequencerUI() {
     document.querySelectorAll('.step').forEach(step => {
-        const drum = step.dataset.drum;
-        const index = parseInt(step.dataset.index);
-        if (sequencerSteps[drum][index]) {
-            step.classList.add('active');
-        } else {
-            step.classList.remove('active');
-        }
+        paintStep(step, sequencerSteps[step.dataset.drum][parseInt(step.dataset.index)]);
     });
+}
+
+function clearPattern() {
+    drums.forEach(drum => {
+        sequencerSteps[drum] = Array(16).fill(0);
+    });
+    sequencerSteps.keys = Array(16).fill(null);
+    updateSequencerUI();
 }
 
 const statusMessage = document.getElementById('statusMessage');
@@ -1004,6 +1027,7 @@ function initSystem() {
                 drumEngine.connect(masterGain);
                 window.drumEngine = drumEngine;
                 window.drumEngineReady = true;
+                Object.keys(padSettings).forEach(sendPad);
             } catch(e) {
                 console.warn('Drum engine worklet failed, using fallback:', e);
                 window.drumEngineReady = false;
@@ -2008,9 +2032,50 @@ document.getElementById('micBtn').addEventListener('click', toggleMic);
     });
 });
 
+// Tune and decay act on the last pad played by hand; the engine keeps them per pad
+const padSettings = {};
+['kick', 'snare', 'hihat', 'clap', 'tom1', 'perc', 'cymbal', 'rim'].forEach(d => { padSettings[d] = { tune: 0, decay: 1 }; });
+let selectedPad = 'kick';
+const PAD_NAMES = { kick: 'kick', snare: 'snare', hihat: 'hat', clap: 'clap', tom1: 'tom', perc: 'perc', cymbal: 'cymbal', rim: 'rim' };
+
+function sendPad(drum) {
+    if (window.drumEngine) window.drumEngine.port.postMessage({ type: 'set', voice: drum, tune: padSettings[drum].tune, decay: padSettings[drum].decay });
+}
+
+function showPad() {
+    const settings = padSettings[selectedPad];
+    document.getElementById('padName').textContent = PAD_NAMES[selectedPad];
+    document.getElementById('padTune').value = settings.tune;
+    document.getElementById('padTuneVal').textContent = (settings.tune > 0 ? '+' : '') + settings.tune;
+    document.getElementById('padDecay').value = Math.round(settings.decay * 100);
+    document.getElementById('padDecayVal').textContent = Math.round(settings.decay * 100) + '%';
+    document.querySelectorAll('.pad').forEach(p => p.classList.toggle('selected', p.dataset.sound === selectedPad));
+}
+
+function selectPad(drum) {
+    if (selectedPad === drum) return;
+    selectedPad = drum;
+    showPad();
+}
+
+function setPad(drum, changes) {
+    Object.assign(padSettings[drum], changes);
+    sendPad(drum);
+    if (drum === selectedPad) showPad();
+}
+
+document.getElementById('padTune').addEventListener('input', function() {
+    setPad(selectedPad, { tune: parseInt(this.value, 10) });
+});
+document.getElementById('padDecay').addEventListener('input', function() {
+    setPad(selectedPad, { decay: parseInt(this.value, 10) / 100 });
+});
+showPad();
+
 document.querySelectorAll('.pad').forEach(pad => {
     addPressHandler(pad, function() {
         const sound = this.dataset.sound;
+        selectPad(sound);
         playDrum(sound);
     });
 });
@@ -2023,6 +2088,7 @@ function pressKey(pointerId, key) {
     const held = pointerNotes.get(pointerId);
     if (held && held.key === key) return;
     if (held && held.voice) held.voice.release();
+    if (key) lastNote = freqMidi(keyFreq(key.dataset.note));
     pointerNotes.set(pointerId, { key, voice: key ? playNote(keyFreq(key.dataset.note)) : null });
 }
 
@@ -2062,7 +2128,8 @@ document.getElementById('octUp').addEventListener('click', () => shiftOctave(1))
 
 const drums =['kick', 'snare', 'hihat', 'clap', 'tom1', 'perc', 'cymbal', 'rim'];
 
-drums.forEach(drum => {
+// A drum step goes on, then accented, then off. A keys step takes the last note played; the same note again clears it
+[...drums, 'keys'].forEach(drum => {
     const stepsContainer = document.querySelector(`.seq-steps[data-drum="${drum}"]`);
     for (let i = 0; i < 16; i++) {
         const step = document.createElement('div');
@@ -2070,8 +2137,10 @@ drums.forEach(drum => {
         step.dataset.drum = drum;
         step.dataset.index = i;
         addPressHandler(step, function() {
-            sequencerSteps[drum][i] = !sequencerSteps[drum][i];
-            this.classList.toggle('active');
+            const row = sequencerSteps[drum];
+            if (drum === 'keys') row[i] = row[i] === lastNote ? null : lastNote;
+            else row[i] = !row[i] ? 1 : row[i] === 2 ? 0 : 2;
+            paintStep(this, row[i]);
             saveSequencerState();
             updatePatternCount();
         });
@@ -2119,10 +2188,11 @@ function scheduleSequencer(horizon) {
 
         if (time > audioContext.currentTime - SCHEDULER.LATE) {
             drums.forEach(drum => {
-                if (sequencerSteps[drum][step]) {
-                    playDrum(drum, false, time);
-                }
+                const hit = sequencerSteps[drum][step];
+                if (hit) playDrum(drum, false, time, hit === 2 ? ACCENT : 1);
             });
+            const note = sequencerSteps.keys[step];
+            if (note !== null) playNote(midiFreq(note), { time, hold: stepLength * 0.5 });
 
             const run = seqRun;
             setTimeout(() => {
@@ -2195,10 +2265,7 @@ function stopSequencer(shouldStopRecording = true) {
 }
 
 document.getElementById('clearSeq').addEventListener('click', () => {
-    drums.forEach(drum => {
-        sequencerSteps[drum] = Array(16).fill(false);
-    });
-    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    clearPattern();
     saveSequencerState();
     updatePatternCount();
 });
@@ -2796,8 +2863,10 @@ document.addEventListener('keydown', (e) => {
     if (keyMap[key]) {
         const val = keyMap[key];
         if (drums.includes(val)) {
+            selectPad(val);
             playDrum(val);
         } else if (!keyNotes.has(key)) {
+            lastNote = freqMidi(keyFreq(val));
             keyNotes.set(key, playNote(keyFreq(val)));
         }
         return;
@@ -2943,7 +3012,7 @@ function resizeCanvas() {
 new ResizeObserver(resizeCanvas).observe(canvas);
 
 function updatePatternCount() {
-    let totalActive = 0;
+    let totalActive = sequencerSteps.keys.filter(note => note !== null).length;
     drums.forEach(drum => {
         const activeSteps = sequencerSteps[drum].filter(step => step).length;
         totalActive += activeSteps;
@@ -3169,10 +3238,8 @@ document.getElementById('loadDemoBtn').addEventListener('click', () => {
 
     if (demoSlot) clearSlot(demoSlot);
 
-    drums.forEach(drum => {
-        sequencerSteps[drum] = Array(16).fill(false);
-    });
-    
+    clearPattern();
+
     sequencerSteps.kick[0] = true;
     sequencerSteps.kick[4] = true;
     sequencerSteps.kick[8] = true;
@@ -3231,13 +3298,7 @@ document.getElementById('clearAllBtn').addEventListener('click', () => {
 
     Object.keys(loopSlots).forEach(clearSlot);
 
-    drums.forEach(drum => {
-        sequencerSteps[drum] = Array(16).fill(false);
-    });
-
-    document.querySelectorAll('.step').forEach(step => {
-        step.classList.remove('active');
-    });
+    clearPattern();
 
     if (isPlaying) {
         stopSequencer();
@@ -3322,6 +3383,7 @@ function handleMIDIMessage(event) {
         }
         const previous = midiNotes.get(id);
         if (previous) previous.release();
+        lastNote = data1;
         midiNotes.set(id, playNote(midiNoteToFreq(data1), { velocity }));
         return;
     }
@@ -3460,10 +3522,23 @@ window.MK1 = (function() {
     return {
         // === DRUMS ===
         drums: {
-            hit: function(pad) {
+            // velocity 0-1 is optional; 1 is a full hit, as before
+            hit: function(pad, velocity) {
                 if (!isValidPad(pad)) return;
                 const drumType = drumMap[pad - 1];
-                playDrum(drumType, true); // skipRecording = true for API calls
+                playDrum(drumType, true, undefined, typeof velocity === 'number' ? clamp(velocity, 0, 1) : 1); // skipRecording = true for API calls
+            },
+
+            // semitones, -12 to 12; pitch and length move together, like tape
+            setTune: function(pad, semitones) {
+                if (!isValidPad(pad)) return;
+                setPad(drumMap[pad - 1], { tune: Math.round(clamp(semitones, -12, 12)) });
+            },
+
+            // 0.2-1 of the pad's natural length
+            setDecay: function(pad, value) {
+                if (!isValidPad(pad)) return;
+                setPad(drumMap[pad - 1], { decay: clamp(value, 0.2, 1) });
             }
         },
 
@@ -3532,17 +3607,10 @@ window.MK1 = (function() {
                 const drumType = drumMap[track - 1];
                 const stepIndex = step - 1;
 
-                sequencerSteps[drumType][stepIndex] = !!active;
+                sequencerSteps[drumType][stepIndex] = active ? 1 : 0;
 
-                // Update UI
                 const stepEl = document.querySelector(`.step[data-drum="${drumType}"][data-index="${stepIndex}"]`);
-                if (stepEl) {
-                    if (active) {
-                        stepEl.classList.add('active');
-                    } else {
-                        stepEl.classList.remove('active');
-                    }
-                }
+                if (stepEl) paintStep(stepEl, sequencerSteps[drumType][stepIndex]);
                 updatePatternCount();
             },
 
@@ -3550,27 +3618,48 @@ window.MK1 = (function() {
                 if (!isValidTrack(track) || !isValidStep(step)) return false;
 
                 const drumType = drumMap[track - 1];
-                return sequencerSteps[drumType][step - 1];
+                return !!sequencerSteps[drumType][step - 1];
+            },
+
+            // an accent turns the step on as well
+            setAccent: function(track, step, accent) {
+                if (!isValidTrack(track) || !isValidStep(step)) return;
+                const drumType = drumMap[track - 1];
+                const row = sequencerSteps[drumType];
+                row[step - 1] = accent ? 2 : row[step - 1] ? 1 : 0;
+                const stepEl = document.querySelector(`.step[data-drum="${drumType}"][data-index="${step - 1}"]`);
+                if (stepEl) paintStep(stepEl, row[step - 1]);
+                updatePatternCount();
+            },
+
+            // the keys row: note like 'C4', or null to clear the step
+            setNote: function(step, note) {
+                if (!isValidStep(step)) return;
+                const freq = note ? noteFrequencies[note] : null;
+                if (note && !freq) return;
+                sequencerSteps.keys[step - 1] = freq ? freqMidi(freq) : null;
+                const stepEl = document.querySelector(`.step[data-drum="keys"][data-index="${step - 1}"]`);
+                if (stepEl) paintStep(stepEl, sequencerSteps.keys[step - 1]);
+                updatePatternCount();
+            },
+
+            getNote: function(step) {
+                if (!isValidStep(step)) return null;
+                const midi = sequencerSteps.keys[step - 1];
+                return midi === null ? null : noteName(midi).toUpperCase();
             },
 
             clearTrack: function(track) {
                 if (!isValidTrack(track)) return;
 
                 const drumType = drumMap[track - 1];
-                sequencerSteps[drumType] = Array(16).fill(false);
-
-                // Update UI
-                document.querySelectorAll(`.step[data-drum="${drumType}"]`).forEach(s => {
-                    s.classList.remove('active');
-                });
+                sequencerSteps[drumType] = Array(16).fill(0);
+                updateSequencerUI();
                 updatePatternCount();
             },
 
             clearAll: function() {
-                drums.forEach(drum => {
-                    sequencerSteps[drum] = Array(16).fill(false);
-                });
-                document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+                clearPattern();
                 updatePatternCount();
             },
 

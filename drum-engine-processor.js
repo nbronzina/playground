@@ -112,6 +112,15 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         // kick and snare in the middle, the rest spread like a kit seen from the front. Equal power, unity at centre
         this.level = new Float32Array(8).fill(1);
         this.scratch = new Float32Array(4096);
+
+        // Tune works like tape speed: a voice renders as if the sample rate were rate[v], so pitch, sweeps and
+        // filters all move together and a higher voice is also shorter. Decay closes a gate inside the voice's own
+        // length (natural[v], in its own time): 1 leaves it whole
+        this.ratio = new Float32Array(8).fill(1);
+        this.rate = new Float32Array(8).fill(sampleRate);
+        this.decay = new Float32Array(8).fill(1);
+        this.natural = new Float32Array([0.6, 0.2, 0.1, 0.25, 0.45, 0.15, 1.1, 0.1]);
+        this.fs = sampleRate;
         const pan = [0, 0, 0.35, -0.15, -0.3, -0.4, 0.25, 0.2];
         this.panL = new Float32Array(8);
         this.panR = new Float32Array(8);
@@ -123,12 +132,19 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
 
         this.port.onmessage = (e) => {
             const d = e.data;
+            if (d.type === 'set') {
+                const sv = this.voiceIndex[d.voice];
+                if (sv === undefined) return;
+                if (typeof d.tune === 'number') this.ratio[sv] = Math.pow(2, Math.max(-12, Math.min(12, d.tune)) / 12);
+                if (typeof d.decay === 'number') this.decay[sv] = Math.max(0.1, Math.min(1, d.decay));
+                return;
+            }
             if (d.type !== 'trigger') return;
             const v = this.voiceIndex[d.voice];
             if (v === undefined || this.qLen >= this.qMax) return;
             this.qVoice[this.qLen] = v;
             this.qFrame[this.qLen] = typeof d.time === 'number' ? Math.round(d.time * sampleRate) : 0;
-            this.qVel[this.qLen] = typeof d.velocity === 'number' ? Math.max(0, Math.min(1, d.velocity)) : 1;
+            this.qVel[this.qLen] = typeof d.velocity === 'number' ? Math.max(0, Math.min(1.5, d.velocity)) : 1;
             this.qOpen[this.qLen] = d.open ? 1 : 0;
             this.qLen++;
         };
@@ -151,15 +167,27 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         this.qOpen[q] = this.qOpen[this.qLen];
     }
 
-    // the same curve as mk-1.js drumLevel: soft hits stay audible
+    // the same curve as mk-1.js drumLevel: soft hits stay audible; past 1 is an accent, louder in proportion
     _level(velocity) {
-        return 0.15 + 0.85 * Math.pow(velocity, 1.4);
+        return (0.15 + 0.85 * Math.pow(Math.min(velocity, 1), 1.4)) * Math.max(1, velocity);
     }
 
     _mix(v, outL, outR, o, n) {
         const s = this.scratch;
+        const voice = this.voices[v];
+        const t0 = voice.t;
         for (let i = 0; i < n; i++) s[i] = 0;
         this._render(v, s, 0, n);
+        if (this.decay[v] < 1) {
+            const sr = this.rate[v];
+            const end = this.decay[v] * this.natural[v] * (v === 2 ? this.hihat.len : 1);
+            const open = 0.6 * end;
+            for (let i = 0; i < n; i++) {
+                const t = (t0 + i) / sr;
+                if (t > open) s[i] *= t >= end ? 0 : 1 - (t - open) / (end - open);
+            }
+            if ((t0 + n) / sr >= end) voice.on = false;
+        }
         if (outL === outR) {
             const g = this.level[v];
             for (let i = 0; i < n; i++) outL[o + i] += s[i] * g;
@@ -196,7 +224,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
 
     _lpCoef(s, f, q) {
         q = q || 1;
-        const w = TWO_PI * f / sampleRate, sw = Math.sin(w), cw = Math.cos(w);
+        const w = TWO_PI * f / this.fs, sw = Math.sin(w), cw = Math.cos(w);
         const a = sw / (2 * q), a0 = 1 + a;
         s.b0 = (1 - cw) / 2 / a0;
         s.b1 = (1 - cw) / a0;
@@ -207,7 +235,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
 
     _hpCoef(s, f, q) {
         q = q || 1;
-        const w = TWO_PI * f / sampleRate, sw = Math.sin(w), cw = Math.cos(w);
+        const w = TWO_PI * f / this.fs, sw = Math.sin(w), cw = Math.cos(w);
         const a = sw / (2 * q), a0 = 1 + a;
         s.b0 = (1 + cw) / 2 / a0;
         s.b1 = -(1 + cw) / a0;
@@ -218,7 +246,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
 
     _bpCoef(s, f, q) {
         q = q || 1;
-        const w = TWO_PI * f / sampleRate, sw = Math.sin(w), cw = Math.cos(w);
+        const w = TWO_PI * f / this.fs, sw = Math.sin(w), cw = Math.cos(w);
         const a = sw / (2 * q), a0 = 1 + a;
         s.b0 = a / a0;
         s.b1 = 0;
@@ -229,7 +257,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
 
     _pkCoef(s, f, q, dB) {
         const A = Math.pow(10, dB / 40);
-        const w = TWO_PI * f / sampleRate, sw = Math.sin(w), cw = Math.cos(w);
+        const w = TWO_PI * f / this.fs, sw = Math.sin(w), cw = Math.cos(w);
         const a = sw / (2 * q), a0 = 1 + a / A;
         s.b0 = (1 + a * A) / a0;
         s.b1 = -2 * cw / a0;
@@ -272,6 +300,9 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
         v.on = true;
         v.t = 0;
         if (key === 'hihat') v.len = open ? 6 : 1;
+        const index = this.voiceIndex[key];
+        this.rate[index] = sampleRate / this.ratio[index];
+        this.fs = this.rate[index];
 
         switch (key) {
             case 'kick':
@@ -304,7 +335,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
                 break;
 
             case 'clap': {
-                const sr = sampleRate;
+                const sr = this.fs;
                 for (let i = 0; i < 4; i++) {
                     v.del[i] = ((i * 0.012 + Math.random() * 0.005) * sr) | 0;
                     v.bfr[i] = 1200 + Math.random() * 400;
@@ -357,7 +388,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
     // ========= Voice renderers =========
 
     _renderKick(out, o, n) {
-        const k = this.kick, sr = sampleRate;
+        const k = this.kick, sr = this.rate[0];
         const t0 = k.t / sr;
         const t1 = (k.t + n) / sr;
 
@@ -440,7 +471,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
     }
 
     _renderSnare(out, o, n) {
-        const s = this.snare, sr = sampleRate;
+        const s = this.snare, sr = this.rate[1];
         const t0 = s.t / sr;
 
         // --- Crack: triangle 1200→300 / 3ms, tanh4.0, gain 0.7→0.001 / 12ms ---
@@ -527,7 +558,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
     }
 
     _renderHihat(out, o, n) {
-        const h = this.hihat, sr = sampleRate;
+        const h = this.hihat, sr = this.rate[2];
         const t0 = h.t / sr;
         const metal = 0.055 * h.len, noiseEnv = 0.045 * h.len, noiseLen = 0.06 * h.len;
 
@@ -578,7 +609,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
     }
 
     _renderClap(out, o, n) {
-        const c = this.clap, sr = sampleRate;
+        const c = this.clap, sr = this.rate[3];
         const nb = this.nBuf, nl = this.nLen;
         const bFilts = this.clapFilts;
 
@@ -646,7 +677,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
     }
 
     _renderTom(out, o, n) {
-        const v = this.tom, sr = sampleRate;
+        const v = this.tom, sr = this.rate[4];
         const t0 = v.t / sr;
 
         // --- Body: sine 280→110 / 300ms, LP(600), gain 1.0→0.001 / 400ms ---
@@ -719,7 +750,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
     }
 
     _renderPerc(out, o, n) {
-        const p = this.perc, sr = sampleRate;
+        const p = this.perc, sr = this.rate[5];
         const t0 = p.t / sr;
 
         // --- FM: mod sine(2400) × modGain(800→10/100ms) → carrier sine(1800+FM) → BP(2000,Q3) → gain 0.4→0.001/100ms ---
@@ -754,7 +785,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
     }
 
     _renderCymbal(out, o, n) {
-        const cy = this.cymbal, sr = sampleRate;
+        const cy = this.cymbal, sr = this.rate[6];
         const t0 = cy.t / sr;
 
         // --- Metal: 10 square oscs → HP(4000) → gain 0.12→0.001 / 1.0s ---
@@ -804,7 +835,7 @@ class DrumEngineProcessor extends AudioWorkletProcessor {
     }
 
     _renderRim(out, o, n) {
-        const r = this.rim, sr = sampleRate;
+        const r = this.rim, sr = this.rate[7];
         const t0 = r.t / sr;
 
         // --- Click: square 1800→800 / 5ms, HP(1500), gain 0.5→0.001 / 25ms ---

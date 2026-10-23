@@ -60,6 +60,8 @@
                     <li><kbd data-keys="black">w e t y u</kbd> black keys · hold for as long as the note lasts</li>
                     <li><kbd>← →</kbd> octave down, up</li>
                     <li><kbd>space</kbd> play the pattern and record into the slot · again to stop</li>
+                    <li>a step: on · again, accent · again, off · on the keys row it takes the last note you played</li>
+                    <li>tune and decay change the last pad you played</li>
                     <li><kbd>r</kbd> rec manual · <kbd>o</kbd> add layer · undo layer takes the last one back</li>
                     <li><kbd>p</kbd> play · <kbd>l</kbd> play all</li>
                     <li><kbd data-keys="slots">q z b n</kbd> <span data-keys="slot-names">slots a b c d</span></li>
@@ -125,8 +127,21 @@
             <!-- Drums + Pattern -->
             <div class="console-col">
                 <div class="module module-drums">
-                    <div class="module-header">
+                    <div class="module-header module-header-row">
                         <h2 class="module-title">drums</h2>
+                        <div class="pad-edit">
+                            <span class="pad-edit-name" id="padName" aria-live="polite">kick</span>
+                            <label class="header-control" for="padTune">
+                                <span>tune</span>
+                                <input type="range" id="padTune" min="-12" max="12" value="0">
+                                <span class="control-value" id="padTuneVal">0</span>
+                            </label>
+                            <label class="header-control" for="padDecay">
+                                <span>decay</span>
+                                <input type="range" id="padDecay" min="20" max="100" value="100">
+                                <span class="control-value" id="padDecayVal">100%</span>
+                            </label>
+                        </div>
                     </div>
                     <div class="pad-grid">
                         <div class="pad" data-sound="kick">
@@ -205,6 +220,10 @@
                         <div class="seq-row">
                             <div class="seq-label">rim</div>
                             <div class="seq-steps" data-drum="rim"></div>
+                        </div>
+                        <div class="seq-row seq-row-keys">
+                            <div class="seq-label">keys</div>
+                            <div class="seq-steps" data-drum="keys"></div>
                         </div>
                     </div>
                     <div class="btn-group seq-actions">
