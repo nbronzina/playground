@@ -102,7 +102,7 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - Commit format: [module] description — e.g. [mk-1] fix looper drift
 - No comments explaining what code does — only why something non-obvious was done
 - window.MK1 is n0body's interface: keep its surface stable (drums, synth, sequencer, fx, tempo, master, looper, air, utils)
-- mk-air signaling v1 (server in the mk-air repo): WebSocket /air, GET /air/now, GET /air/ice; origin allowlist; Opus stereo 128 kbps; one peer per listener. Pages use air-client.js, never their own socket code. `?air=<url>` points a page at a local server for testing
+- mk-air signaling v1 (server in the mk-air repo): WebSocket /air, GET /air/now, GET /air/ice; origin allowlist; Opus stereo 128 kbps; one peer per listener. Pages use air-client.js, never their own socket code. Relay fallback on the same socket (binary: [u32 ms][u16 len][Opus packet]…). `?air=<url>` points a page at a local server for testing
 
 **UI**
 - Dark only (#0a0a0a). No theme toggle
@@ -195,7 +195,9 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - A radio that forgets: on air now (live list), listen with one tap at mk-air/?r=<id>, on-air light, time, who, listeners, stereo meter; paused / ended / not found / can't reach say what happened
 - Go on air from mk-1, mk-2 (one click, their own master) or with the mic here (music settings: no echo cancellation, noise suppression or gain control)
 - Nothing recorded; being on air is public (it shows in the list)
-- Signaling on Render (mk-air repo): wakes from the free tier's sleep with an honest "waking the radio"; STUN only until TURN credentials are configured
+- Signaling on Render (mk-air repo): wakes from the free tier's sleep with an honest "waking the radio"
+- No TURN. A listener without a direct line after 8 s (or whose line fails) is relayed by the server over the same WebSocket: the broadcaster records Opus at 48 kbps (MediaRecorder, only while someone is relayed), the listener decodes with WebCodecs and schedules it 0.7 s ahead on its AudioContext; the page says "relayed by the radio." Caps on the server: 5 relayed at once, a monthly budget (RELAY_GB, default 4) under Render's free 5 GB
+- Relay needs a broadcaster on Chrome / Edge / Firefox and a listener on Chrome / Edge / desktop Firefox / Safari 26+; elsewhere a blocked listener sees "can't reach"
 
 **mk-dwell**
 - Entry screen (name, one line, enter) → inside, cursor or finger position → spatial field
@@ -219,6 +221,7 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - 2026-10-19 · mk-air's pages live in play·ground (mk-air/); the mk-air repo is the signaling server only
 - 2026-10-19 · mk-1 and mk-2 go on air directly with their own master (WebRTC), no mic or tab capture; n0body through MK1.air
 - 2026-10-19 · mk-air accent is #ff5a4a
+- 2026-10-23 · Everything free and open source, nothing paid: no TURN service. The mk-air server relays the sound for listeners whose network blocks a direct line, within a monthly budget
 
 ## Collaborators
 

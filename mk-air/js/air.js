@@ -65,7 +65,8 @@
         $('booth').hidden = view === 'home';
     }
 
-    // the page's one AudioContext, made on the gesture that starts the sound; it only meters, it never plays
+    // the page's one AudioContext, made on the gesture that starts the sound. It meters, and renders the relay
+    // into a stream when a direct line can't be had; the <audio> element is what plays
     function ensureCtx() {
         if (!ctx) {
             const AC = window.AudioContext || window.webkitAudioContext;
@@ -479,7 +480,7 @@
         const status = $('boothStatus');
         if (state === 'waking') status.textContent = 'waking the radio… it can take up to a minute.';
         else if (state === 'tuning') { setLamp($('lamp'), 'on'); status.textContent = 'tuning in…'; }
-        else if (state === 'live') { setLamp($('lamp'), 'on'); status.textContent = ''; }
+        else if (state === 'live') { setLamp($('lamp'), 'on'); status.textContent = listener && listener.relayed ? 'relayed by the radio.' : ''; }
         else if (state === 'paused') { setLamp($('lamp'), 'hold'); status.textContent = 'the line dropped. waiting for it…'; }
         else if (state === 'reconnecting') { setLamp($('lamp'), 'hold'); status.textContent = 'lost the line. tuning in again…'; }
         else if (LISTEN_ENDS[state]) listenEnd(state);
@@ -488,7 +489,7 @@
     function startListening() {
         if (listener && !['ended', 'not-found', 'cant-reach', 'full', 'unreachable', 'left'].includes(listener.state)) return;
         ensureCtx();
-        const l = AIR.listen(rid);
+        const l = AIR.listen(rid, { context: ctx });
         listener = l;
         out.srcObject = l.stream;
         // played inside the gesture so the element may sound later, when the track arrives

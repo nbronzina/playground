@@ -19,6 +19,16 @@
     const LOST_AFTER = 30000;
     const REACH_MS = 20000;
 
+    // the relay: a listener whose network won't take a direct line gets the sound through the server instead,
+    // as Opus packets over the same websocket. Low bitrate on purpose: the server's bandwidth is a monthly budget
+    const RELAY_TYPE = 'audio/webm;codecs=opus';
+    const RELAY_BITRATE = 48000;
+    const RELAY_SLICE = 100;
+    const RELAY_CHUNK = 4000;
+    const RELAY_AFTER = 8000;
+    const RELAY_LEAD = 0.7;
+    const RELAY_BACKLOG = 256 * 1024;
+
     const script = document.currentScript;
     const ROOT = new URL('./', script && script.src ? script.src : location.href);
 
@@ -214,7 +224,7 @@
         }
     }
 
-    function line(onMessage, onDrop) {
+    function line(onMessage, onDrop, onBinary) {
         let ws = null;
         let chain = Promise.resolve();
         let heard = 0;
@@ -235,8 +245,13 @@
             heard = Date.now();
             pingAt = 0;
             sock.onerror = () => {};
+            sock.binaryType = 'arraybuffer';
             sock.onmessage = e => {
                 heard = Date.now();
+                if (typeof e.data !== 'string') {
+                    if (onBinary) chain = chain.then(() => onBinary(e.data)).catch(() => {});
+                    return;
+                }
                 let m;
                 try { m = JSON.parse(e.data); } catch (err) { return; }
                 if (!m || typeof m !== 'object' || typeof m.t !== 'string' || m.t === 'pong') return;
@@ -268,6 +283,12 @@
             try { ws.send(JSON.stringify(msg)); return true; } catch (e) { return false; }
         }
 
+        // audio that can't leave in time is dropped, not queued: a radio goes on, it doesn't catch up
+        function sendBinary(buf) {
+            if (!ws || ws.readyState !== 1 || ws.bufferedAmount > RELAY_BACKLOG) return false;
+            try { ws.send(buf); return true; } catch (e) { return false; }
+        }
+
         function drop() {
             const old = detach();
             if (!old) return;
@@ -280,11 +301,129 @@
             if (old) try { old.close(1000); } catch (e) { /* already closed */ }
         }
 
-        return { attach, send, drop, close, get open() { return !!ws && ws.readyState === 1; } };
+        return { attach, send, sendBinary, drop, close, get open() { return !!ws && ws.readyState === 1; } };
     }
 
     addEventListener('offline', () => { for (const s of sessions) s.offline(); });
     addEventListener('online', () => { for (const s of sessions) s.online(); });
+
+    // ---------- the relay on the wire: Opus packets out of MediaRecorder's WebM ----------
+
+    // Only what MediaRecorder writes. Segment and Cluster have an unknown size while recording,
+    // so containers are always entered, never skipped
+    const WEBM_ENTER = new Set([0x18538067, 0x1F43B675, 0x1549A966, 0x1654AE6B, 0xAE, 0xE1, 0xA0]);
+
+    function webmOpus(onConfig) {
+        let buf = new Uint8Array(0);
+        let scale = 1e6;
+        let cluster = 0;
+        let rate = 48000;
+        let channels = 2;
+        let told = false;
+
+        function vint(p, isId) {
+            if (p >= buf.length) return null;
+            const first = buf[p];
+            let len = 1;
+            while (len <= 8 && !(first & (0x80 >> (len - 1)))) len++;
+            if (len > (isId ? 4 : 8)) return { bad: true };
+            if (p + len > buf.length) return null;
+            let v = isId ? first : first & (0xFF >> len);
+            let ones = v === 0xFF >> len;
+            for (let i = 1; i < len; i++) {
+                v = v * 256 + buf[p + i];
+                if (buf[p + i] !== 0xFF) ones = false;
+            }
+            return { v, len, unknown: !isId && ones };
+        }
+
+        const uint = b => b.reduce((n, x) => n * 256 + x, 0);
+
+        function leaf(id, body, packets) {
+            if (id === 0x2AD7B1) scale = uint(body);
+            else if (id === 0x9F) channels = uint(body);
+            else if (id === 0xB5) {
+                const dv = new DataView(body.buffer, body.byteOffset, body.byteLength);
+                rate = body.length === 8 ? dv.getFloat64(0) : dv.getFloat32(0);
+            } else if (id === 0xE7) cluster = uint(body);
+            else if (id === 0xA3 || id === 0xA1) {
+                let q = 1;
+                while (q <= 8 && !(body[0] & (0x80 >> (q - 1)))) q++;
+                if (body.length < q + 3) return;
+                // Opus from MediaRecorder is never laced; a laced block would need splitting, so it's left out
+                if (body[q + 2] & 0x06) return;
+                const rel = (body[q] << 24 >> 16) | body[q + 1];
+                if (!told) {
+                    told = true;
+                    onConfig({ rate: Math.round(rate), channels });
+                }
+                packets.push([Math.max(0, Math.round((cluster + rel) * scale / 1e6)), body.slice(q + 3)]);
+            }
+        }
+
+        function push(bytes) {
+            const joined = new Uint8Array(buf.length + bytes.length);
+            joined.set(buf);
+            joined.set(bytes, buf.length);
+            buf = joined;
+            const packets = [];
+            let p = 0;
+            for (;;) {
+                const id = vint(p, true);
+                const size = id && !id.bad ? vint(p + id.len, false) : id;
+                if (!id || !size) break;
+                if (id.bad || size.bad) { p = buf.length; break; }
+                const start = p + id.len + size.len;
+                if (WEBM_ENTER.has(id.v)) { p = start; continue; }
+                if (size.unknown) { p = buf.length; break; }
+                if (start + size.v > buf.length) break;
+                leaf(id.v, buf.subarray(start, start + size.v), packets);
+                p = start + size.v;
+            }
+            buf = buf.slice(p);
+            return packets;
+        }
+
+        return { push };
+    }
+
+    // [u32 ms][u16 length][packet] repeated, cut under the server's 4 KB per message
+    function packRelay(packets) {
+        const out = [];
+        let i = 0;
+        while (i < packets.length) {
+            let size = 0;
+            let j = i;
+            while (j < packets.length && (j === i || size + 6 + packets[j][1].length <= RELAY_CHUNK)) size += 6 + packets[j++][1].length;
+            const msg = new ArrayBuffer(size);
+            const dv = new DataView(msg);
+            const bytes = new Uint8Array(msg);
+            let p = 0;
+            for (; i < j; i++) {
+                const [ms, data] = packets[i];
+                dv.setUint32(p, ms >>> 0);
+                dv.setUint16(p + 4, data.length);
+                bytes.set(data, p + 6);
+                p += 6 + data.length;
+            }
+            out.push(msg);
+        }
+        return out;
+    }
+
+    function unpackRelay(msg, each) {
+        const dv = new DataView(msg);
+        let p = 0;
+        while (p + 6 <= msg.byteLength) {
+            const ms = dv.getUint32(p);
+            const len = dv.getUint16(p + 4);
+            if (p + 6 + len > msg.byteLength) return;
+            each(ms, new Uint8Array(msg, p + 6, len));
+            p += 6 + len;
+        }
+    }
+
+    const canRecordRelay = () => typeof MediaRecorder === 'function' && typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(RELAY_TYPE);
 
     // ---------- going on air ----------
 
@@ -297,12 +436,15 @@
         const air = { id: null, link: null, since: null, listeners: 0, state: 'connecting', stream };
         const emit = emitter(air);
         const peers = new Map();
+        const canRelay = canRecordRelay();
         let iceServers = STUN;
         let token = null;
         let ending = false;
         let retry = null;
         let dropAt = 0;
         let attempts = 0;
+        let rec = null;
+        let relayConfig = null;
         const final = () => air.state === 'ended';
         const setState = s => {
             if (air.state === s) return;
@@ -345,6 +487,10 @@
                     break;
                 case 'signal':
                     await onSignal(m.from, m.data);
+                    break;
+                case 'relay':
+                    if (m.on) relayStart();
+                    else relayStop();
                     break;
                 case 'not-found':
                     finish('lost');
@@ -405,6 +551,49 @@
             }
         }
 
+        // records only while somebody is relayed; the server says when
+        function relayStart() {
+            if (rec) {
+                if (relayConfig) ln.send(relayConfig);
+                return;
+            }
+            if (!canRelay) return;
+            let mine;
+            try {
+                mine = new MediaRecorder(new MediaStream(stream.getAudioTracks()), { mimeType: RELAY_TYPE, audioBitsPerSecond: RELAY_BITRATE });
+            } catch (e) {
+                return;
+            }
+            rec = mine;
+            const demux = webmOpus(cfg => {
+                relayConfig = { t: 'relay-config', rate: cfg.rate, channels: cfg.channels };
+                ln.send(relayConfig);
+            });
+            let order = Promise.resolve();
+            mine.ondataavailable = e => {
+                if (!e.data || !e.data.size) return;
+                const blob = e.data;
+                order = order
+                    .then(() => blob.arrayBuffer())
+                    .then(b => {
+                        if (rec !== mine) return;
+                        for (const msg of packRelay(demux.push(new Uint8Array(b)))) ln.sendBinary(msg);
+                    })
+                    .catch(() => {});
+            };
+            mine.onerror = () => { if (rec === mine) relayStop(); };
+            try { mine.start(RELAY_SLICE); } catch (e) { rec = null; }
+        }
+
+        function relayStop() {
+            const old = rec;
+            rec = null;
+            relayConfig = null;
+            if (!old) return;
+            old.ondataavailable = old.onerror = null;
+            try { old.stop(); } catch (e) { /* already stopped */ }
+        }
+
         function onDrop(code) {
             if (final()) return;
             if (code === 1008) { emit('error', { code: 'refused' }); finish('refused'); return; }
@@ -434,7 +623,7 @@
                 const ws = await openSocket();
                 if (final() || ln.open) { ws.close(); return; }
                 ln.attach(ws);
-                ln.send({ t: 'resume', id: air.id, token });
+                ln.send({ t: 'resume', id: air.id, token, relay: canRelay });
             } catch (e) {
                 if (e.code === 'refused') { emit('error', { code: 'refused' }); finish('refused'); return; }
                 later();
@@ -444,6 +633,7 @@
         function finish(reason) {
             if (final()) return;
             clearTimeout(retry);
+            relayStop();
             ln.close();
             for (const lid of [...peers.keys()]) removePeer(lid);
             sessions.delete(session);
@@ -471,7 +661,7 @@
                 const ws = await openWithin(Date.now() + WAKE_MS, final);
                 if (final()) { ws.close(); return; }
                 ln.attach(ws);
-                ln.send({ t: 'go-live', name: text(o.name, 40), from: text(o.from, 16) });
+                ln.send({ t: 'go-live', name: text(o.name, 40), from: text(o.from, 16), relay: canRelay });
                 setTimeout(() => {
                     if (!air.id && !final()) { emit('error', { code: 'unreachable' }); finish('unreachable'); }
                 }, 10000);
@@ -487,10 +677,13 @@
 
     // ---------- listening ----------
 
-    function listen(id) {
+    // opts.context: the page's AudioContext. Without it there is no relay, only the direct line
+    function listen(id, opts) {
         const room = String(id || '');
-        const me = { id: room, name: '', from: '', since: null, listeners: 0, state: 'connecting', stream: new MediaStream() };
+        const me = { id: room, name: '', from: '', since: null, listeners: 0, state: 'connecting', stream: new MediaStream(), relayed: false };
         const emit = emitter(me);
+        const ctx = opts && opts.context;
+        const canRelay = !!ctx && typeof AudioDecoder === 'function' && typeof EncodedAudioChunk === 'function';
         let pc = null;
         let iceServers = STUN;
         let joined = false;
@@ -498,6 +691,12 @@
         let dropAt = 0;
         let attempts = 0;
         let reach = null;
+        let relayAsked = false;
+        let decoder = null;
+        let relayOut = null;
+        let relayDest = null;
+        let relayBase = null;
+        const relayPending = new Set();
         const FINAL = ['ended', 'not-found', 'cant-reach', 'full', 'unreachable', 'left'];
         const final = () => FINAL.includes(me.state);
         const setState = s => {
@@ -505,15 +704,140 @@
             me.state = s;
             emit('state', { state: s });
         };
-        const ln = line(onMessage, onDrop);
+        const ln = line(onMessage, onDrop, onBinary);
         const session = { offline: () => ln.drop(), online: () => { if (me.state === 'reconnecting') reconnect(); } };
         sessions.add(session);
 
+        const waiting = () => !final() && me.state !== 'paused' && me.state !== 'reconnecting';
+
         function armReach() {
             clearTimeout(reach);
+            if (me.relayed) return;
             reach = setTimeout(() => {
-                if (!final() && me.state !== 'paused' && me.state !== 'reconnecting' && (!pc || pc.connectionState !== 'connected')) end('cant-reach', 'cant-reach');
-            }, REACH_MS);
+                if (!waiting() || (pc && pc.connectionState === 'connected')) return;
+                if (canRelay && !relayAsked) askRelay();
+                else end('cant-reach', 'cant-reach');
+            }, canRelay && !relayAsked ? RELAY_AFTER : REACH_MS);
+        }
+
+        function askRelay() {
+            relayAsked = true;
+            ln.send({ t: 'relay' });
+            clearTimeout(reach);
+            reach = setTimeout(() => { if (waiting() && me.state !== 'live') end('cant-reach', 'cant-reach'); }, REACH_MS - RELAY_AFTER);
+        }
+
+        function startRelay() {
+            if (me.relayed) return;
+            me.relayed = true;
+            closePeer();
+            relayOut = ctx.createGain();
+            relayDest = ctx.createMediaStreamDestination();
+            relayOut.connect(relayDest);
+            const track = relayDest.stream.getAudioTracks()[0];
+            for (const t of me.stream.getTracks()) me.stream.removeTrack(t);
+            me.stream.addTrack(track);
+            emit('relay', {});
+            emit('track', { track, stream: me.stream });
+        }
+
+        function configureRelay(m) {
+            if (!me.relayed) return;
+            if (decoder) try { decoder.close(); } catch (e) { /* already closed */ }
+            decoder = null;
+            // a new config means a new recording on the other side: its clock starts at zero again
+            relayBase = null;
+            flushRelay();
+            const rate = Number(m.rate);
+            const channels = Number(m.channels);
+            try {
+                const d = new AudioDecoder({ output: data => playRelay(d, data), error: () => {} });
+                d.configure({ codec: 'opus', sampleRate: rate, numberOfChannels: channels });
+                decoder = d;
+            } catch (e) {
+                end('cant-reach', 'cant-reach');
+            }
+        }
+
+        function onBinary(msg) {
+            if (!me.relayed || final() || !decoder || decoder.state !== 'configured') return;
+            // a decoder that fell behind skips ahead instead of growing a delay
+            if (decoder.decodeQueueSize > 25) return;
+            unpackRelay(msg, (ms, data) => {
+                try { decoder.decode(new EncodedAudioChunk({ type: 'key', timestamp: ms * 1000, data })); } catch (e) { /* a bad packet is a click, not an end */ }
+            });
+        }
+
+        function plane(data, c, frames, chans) {
+            const out = new Float32Array(frames);
+            try {
+                data.copyTo(out, { planeIndex: c, format: 'f32-planar' });
+                return out;
+            } catch (e) { /* this browser won't convert: read its own layout */ }
+            try {
+                if (data.format === 'f32-planar') {
+                    data.copyTo(out, { planeIndex: c });
+                } else if (data.format === 'f32') {
+                    const all = new Float32Array(frames * chans);
+                    data.copyTo(all, { planeIndex: 0 });
+                    for (let i = 0; i < frames; i++) out[i] = all[i * chans + c];
+                }
+            } catch (e) { /* silence for this frame */ }
+            return out;
+        }
+
+        function playRelay(d, data) {
+            try {
+                if (d !== decoder || !me.relayed || final()) return;
+                const frames = data.numberOfFrames;
+                const chans = data.numberOfChannels;
+                const b = ctx.createBuffer(chans, frames, data.sampleRate);
+                for (let c = 0; c < chans; c++) b.copyToChannel(plane(data, c, frames, chans), c);
+                const at = data.timestamp / 1e6;
+                const now = ctx.currentTime;
+                let when = relayBase === null ? -1 : relayBase + at;
+                // late (the network stalled) or far ahead (the two clocks drifted): set the cushion again,
+                // and drop what was queued for the old one so the two never sound together
+                if (when < now + 0.02 || when > now + RELAY_LEAD * 3) {
+                    flushRelay();
+                    relayBase = now + RELAY_LEAD - at;
+                    when = now + RELAY_LEAD;
+                }
+                const src = ctx.createBufferSource();
+                src.buffer = b;
+                src.connect(relayOut);
+                relayPending.add(src);
+                src.onended = () => {
+                    relayPending.delete(src);
+                    src.disconnect();
+                };
+                src.start(when);
+                if (me.state === 'tuning') {
+                    clearTimeout(reach);
+                    setState('live');
+                    emit('connected', {});
+                }
+            } catch (e) {
+                /* one frame lost */
+            } finally {
+                data.close();
+            }
+        }
+
+        function flushRelay() {
+            const old = [...relayPending];
+            relayPending.clear();
+            for (const src of old) try { src.stop(); } catch (e) { /* never started */ }
+            setTimeout(() => { for (const src of old) src.disconnect(); }, 100);
+        }
+
+        function stopRelay() {
+            flushRelay();
+            if (decoder) try { decoder.close(); } catch (e) { /* already closed */ }
+            decoder = null;
+            if (relayOut) relayOut.disconnect();
+            if (relayDest) for (const t of relayDest.stream.getTracks()) t.stop();
+            relayOut = relayDest = null;
         }
 
         async function onMessage(m) {
@@ -529,7 +853,9 @@
                     setState('tuning');
                     if (!joined) emit('joined', { id: room, name: me.name, from: me.from, since: me.since, listeners: me.listeners });
                     joined = true;
-                    armReach();
+                    // back on the line after a drop: straight to the relay, the direct line already failed once
+                    if (me.relayed) ln.send({ t: 'relay' });
+                    else armReach();
                     break;
                 case 'not-found':
                     if (joined) end('ended', 'ended');
@@ -541,7 +867,7 @@
                     emit('paused', {});
                     break;
                 case 'resumed':
-                    setState(pc && pc.connectionState === 'connected' ? 'live' : 'tuning');
+                    setState(!me.relayed && pc && pc.connectionState === 'connected' ? 'live' : 'tuning');
                     emit('resumed', {});
                     if (me.state !== 'live') armReach();
                     break;
@@ -554,10 +880,19 @@
                     break;
                 case 'error':
                     if (m.code === 'room-full') { emit('error', { code: 'full' }); end('full'); }
+                    // a server from before the relay doesn't know the message
+                    else if (relayAsked && !me.relayed && m.code === 'bad-message') end('cant-reach', 'cant-reach');
                     else emit('error', { code: String(m.code) });
                     break;
+                case 'relay':
+                    if (m.ok === true) startRelay();
+                    else if (m.ok === false) end('cant-reach', 'cant-reach');
+                    break;
+                case 'relay-config':
+                    configureRelay(m);
+                    break;
                 case 'signal':
-                    if (m.from !== room || !m.data) return;
+                    if (m.from !== room || !m.data || me.relayed) return;
                     if (m.data.type === 'offer' && typeof m.data.sdp === 'string') await answer(m.data.sdp);
                     else if (m.data.type === 'ice' && m.data.candidate && pc) {
                         try { await pc.addIceCandidate(m.data.candidate); } catch (e) { /* stale candidate */ }
@@ -596,6 +931,7 @@
                 } else if (s === 'failed') {
                     // while the line is down a new peer comes with the next offer; only a failed peer on a good line is final
                     if (me.state === 'reconnecting') closePeer();
+                    else if (canRelay && !relayAsked) { closePeer(); setState('tuning'); askRelay(); }
                     else end('cant-reach', 'cant-reach');
                 } else if (s === 'disconnected') {
                     // ice often finds its way back within a few seconds; give it the same time as a first try
@@ -654,6 +990,7 @@
             clearTimeout(reach);
             ln.close();
             closePeer();
+            stopRelay();
             sessions.delete(session);
             setState(state);
             if (event) emit(event, {});
