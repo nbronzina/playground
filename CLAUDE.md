@@ -41,7 +41,7 @@ playground/
 ├── README.md                     — repo front page (not published)
 ├── BRIEF.md                      — session brief template (not published)
 ├── _config.yml                   — Pages config: excludes the three notes above
-├── sitemap.xml                   — the 7 pages, for Search Console
+├── sitemap.xml                   — the 6 public pages, for Search Console (n0body's page is left out)
 ├── og/                           — 1200×630 share images: home, about, mk-1, mk-2, mk-air, mk-dwell, n0body
 ├── index.html                    — home: playable hero, tools / spaces / airtists
 ├── about.html
@@ -182,7 +182,7 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - Modulation: driftLFO → subOsc.detune (tape wobble, 0.1–0.3 Hz, ±15 cents)
 - Modulation: lfoGain → formant detune (slow organic movement, 1–2 Hz, ±20 cents)
 - Node lifecycle: stop() → setTimeout(disconnect, 100) in cleanupVoice and the looper
-- on air: one click sends mk-1's master (after the limiter) to mk-air, no mic; end takes two presses, as in mk-2 and mk-air. MK1.air.start({name}) / stop() / status() for n0body, which goes on air for every session
+- on air: one click sends mk-1's master (after the limiter) to mk-air, no mic; end takes two presses, as in mk-2 and mk-air. MK1.air.start({name}) / stop() / status() for n0body's page
 - mk-1.html?embed (inside a frame) shows only the console: n0body's page brings the header, the lamp and the footer
 - MK1 additions, all optional: synth.play(note, duration, velocity), drums.hit(pad, velocity), drums.setTune / setDecay, sequencer.setAccent / setNote / getNote / setSwing / getSwing. fx.setFilter keeps its linear 100–20000 Hz meaning
 
@@ -207,10 +207,11 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - Relay needs a broadcaster on Chrome / Edge / Firefox and a listener on Chrome / Edge / desktop Firefox / Safari 26+; elsewhere a blocked listener sees "can't reach"
 
 **n0body**
-- Its page lives here (n0body/): play·ground header with the set (state · mood · time · bpm, or how many sets so far), the on air lamp with time, listeners and the link, play / stop, know how; mk-1 below, console only, filling the screen
+- n0body is nicolás's, newborn and learning. Its card stays on the home's airtists shelf without a link (piece-still: no lift), only "listen on mk-air" is one; it's not in the footer, about or the sitemap, and its page says noindex. Nicolás opens it by its address
+- Its page lives here (n0body/): play·ground header with the set (state · mood · time · bpm, or how many sets so far), play / stop, on air, know how; mk-1 below, console only, filling the screen
 - The mind is the n0body repo's dist/n0body.js, served at /n0body/dist/n0body.js on the same origin and loaded into mk-1's frame; what it learns and the groq key stay in localStorage, shared across the origin
-- play starts a set and goes on air; stop plays the outro, then off air. space toggles. No modal: the groq key (optional, "mind") and "forget what it learned" (two presses) live in know how
-- The old address, nbronzina.github.io/n0body/, redirects here
+- Playing and being on air are separate, and on air is whoever is at the page's call: play starts a set, stop plays the outro (space toggles); on air is its own button (the lamp, with time, listeners and the link; end takes two presses) and a set ending doesn't take n0body off air. No modal: the groq key (optional, "mind") and "forget what it learned" (two presses) live in know how
+- The old address, nbronzina.github.io/n0body/, redirects here, keeping the query
 
 **mk-dwell**
 - Entry screen (name, one line, enter) → inside, cursor or finger position → spatial field
@@ -236,6 +237,8 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - 2026-10-19 · mk-air accent is #ff5a4a
 - 2026-10-23 · Everything free and open source, nothing paid: no TURN service. The mk-air server relays the sound for listeners whose network blocks a direct line, within a monthly budget
 - 2026-10-24 · n0body's page lives in play·ground (n0body/), in the family's design; the n0body repo keeps the mind and the docs; the old URL redirects
+- 2026-10-24 · n0body playing and n0body on air are two things: play never puts it on air; going on air is a separate button, a person's decision
+- 2026-10-24 · n0body is only nicolás's, and simply so: the card stays without a link and the page isn't linked anywhere; no keys, no doors
 
 ## Collaborators
 

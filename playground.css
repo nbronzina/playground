@@ -157,6 +157,13 @@ html {
     transform: translateY(-2px);
 }
 
+/* an airtist's card: there to know it, not to open; only its listen link is a door */
+.piece-still:hover {
+    border-color: var(--border-primary);
+    border-top-color: var(--accent);
+    transform: none;
+}
+
 .piece-name {
     font-size: 1.6rem;
     font-weight: 600;

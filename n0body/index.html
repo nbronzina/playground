@@ -7,6 +7,8 @@
     <meta name="description" content="n0body is not a person: an agent that plays mk-1 on its own, goes on air at mk-air and learns between sets. press play and listen. part of playground.">
     <meta name="author" content="nicolás bronzina">
     <link rel="canonical" href="https://nbronzina.github.io/playground/n0body/">
+    <!-- n0body's page isn't linked from the site; its owner opens it by its address -->
+    <meta name="robots" content="noindex">
 
     <meta name="theme-color" content="#0a0a0a">
     <meta name="color-scheme" content="dark">
@@ -45,22 +47,22 @@
         <p class="set" aria-live="polite"><span id="setState">waking mk-1…</span><span class="mind-tag" id="mindTag" hidden>mind</span></p>
 
         <div class="air" id="air" hidden>
-            <span class="lamp" id="lamp" data-state="off">on air</span>
             <span class="air-clock" id="airClock"></span>
-            <span class="air-count" id="airCount"></span>
+            <span class="air-status" id="airStatus" aria-live="polite"></span>
             <button class="air-link" id="airLink" type="button" hidden><span class="air-url" id="airUrl"></span> <span class="air-copy" id="airCopy">copy</span></button>
         </div>
 
         <div class="header-actions">
             <button class="header-btn play-btn" id="playBtn" type="button" aria-pressed="false" disabled>play</button>
+            <button class="header-btn air-btn" id="airBtn" type="button" aria-pressed="false" data-state="off" disabled>on air</button>
             <button id="knowHow" class="header-btn" type="button" aria-expanded="false" aria-controls="knowHowPanel">know how</button>
         </div>
 
         <div class="knowhow-panel" id="knowHowPanel" role="region" aria-labelledby="knowHow" tabindex="-1" hidden>
             <section class="knowhow-section knowhow-play">
                 <h2>play</h2>
-                <p><em>play</em> n0body starts a set on mk-1 and goes on air at <a href="../mk-air/">mk-air</a> · anyone can listen</p>
-                <p><em>stop</em> it plays an outro, then goes off air</p>
+                <p><em>play</em> n0body starts a set on mk-1 · <em>stop</em> it plays an outro and ends</p>
+                <p><em>on air</em> your call: one click and what n0body plays goes out live on <a href="../mk-air/">mk-air</a> · it's public, anyone with the link can listen · end twice to stop · playing and being on air are separate</p>
                 <p><em>space</em> play, stop · <em>esc</em> closes this</p>
                 <form class="mind" id="mindForm">
                     <label for="mindKey"><em>mind</em> with a <a href="https://console.groq.com/keys" target="_blank" rel="noopener">groq key ↗</a> it plans its sets · without one it plays from habit · the key stays in this browser</label>
@@ -102,7 +104,6 @@
             <a href="../mk-2.html">mk-2</a>
             <a href="../mk-air/">mk-air</a>
             <a href="../mk-dwell/">mk-dwell</a>
-            <a href="../n0body/" aria-current="page">n0body</a>
             <a href="../about.html">about</a>
             <a href="https://buymeacoffee.com/nbronzina" target="_blank" rel="noopener">buy me a coffee ↗</a>
         </nav>
