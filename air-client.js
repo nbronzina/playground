@@ -501,6 +501,8 @@
                 case 'error':
                     if (m.code === 'replaced') finish('replaced');
                     else if (m.code === 'full') { emit('error', { code: 'full' }); finish('full'); }
+                    // a name kept for its owner (n0body), asked for without the owner's key
+                    else if (m.code === 'reserved') { emit('error', { code: 'reserved' }); finish('reserved'); }
                     else emit('error', { code: String(m.code) });
                     break;
             }
@@ -661,7 +663,9 @@
                 const ws = await openWithin(Date.now() + WAKE_MS, final);
                 if (final()) { ws.close(); return; }
                 ln.attach(ws);
-                ln.send({ t: 'go-live', name: text(o.name, 40), from: text(o.from, 16), relay: canRelay });
+                const hello = { t: 'go-live', name: text(o.name, 40), from: text(o.from, 16), relay: canRelay };
+                if (o.key) hello.key = text(o.key, 256);
+                ln.send(hello);
                 setTimeout(() => {
                     if (!air.id && !final()) { emit('error', { code: 'unreachable' }); finish('unreachable'); }
                 }, 10000);
@@ -1026,5 +1030,33 @@
         return me;
     }
 
-    window.PGAir = Object.freeze({ server: SERVER.url, now, ice, mic, wake, goLive, listen, link, withServer, isId: id => ID.test(id) });
+    // whether a key is n0body's owner key: true, false, or a failure code ('unreachable', 'refused', 'busy')
+    async function owner(key, opts) {
+        const o = opts || {};
+        const deadline = Date.now() + WAKE_MS;
+        const waking = setTimeout(() => { if (o.onWaking) o.onWaking(); }, WAKING_AFTER);
+        try {
+            for (let attempt = 0; ; attempt++) {
+                const ctl = new AbortController();
+                const t = setTimeout(() => ctl.abort(), Math.max(1500, Math.min(20000, deadline - Date.now())));
+                try {
+                    const res = await fetch(SERVER.url + '/air/owner', { method: 'POST', body: String(key || ''), cache: 'no-store', credentials: 'omit', signal: ctl.signal });
+                    if (res.ok) return !!(await res.json()).ok;
+                    if (res.status === 403) throw failure('refused');
+                    if (res.status === 429) throw failure('busy');
+                } catch (e) {
+                    if (e.code === 'refused' || e.code === 'busy') throw e;
+                } finally {
+                    clearTimeout(t);
+                }
+                const left = deadline - Date.now();
+                if (left <= 0) throw failure('unreachable');
+                await sleep(Math.min(left, 4000, 500 * Math.pow(2, attempt)));
+            }
+        } finally {
+            clearTimeout(waking);
+        }
+    }
+
+    window.PGAir = Object.freeze({ server: SERVER.url, now, ice, mic, wake, goLive, listen, owner, link, withServer, isId: id => ID.test(id) });
 })();

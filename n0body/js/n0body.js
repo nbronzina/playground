@@ -1,12 +1,14 @@
 // n0body's page: mk-1 in a frame with only its console, n0body's mind loaded into it, the set and the radio up here.
 // The mind lives in the n0body repo and is served next to play·ground, on the same origin, so it can reach MK1.
-// Playing and going on air are separate: whoever is at the page decides when n0body's set goes out
+// Playing and going on air are separate: whoever is at the page decides when n0body's set goes out.
+// The room is its owner's. Without the owner key in this browser the page is a door: no mk-1, no mind
 (function () {
     'use strict';
 
     const $ = id => document.getElementById(id);
     const BRAIN = '/n0body/dist/n0body.js';
     const KEY = 'n0body-llm-key';
+    const OWNER = 'n0body-owner-key';
 
     const frame = $('stage');
     const playBtn = $('playBtn');
@@ -20,6 +22,8 @@
     const airUrl = $('airUrl');
     const airCopy = $('airCopy');
 
+    let ownerKey = '';
+    let opened = false;
     let mk1 = null;
     let n0 = null;
     let llm = null;
@@ -41,11 +45,85 @@
         return h ? h + ':' + pad(m) + ':' + pad(s % 60) : m + ':' + pad(s % 60);
     }
 
-    // ---------- mk-1 and the mind ----------
+    // ---------- the door ----------
 
-    // ?air= (a local signaling server while testing) goes on to mk-1, the one that goes on air
-    const testAir = new URLSearchParams(location.search).get('air');
-    frame.src = '../mk-1.html?embed' + (testAir ? '&air=' + encodeURIComponent(testAir) : '');
+    const store = (name, value) => {
+        try {
+            if (value) localStorage.setItem(name, value);
+            else localStorage.removeItem(name);
+        } catch (e) { /* storage blocked: the key lasts this visit */ }
+    };
+    const stored = name => {
+        try { return localStorage.getItem(name) || ''; } catch (e) { return ''; }
+    };
+
+    function showDoor(text) {
+        $('door').hidden = false;
+        $('doorNote').textContent = text || '';
+        setState.textContent = '';
+    }
+
+    // the owner's link, …/n0body/#key=…, opens the room on a device once; a fragment never reaches a server, and it
+    // leaves the address bar right away
+    function keyFromLink() {
+        const m = location.hash.match(/^#key=(.+)$/);
+        if (!m) return '';
+        history.replaceState(null, '', location.pathname + location.search);
+        try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; }
+    }
+
+    function openRoom(key) {
+        ownerKey = key;
+        if (opened) return;
+        opened = true;
+        $('door').hidden = true;
+        frame.hidden = false;
+        playBtn.hidden = false;
+        airBtn.hidden = false;
+        document.querySelectorAll('.owner-only').forEach(el => { el.hidden = false; });
+        document.querySelectorAll('.visitor-only').forEach(el => { el.hidden = true; });
+        setState.textContent = 'waking mk-1…';
+        // ?air= (a local signaling server while testing) goes on to mk-1, the one that goes on air
+        const testAir = new URLSearchParams(location.search).get('air');
+        frame.src = '../mk-1.html?embed' + (testAir ? '&air=' + encodeURIComponent(testAir) : '');
+    }
+
+    // the radio holds the key (N0BODY_KEY on its server); this browser only remembers it
+    function verify(key, fromLink) {
+        if (!window.PGAir) {
+            if (fromLink) showDoor("the radio didn't load. reload the page.");
+            return;
+        }
+        PGAir.owner(key, { onWaking: () => { if (fromLink) showDoor('waking the radio… up to a minute'); } })
+            .then(ok => {
+                if (ok) {
+                    store(OWNER, key);
+                    openRoom(key);
+                    return;
+                }
+                store(OWNER, '');
+                if (opened) location.reload();
+                else showDoor(fromLink ? "that key doesn't open it." : '');
+            })
+            .catch(err => {
+                if (fromLink) showDoor(err && err.code === 'busy' ? 'too many tries. wait a minute.' : "the radio isn't answering. try again in a minute.");
+            });
+    }
+
+    const linkKey = keyFromLink();
+    const keptKey = stored(OWNER);
+    if (linkKey) {
+        showDoor('checking the key…');
+        verify(linkKey, true);
+    } else if (keptKey) {
+        // a key this browser already proved opens at once; the radio confirms it in the background
+        openRoom(keptKey);
+        verify(keptKey, false);
+    } else {
+        showDoor('');
+    }
+
+    // ---------- mk-1 and the mind ----------
 
     function fail(text) {
         setState.textContent = text;
@@ -54,6 +132,7 @@
     }
 
     frame.addEventListener('load', () => {
+        if (!opened) return;
         let win;
         try { win = frame.contentWindow; } catch (e) { win = null; }
         if (!win || !win.MK1) { fail("mk-1 didn't load. reload the page."); return; }
@@ -157,7 +236,8 @@
         full: 'the radio is full. try again later.',
         lost: 'the line was down too long. off air.',
         replaced: 'it went on from another window.',
-        server: 'the radio closed it.'
+        server: 'the radio closed it.',
+        reserved: "the radio didn't take the key."
     };
 
     function setAirNote(text, ms) {
@@ -177,7 +257,7 @@
         const state = airState().state;
         if (state === 'off') {
             setAirNote('', 0);
-            mk1.MK1.air.start({ name: 'n0body' }).catch(err => {
+            mk1.MK1.air.start({ name: 'n0body', key: ownerKey }).catch(err => {
                 const why = err && err.code;
                 if (why === 'end') setAirNote('off air.', 4000);
                 else setAirNote(AIR_FAILS[why] || AIR_FAILS.unreachable);

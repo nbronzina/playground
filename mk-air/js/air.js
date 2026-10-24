@@ -313,7 +313,8 @@
     const CANT_GO = {
         full: 'the radio is full. try again later.',
         refused: "this page can't reach the radio.",
-        unreachable: "the radio isn't answering. try again in a minute."
+        unreachable: "the radio isn't answering. try again in a minute.",
+        reserved: 'that name is kept for someone. pick another.'
     };
 
     function stopMic() {
