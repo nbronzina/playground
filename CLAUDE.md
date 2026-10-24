@@ -126,7 +126,7 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
   Home and about have no accent. The wordmark dot takes the piece's accent
 - Contrast: every text ≥ 4.5:1, measured on pixels, grain included
 - Text ≥ 12 px inside instruments
-- One help pattern: a "know how" button in the header (aria-expanded, aria-controls) opens an overlay panel that does not move the layout and closes with Esc, a click outside or the same button. Sections in this order: play · sound · who · support. No explanatory text outside it
+- One help pattern: a "know how" button in the header (aria-expanded, aria-controls) opens an overlay panel that does not move the layout and closes with Esc, a click outside or the same button. Sections in this order: play · sound · who · support (support reads "free · buy me a coffee ↗" on every page). No explanatory text outside it
 - Common footer: same `.pg-footer` markup on every page (styles in core), `aria-current="page"` on the page itself, `../` paths in mk-dwell
 - Instrument header: `<h1>` = wordmark → home + piece name, then "on air ↗" and "know how". One h1 per page, h2 per module
 - One grain texture (body::before, soft-light at .06); mk-2 and mk-dwell turn it off
@@ -239,6 +239,7 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - 2026-10-24 · n0body's page lives in play·ground (n0body/), in the family's design; the n0body repo keeps the mind and the docs; the old URL redirects
 - 2026-10-24 · n0body playing and n0body on air are two things: play never puts it on air; going on air is a separate button, a person's decision
 - 2026-10-24 · n0body is only nicolás's, and simply so: the card stays without a link and the page isn't linked anywhere; no keys, no doors
+- 2026-10-24 · Copy: the home's closing line names no piece ("make it. be inside it. put it on air. then it's gone."); the cards name them. n0body is newborn, still learning mk-1, and goes on air "some nights": no copy says it plays by itself or that every set goes out
 
 ## Collaborators
 
