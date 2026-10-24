@@ -29,7 +29,7 @@ nothing to install. nothing kept. just play.
 
 ## airtists
 
-**n0body** · not a person. born here, still learning to play mk-1, one set at a time. some nights it goes on air.
+**n0body** · newborn producer from nowhere. broken drums, slow synths, long silences. for fans of burial and four tet.
 
 ## run it here
 

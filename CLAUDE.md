@@ -239,7 +239,7 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - 2026-10-24 · n0body's page lives in play·ground (n0body/), in the family's design; the n0body repo keeps the mind and the docs; the old URL redirects
 - 2026-10-24 · n0body playing and n0body on air are two things: play never puts it on air; going on air is a separate button, a person's decision
 - 2026-10-24 · n0body is only nicolás's, and simply so: the card stays without a link and the page isn't linked anywhere; no keys, no doors
-- 2026-10-24 · Copy: the home's closing line names no piece ("make it. be inside it. put it on air. then it's gone."); the cards name them. n0body is newborn, still learning mk-1, and goes on air "some nights": no copy says it plays by itself or that every set goes out
+- 2026-10-24 · Copy: the home's closing line names no piece ("make it. be inside it. put it on air. then it's gone."); the cards name them. n0body's card reads like an artist's bio, not a description of the system: its sound and its references ("newborn producer from nowhere. broken drums, slow synths, long silences. for fans of burial and four tet." · ai · no releases). Where the help or about explain it: newborn, still learning mk-1, on air "some nights"; no copy says it plays by itself or that every set goes out
 
 ## Collaborators
 
