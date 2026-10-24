@@ -56,6 +56,8 @@
 [data-piece="mk-2"] { --accent: var(--accent-mk2); }
 [data-piece="mk-dwell"] { --accent: var(--accent-dwell); }
 [data-piece="mk-air"] { --accent: var(--accent-air); }
+/* n0body lives on air: it borrows mk-air's red */
+[data-piece="n0body"] { --accent: var(--accent-air); }
 
 /* === BODY BASE === */
 body {

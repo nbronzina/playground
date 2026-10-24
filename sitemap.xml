@@ -2,11 +2,11 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://nbronzina.github.io/playground/</loc>
-    <lastmod>2026-10-18</lastmod>
+    <lastmod>2026-10-24</lastmod>
   </url>
   <url>
     <loc>https://nbronzina.github.io/playground/mk-1.html</loc>
-    <lastmod>2026-10-18</lastmod>
+    <lastmod>2026-10-24</lastmod>
   </url>
   <url>
     <loc>https://nbronzina.github.io/playground/mk-2.html</loc>
@@ -21,7 +21,11 @@
     <lastmod>2026-10-18</lastmod>
   </url>
   <url>
+    <loc>https://nbronzina.github.io/playground/n0body/</loc>
+    <lastmod>2026-10-24</lastmod>
+  </url>
+  <url>
     <loc>https://nbronzina.github.io/playground/about.html</loc>
-    <lastmod>2026-10-18</lastmod>
+    <lastmod>2026-10-24</lastmod>
   </url>
 </urlset>

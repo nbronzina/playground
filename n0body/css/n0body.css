@@ -1,0 +1,384 @@
+/* ============================================
+   N0BODY
+   mk-1 on stage, played by nobody; the set and the lamp up top
+   ============================================ */
+
+:root {
+    --n0-pad: clamp(16px, 1.6vw, 40px);
+    --fs-s: clamp(13px, .72vw, 18px);
+    --fs-m: clamp(15px, .9vw, 22px);
+    --glow: rgba(255, 90, 74, .5);
+    --on-lamp: #0a0a0a;
+}
+
+.mark {
+    color: var(--accent);
+}
+
+/* === ONE SCREEN === */
+/* the header, then mk-1 filling the rest exactly; the footer waits below the fold */
+.screen {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+}
+
+/* === HEADER === */
+.header {
+    gap: 1.5rem;
+    padding: .75rem var(--n0-pad);
+    overflow: visible;
+}
+
+.brand {
+    flex: none;
+    font-size: var(--fs-m);
+}
+
+.brand a:hover {
+    color: var(--accent);
+}
+
+.header-btn {
+    font-size: var(--fs-s);
+}
+
+.header-btn:hover,
+.header-btn[aria-expanded="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-lamp);
+}
+
+.header-btn:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+}
+
+.header-btn:disabled {
+    cursor: default;
+    color: var(--text-secondary);
+}
+
+.header-btn:disabled:hover {
+    background: none;
+    border-color: var(--border-primary);
+}
+
+.play-btn {
+    min-width: 5.5em;
+}
+
+.play-btn[aria-pressed="true"] {
+    border-color: var(--accent);
+}
+
+/* === THE SET === */
+.set {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: var(--fs-s);
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mind-tag {
+    color: var(--text-secondary);
+}
+
+.mind-tag::before {
+    content: '';
+    display: inline-block;
+    width: .45em;
+    height: .45em;
+    margin-right: .45em;
+    border-radius: 50%;
+    background: var(--accent);
+    vertical-align: .1em;
+}
+
+/* === ON AIR === */
+.air {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: var(--fs-s);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.air[hidden] {
+    display: none;
+}
+
+/* lit: dark text on the red (6.4:1), never white on it (3.1:1). Only the glow breathes, never the text */
+.lamp {
+    display: inline-flex;
+    align-items: center;
+    padding: .3em .8em;
+    border: 2px solid var(--border-secondary);
+    border-radius: 6px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    line-height: 1.2;
+    color: var(--text-secondary);
+    /* a lamp switches, it doesn't fade: halfway through, its text would sit on its own color */
+    transition: box-shadow .6s ease;
+}
+
+.lamp[data-state="on"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-lamp);
+    box-shadow: 0 0 14px var(--glow);
+    animation: glow 2.6s ease-in-out infinite alternate;
+}
+
+.lamp[data-state="hold"] {
+    border-color: var(--accent);
+    color: var(--accent);
+    animation: hold 1.4s steps(1) infinite;
+}
+
+@keyframes glow {
+    from { box-shadow: 0 0 6px rgba(255, 90, 74, .3); }
+    to { box-shadow: 0 0 18px rgba(255, 90, 74, .6), 0 0 44px rgba(255, 90, 74, .2); }
+}
+
+@keyframes hold {
+    50% { border-color: var(--border-secondary); }
+}
+
+.air-clock {
+    color: var(--text-primary);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+
+.air-link {
+    background: none;
+    border: 0;
+    /* a taller target than the line it sits on, without making the header taller */
+    padding: .5rem 0;
+    margin: -.5rem 0;
+    font: inherit;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.air-link[hidden] {
+    display: none;
+}
+
+.air-url {
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
+    text-underline-offset: .2em;
+}
+
+.air-copy {
+    margin-left: .4em;
+    color: var(--text-secondary);
+}
+
+.air-link:hover .air-copy,
+.air-link:focus-visible .air-copy {
+    color: var(--text-primary);
+}
+
+.air-link:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+}
+
+/* === KNOW HOW === */
+.knowhow-panel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: calc(100dvh - 100%);
+    overflow-y: auto;
+    padding: var(--n0-pad);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--accent);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, .7);
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+    gap: 1.5rem 2.5rem;
+    font-size: var(--fs-s);
+    line-height: 1.7;
+    color: var(--text-primary);
+}
+
+.knowhow-panel[hidden] {
+    display: none;
+}
+
+.knowhow-panel:focus {
+    outline: none;
+}
+
+.knowhow-section h2 {
+    margin-bottom: .6rem;
+    font-size: var(--fs-s);
+    font-weight: 500;
+    letter-spacing: var(--letter-spacing-wider);
+    color: var(--accent);
+}
+
+.knowhow-section p + p,
+.knowhow-section p + form {
+    margin-top: .4rem;
+}
+
+.knowhow-section em {
+    font-style: normal;
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.knowhow-section a {
+    text-decoration: underline;
+    text-underline-offset: .2em;
+}
+
+.mind {
+    margin-top: 1rem;
+}
+
+.mind label {
+    display: block;
+}
+
+.mind-row {
+    display: flex;
+    gap: .5rem;
+    margin-top: .6rem;
+}
+
+.mind-state {
+    margin-top: .4rem;
+    color: var(--text-secondary);
+}
+
+.field {
+    flex: 1;
+    min-width: 0;
+    padding: .6em .9em;
+    font-family: inherit;
+    font-size: max(16px, var(--fs-s));
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 0;
+}
+
+.field::placeholder {
+    color: var(--text-secondary);
+    opacity: 1;
+}
+
+.field:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+}
+
+.btn-line {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: .45em 1em;
+    font-family: inherit;
+    font-size: var(--fs-s);
+    font-weight: 500;
+    color: var(--text-primary);
+    background: transparent;
+    border: 1px solid var(--border-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-line:hover {
+    border-color: var(--accent);
+}
+
+.btn-line:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.btn-line[hidden] {
+    display: none;
+}
+
+.btn-line.armed {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* === STAGE === */
+/* mk-1 itself, its console only; n0body's hands are on it */
+.stage {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    z-index: 2;
+}
+
+.stage iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: var(--bg-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lamp,
+    .lamp[data-state="on"],
+    .lamp[data-state="hold"] {
+        animation: none;
+        transition: none;
+    }
+}
+
+/* === SMALL SCREENS === */
+@media (max-width: 1100px) {
+    .header {
+        flex-wrap: wrap;
+        row-gap: .6rem;
+    }
+
+    .set {
+        order: 3;
+        flex-basis: 100%;
+    }
+
+    .air {
+        order: 4;
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 860px) {
+    .knowhow-panel {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+}
+
+@media (pointer: coarse) {
+    .header-btn {
+        min-height: 40px;
+    }
+}

@@ -29,7 +29,7 @@ nothing to install. nothing kept. just play.
 
 ## airtists
 
-**[n0body](https://github.com/nbronzina/n0body)** · not a person. an agent that plays mk-1 on its own and goes on air at mk-air. it learns between sets.
+**[n0body](https://nbronzina.github.io/playground/n0body/)** · not a person. an agent that plays mk-1 on its own and goes on air at mk-air. it learns between sets.
 
 ## run it here
 

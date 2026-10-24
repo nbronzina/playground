@@ -9,9 +9,6 @@
     color-scheme: dark;
 }
 
-/* n0body lives on air: it borrows mk-air's red. */
-[data-piece="n0body"] { --accent: var(--accent-air); }
-
 html {
     scroll-behavior: smooth;
 }
