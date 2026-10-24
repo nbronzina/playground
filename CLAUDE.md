@@ -51,9 +51,10 @@ playground/
 ├── mk-1.html
 ├── mk-1.js
 ├── mk-1.css
-├── drum-engine-processor.js      — mk-1 drums: 8 voices, sample-accurate trigger queue
-├── karplus-strong-processor.js   — mk-1 "string" wave
-├── bitcrusher-processor.js       — mk-1 crush fx
+├── drum-engine-processor.js      — mk-1 drums: 8 voices, sample-accurate trigger queue, velocity, tune/decay, stereo
+├── karplus-strong-processor.js   — mk-1 "string" wave: starts and stops on its frame, allpass-tuned
+├── bitcrusher-processor.js       — mk-1 crush fx: bits and sample rate
+├── recorder-processor.js         — mk-1 looper: uncompressed takes between exact frames
 ├── mk-2.html                     — markup + inline JS
 ├── mk-2.css
 ├── vinyl-playback-processor.js   — mk-2 deck playback: variable rate, scratch, 4 ms crossfade on jumps
@@ -77,7 +78,7 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - Vanilla JS — no React, no Vue, no frameworks
 - CSS — no Tailwind, no preprocessors
 - Zero npm dependencies
-- AudioWorklet for custom DSP (4 processors)
+- AudioWorklet for custom DSP (5 processors)
 - OfflineAudioContext only to render mk-2's demo record
 - Web MIDI input in mk-1, setSinkId cue output in mk-2
 - GitHub Pages for deployment
@@ -101,7 +102,7 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - JetBrains Mono for UI text; load only the weights a page uses
 - Commit format: [module] description — e.g. [mk-1] fix looper drift
 - No comments explaining what code does — only why something non-obvious was done
-- window.MK1 is n0body's interface: keep its surface stable (drums, synth, sequencer, fx, tempo, master, looper, air, utils)
+- window.MK1 is n0body's interface: keep its surface stable (drums, synth, sequencer, fx, tempo, master, looper, air, utils); add, don't change
 - mk-air signaling v1 (server in the mk-air repo): WebSocket /air, GET /air/now, GET /air/ice; origin allowlist; Opus stereo 128 kbps; one peer per listener. Pages use air-client.js, never their own socket code. Relay fallback on the same socket (binary: [u32 ms][u16 len][Opus packet]…). `?air=<url>` points a page at a local server for testing
 
 **UI**
@@ -166,18 +167,19 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 **mk-1**
 - One-screen console (100dvh): status bar (transport, messages, demo, clear) + 3 columns: pads + pattern · wave + keys · loop + vibe + fx/tempo
 - Drums: 8 voices (kick, snare, hat, clap, tom, perc, cymbal, rim) in drum-engine-processor.js; node engine as fallback
-- Keys: 13 (C4–C5), qwerty / azerty / qwertz layouts (choice kept in localStorage), attack / release
-- Waves: 9 (sine, square, saw, triangle, pulse, noise, string, voice, vocoder). string = Karplus-Strong worklet. vocoder asks for the mic on its first note
-- MIDI input after the first gesture: channel 10 → drums (GM map), other channels → keys
-- Sequencer: 8 tracks × 16 steps on the lookahead scheduler, undo / redo
-- Looper: 4 slots (A/B/C/D), rec manual, play+rec with the pattern, add layer (overdub aligned to the loop, whole cycles), play / play all, clear, mic input. Takes are recorded after the limiter (.webm); download and export all
-- FX: reverb, delay, filter, chorus, distortion, bitcrush (AudioWorklet), volume. Tempo 60–200, default 120
+- Keys: 13 on screen, octaves c2–c6 (← → or − +), qwerty / azerty / qwertz layouts (choice kept in localStorage; labels follow layout and octave), attack / release. A note sounds while held (letter, pointer, MIDI) and fades with the release; sliding across the keys plays each one. playNote(freq, opts) returns a voice with release(); loops and the API pass a hold
+- Waves: 9 (sine, square, saw, triangle, pulse, noise, string, voice, vocoder). string = Karplus-Strong worklet. vocoder asks for the mic on its first note and follows it in the audio graph (rectify → lowpass → gain), not on requestAnimationFrame
+- MIDI input after the first gesture: velocity (level and brightness), note off, sustain pedal, pitch bend ±2, mod wheel vibrato; channel 10 → drums (GM map, 46 = open hat), other channels → keys
+- Drums: velocity, accent, tune ±12 (tape-style: pitch and length together) and decay per pad (header of drums, last pad played by hand); the kit is spread in stereo
+- Sequencer: 8 drum tracks × 16 steps (a step: on, accent, off) plus a keys row (a step takes the last note played), swing up to an MPC's 75%, on the lookahead scheduler, undo / redo
+- Looper: 4 slots (A/B/C/D), rec manual, play+rec with the pattern, add layer (whole cycles), undo layer, play / play all, clear, mic input. Takes are recorded uncompressed before the limiter by the recorder worklet, between exact frames; a layer is summed onto the loop sample for sample; download and export all as 16-bit .wav with the master's ceiling. Recording a slot doesn't capture the other slots
+- FX: distortion → crush → chorus as inserts (dry/wet crossfades, chorus stereo), then reverb (darkening tail, 20 ms pre-delay, lows kept dry) and delay (dotted eighth at the tempo, ping-pong, darker repeats, lows kept dry) as sends; filter (log slider, 100 Hz–10 kHz), volume. Every slider glides. Tempo 60–200, default 120
 - Vibe: 8×4 spectrum matrix; waveform display
 - Modulation: driftLFO → subOsc.detune (tape wobble, 0.1–0.3 Hz, ±15 cents)
 - Modulation: lfoGain → formant detune (slow organic movement, 1–2 Hz, ±20 cents)
 - Node lifecycle: stop() → setTimeout(disconnect, 100) in cleanupVoice and the looper
 - on air: one click sends mk-1's master (after the limiter) to mk-air, no mic; end takes two presses, as in mk-2 and mk-air. MK1.air.start({name}) / stop() / status() for n0body, which goes on air for every session
-- Gaps: the fx sliders write AudioParam.value directly; the string voice is stopped by a setTimeout message
+- MK1 additions, all optional: synth.play(note, duration, velocity), drums.hit(pad, velocity), drums.setTune / setDecay, sequencer.setAccent / setNote / getNote / setSwing / getSwing. fx.setFilter keeps its linear 100–20000 Hz meaning
 
 **mk-2**
 - Two decks: grab the disc to scratch, let go and it keeps spinning; click the groove or the timeline to drop the needle; motor spin-up and brake; 33 / 45; pitch ±8; restart; « » 10 s; eject; load

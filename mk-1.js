@@ -151,9 +151,8 @@ const customSelectInstances = {};
 const AUDIO_CONSTANTS = {
     MASTER_VOLUME: 0.7,
     ANALYSER_FFT_SIZE: 2048,
-    DELAY_TIME: 0.3,
-    DELAY_FEEDBACK: 0.3,
-    REVERB_TIME: 2,
+    DELAY_FEEDBACK: 0.5,
+    REVERB_TIME: 2.2,
     DEFAULT_FILTER_FREQ: 10000
 };
 
@@ -181,7 +180,6 @@ const LIMITER = {
     CEILING: 0.9
 };
 
-const LAYER_SEARCH = 0.06;
 
 // ============================================
 // AUDIO ENGINE
@@ -193,6 +191,13 @@ let loopBus;
 let isActive = false;
 let audioReady = null;
 let audioLoaded = false;
+// cents, into every synth oscillator's detune: MIDI pitch bend plus the mod wheel's vibrato
+let pitchBus = null;
+let pitchBend = null;
+let vibratoDepth = null;
+// two seconds of noise, looped by a held noise note
+let noiseLoop = null;
+let octaveShift = 0;
 
 // ============================================
 // VOICE MANAGEMENT (Memory Leak Prevention)
@@ -220,7 +225,10 @@ function initSharedCurves() {
         tanh25: createTanhCurve(2.5),
         tanh40: createTanhCurve(4.0),
         // Hard clip curve
-        hardClip: createHardClipCurve(0.8, 3)
+        hardClip: createHardClipCurve(0.8, 3),
+        // vocoder envelope follower: full-wave rectifier, then a ceiling that keeps the band's gain in 0–1
+        rectify: Float32Array.from({ length: 1025 }, (_, i) => Math.abs((2 * i) / 1024 - 1)),
+        unit: Float32Array.from({ length: 1025 }, (_, i) => Math.max(0, (2 * i) / 1024 - 1))
     };
 
     return sharedCurves;
@@ -262,6 +270,12 @@ function cleanupVoice(voice) {
 
     const nodesToDisconnect = voice.nodes;
     voice.nodes = null;
+
+    // connections into this voice from nodes that outlive it (pitch bend, the mic) would keep it alive
+    if (voice.links) {
+        voice.links.forEach(([from, to]) => { try { from.disconnect(to); } catch (e) {} });
+        voice.links = null;
+    }
 
     // Cancel any animation frames
     if (voice.animationIds) {
@@ -321,32 +335,25 @@ function registerDrumVoice(nodes, duration) {
     return voice;
 }
 
-// Register a new synth voice and limit active voices
-function registerSynthVoice(nodes, duration) {
-    const voice = {
-        nodes: nodes,
-        endTime: audioContext.currentTime + duration,
-        animationIds: []
-    };
-
+// A held voice has no end yet; endSynthVoice gives it one when it's released
+function registerSynthVoice(voice) {
     activeSynthVoices.push(voice);
 
-    // If over limit, cleanup oldest voice
     while (activeSynthVoices.length > VOICE_LIMITS.MAX_SYNTH_VOICES) {
         const oldest = activeSynthVoices.shift();
+        oldest.released = true;
         cleanupVoice(oldest);
     }
+    return voice;
+}
 
-    // Schedule cleanup
+function endSynthVoice(voice, end) {
+    voice.endTime = end;
     setTimeout(() => {
         const index = activeSynthVoices.indexOf(voice);
-        if (index > -1) {
-            activeSynthVoices.splice(index, 1);
-            cleanupVoice(voice);
-        }
-    }, duration * 1000 + 100);
-
-    return voice;
+        if (index > -1) activeSynthVoices.splice(index, 1);
+        cleanupVoice(voice);
+    }, Math.max(0, end - audioContext.currentTime) * 1000 + 100);
 }
 
 function releaseSynthVoices() {
@@ -356,6 +363,7 @@ function releaseSynthVoices() {
     activeSynthVoices = [];
 
     voices.forEach(voice => {
+        voice.released = true;
         if (voice.out) {
             const gain = voice.out.gain;
             gain.cancelScheduledValues(now);
@@ -401,6 +409,85 @@ function startVoiceCleanup() {
     }, VOICE_LIMITS.CLEANUP_INTERVAL);
 }
 
+// A room's tail: −60 dB at `seconds`, highs dying first (a one-pole lowpass closing from 12 kHz toward 1 kHz),
+// 20 ms of silence before it so the dry hit stays clear. The convolver normalizes its loudness
+function makeImpulse(context, seconds) {
+    const rate = context.sampleRate;
+    const pre = Math.round(0.02 * rate);
+    const length = pre + Math.round(seconds * rate);
+    const impulse = context.createBuffer(2, length, rate);
+    for (let ch = 0; ch < 2; ch++) {
+        const data = impulse.getChannelData(ch);
+        let lp = 0;
+        for (let i = pre; i < length; i++) {
+            const t = (i - pre) / rate;
+            const amp = Math.exp(-6.9 * t / seconds) * Math.min(1, t / 0.004);
+            const a = Math.exp(-2 * Math.PI * (1000 + 11000 * Math.exp(-3 * t / seconds)) / rate);
+            lp = (1 - a) * (Math.random() * 2 - 1) + a * lp;
+            data[i] = lp * amp;
+        }
+    }
+    return impulse;
+}
+
+let delayL = null;
+let delayR = null;
+
+// input → dry → output, input → (the effect) → wet → output
+function makeInsert() {
+    const input = audioContext.createGain();
+    const dry = audioContext.createGain();
+    const wet = audioContext.createGain();
+    const output = audioContext.createGain();
+    wet.gain.value = 0;
+    input.connect(dry);
+    dry.connect(output);
+    wet.connect(output);
+    return { input, dry, wet, output };
+}
+
+// distorted, the signal sits near 0.35 whatever comes in; this brings it back to about the dry level
+const DISTORTION_MAKEUP = 0.6;
+
+function applyDistortion(amount) {
+    if (!window.distortionNode) return;
+    window.distortionNode.curve = makeDistortionCurve(amount * 400);
+    setParam(window.distortionDry.gain, 1 - amount);
+    setParam(window.distortionMix.gain, amount * DISTORTION_MAKEUP);
+}
+
+// crush has no mix: from 1 up the sound is crushed, faded in over a few ms
+function applyCrush(amount) {
+    if (!window.setCrushAmount) return;
+    window.setCrushAmount(amount);
+    setParam(window.bitcrusherDry.gain, amount > 0 ? 0 : 1);
+    setParam(window.bitcrusherMix.gain, amount > 0 ? 1 : 0);
+}
+
+// chorus keeps some dry: at full it's an even blend, about as loud as dry alone
+function applyChorus(amount) {
+    if (!window.chorusMix) return;
+    setParam(window.chorusDry.gain, 1 - 0.4 * amount);
+    setParam(window.chorusMix.gain, 0.6 * amount);
+    setParam(window.chorusLFOGain.gain, 0.002 + amount * 0.003);
+}
+
+function syncDelay() {
+    if (!delayL) return;
+    const time = Math.min(1.9, 0.75 * 60 / parseInt(document.getElementById('tempo').value));
+    delayL.delayTime.setTargetAtTime(time, audioContext.currentTime, 0.08);
+    delayR.delayTime.setTargetAtTime(time, audioContext.currentTime, 0.08);
+}
+
+// sliders glide instead of stepping, so dragging one doesn't zipper
+function setParam(param, value) {
+    param.setTargetAtTime(value, audioContext.currentTime, 0.02);
+}
+
+// the filter slider is 0–100 on a log scale, 100 Hz to 10 kHz, so the lows get as much travel as the highs
+const filterHz = position => Math.round(100 * Math.pow(100, position / 100));
+const filterPosition = hz => Math.round(100 * Math.log(Math.max(100, Math.min(10000, hz)) / 100) / Math.log(100));
+
 // Distortion curve generator
 function makeDistortionCurve(amount) {
     const k = typeof amount === 'number' ? amount : 50;
@@ -421,10 +508,10 @@ let isMicActive = false;
 let micPending = false;
 
 let loopSlots = {
-    A: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, loopSamples: 0, isPlaying: false, playback: null },
-    B: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, loopSamples: 0, isPlaying: false, playback: null },
-    C: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, loopSamples: 0, isPlaying: false, playback: null },
-    D: { loop: [], audioBlob: null, audioBuffer: null, duration: 0, loopSamples: 0, isPlaying: false, playback: null }
+    A: { loop: [], audioBuffer: null, history: [], duration: 0, loopSamples: 0, isPlaying: false, playback: null },
+    B: { loop: [], audioBuffer: null, history: [], duration: 0, loopSamples: 0, isPlaying: false, playback: null },
+    C: { loop: [], audioBuffer: null, history: [], duration: 0, loopSamples: 0, isPlaying: false, playback: null },
+    D: { loop: [], audioBuffer: null, history: [], duration: 0, loopSamples: 0, isPlaying: false, playback: null }
 };
 let activeSlot = 'A';
 let isRecording = false;
@@ -435,21 +522,28 @@ let overdubLength = 0;
 let overdubStop = null;
 let demoSlot = null;
 
-let mediaRecorder;
 let mediaStreamDestination;
 
+// Drum steps are 0 off, 1 on, 2 accent; the keys row holds a MIDI note or null
 let sequencerSteps = {
-    kick: Array(16).fill(false),
-    snare: Array(16).fill(false),
-    hihat: Array(16).fill(false),
-    clap: Array(16).fill(false),
-    tom1: Array(16).fill(false),
-    perc: Array(16).fill(false),
-    cymbal: Array(16).fill(false),
-    rim: Array(16).fill(false)
+    kick: Array(16).fill(0),
+    snare: Array(16).fill(0),
+    hihat: Array(16).fill(0),
+    clap: Array(16).fill(0),
+    tom1: Array(16).fill(0),
+    perc: Array(16).fill(0),
+    cymbal: Array(16).fill(0),
+    rim: Array(16).fill(0),
+    keys: Array(16).fill(null)
 };
+// an accented step hits about 3 dB harder
+const ACCENT = 1.4;
+// the last note played on the keys, keyboard or MIDI: what a tap on the keys row writes
+let lastNote = 60;
 let currentStep = 0;
 let isPlaying = false;
+// 0–1: how far the off-beat 16ths lean back, up to half a step (an MPC's 75%)
+let swing = 0;
 let nextStepTime = 0;
 let seqRun = 0;
 let clockId = null;
@@ -505,16 +599,33 @@ function restoreSequencerState(state) {
     updatePatternCount();
 }
 
+const NOTE_NAMES = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'];
+const noteName = midi => NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1);
+const midiFreq = midi => 440 * Math.pow(2, (midi - 69) / 12);
+const freqMidi = freq => Math.round(69 + 12 * Math.log2(freq / 440));
+
+function paintStep(el, value) {
+    if (el.dataset.drum === 'keys') {
+        el.classList.toggle('active', value !== null && value !== undefined);
+        el.textContent = value === null || value === undefined ? '' : noteName(value);
+        return;
+    }
+    el.classList.toggle('active', !!value);
+    el.classList.toggle('accent', value === 2);
+}
+
 function updateSequencerUI() {
     document.querySelectorAll('.step').forEach(step => {
-        const drum = step.dataset.drum;
-        const index = parseInt(step.dataset.index);
-        if (sequencerSteps[drum][index]) {
-            step.classList.add('active');
-        } else {
-            step.classList.remove('active');
-        }
+        paintStep(step, sequencerSteps[step.dataset.drum][parseInt(step.dataset.index)]);
     });
+}
+
+function clearPattern() {
+    drums.forEach(drum => {
+        sequencerSteps[drum] = Array(16).fill(0);
+    });
+    sequencerSteps.keys = Array(16).fill(null);
+    updateSequencerUI();
 }
 
 const statusMessage = document.getElementById('statusMessage');
@@ -545,6 +656,14 @@ const notes = {
     'G#4': 415.30, 'A4': 440.00, 'A#4': 466.16, 'B4': 493.88,
     'C5': 523.25
 };
+const KEY_NOTES = Object.keys(notes);
+const OCTAVE_MIN = -2;
+const OCTAVE_MAX = 2;
+
+// a key's note at the current octave
+function keyFreq(name) {
+    return 440 * Math.pow(2, (KEY_NOTES.indexOf(name) + 12 * octaveShift - 9) / 12);
+}
 
 // Vibe Matrix Animation
 const vibeMatrix = document.getElementById('vibeMatrix');
@@ -560,99 +679,110 @@ let vibeDataArray = null;
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
-function startMediaRecording() {
-    const slotKey = recordingSlot;
-    const looped = loopSlots[slotKey].audioBuffer;
-    const under = isOverdub && looped ? looped.getChannelData(0).subarray(0, Math.round(overdubLength * looped.sampleRate)) : null;
-    const chunks = [];
-    document.getElementById('downloadBtn').style.display = 'none';
+// ============================================
+// LOOPER RECORDING
+// ============================================
+// The recorder worklet captures what goes into the limiter, uncompressed, from one exact frame to another.
+// A take is a promise of an AudioBuffer exactly as long as asked
+let recorder = null;
+let takeCount = 0;
+const takes = new Map();
 
-    mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
-
-    mediaRecorder.ondataavailable = (event) => {
-        chunks.push(event.data);
-    };
-
-    mediaRecorder.onstop = async () => {
-        const slot = loopSlots[slotKey];
-        const blob = new Blob(chunks, { type: 'audio/webm' });
-        slot.audioBlob = blob;
-
-        try {
-            const arrayBuffer = await blob.arrayBuffer();
-            const take = await audioContext.decodeAudioData(arrayBuffer);
-            const audioBuffer = under && slot.loopSamples > 0 ? alignLayer(take, under, slot.loopSamples) : take;
-            slot.audioBuffer = audioBuffer;
-            slot.loopSamples = Math.min(slot.loopSamples || audioBuffer.length, audioBuffer.length);
-            slot.duration = slot.loopSamples / audioBuffer.sampleRate;
-            if (slot.playback) swapSlotPlayback(slotKey);
-        } catch (error) {
-            console.error('Error decoding audio:', error);
-        }
-
-        updateSlotUI();
-    };
-
-    mediaRecorder.start();
+function recordFrom(time) {
+    if (!recorder) return null;
+    const id = ++takeCount;
+    const start = Math.round(time * audioContext.sampleRate);
+    takes.set(id, { L: [], R: [], frames: 0, start, done: null });
+    recorder.port.postMessage({ type: 'start', take: id, frame: start });
+    return id;
 }
 
-// The recorder starts on its own clock and the limiter looks ahead, so a layer is placed by finding the loop it was played over inside the take
-function layerOffset(take, under, sampleRate) {
-    const block = 32;
-    const reach = Math.round(LAYER_SEARCH * sampleRate);
-    const span = Math.min(under.length, take.length - reach);
-    if (span <= 0) return 0;
-
-    const energy = (data, length) => {
-        const env = new Float32Array(Math.ceil(length / block));
-        for (let i = 0; i < length; i++) env[Math.floor(i / block)] += Math.abs(data[i]);
-        return env;
-    };
-    const envTake = energy(take, take.length);
-    const envUnder = energy(under, span);
-    const blocks = Math.ceil(reach / block);
-
-    let coarse = 0;
-    let best = 0;
-    for (let lag = -blocks; lag <= blocks; lag++) {
-        let sum = 0;
-        for (let i = Math.max(0, -lag); i < envUnder.length && i + lag < envTake.length; i++) {
-            sum += envUnder[i] * envTake[i + lag];
-        }
-        if (sum > best) {
-            best = sum;
-            coarse = lag * block;
-        }
-    }
-
-    const fineSpan = Math.min(span, sampleRate * 2);
-    let offset = coarse;
-    best = 0;
-    for (let lag = coarse - 2 * block; lag <= coarse + 2 * block; lag++) {
-        let sum = 0;
-        for (let i = Math.max(0, -lag); i < fineSpan && i + lag < take.length; i++) {
-            sum += under[i] * take[i + lag];
-        }
-        if (sum > best) {
-            best = sum;
-            offset = lag;
-        }
-    }
-    return offset;
+// ends the take after exactly `frames` samples
+function recordFor(id, frames) {
+    const take = takes.get(id);
+    if (!take) return Promise.resolve(null);
+    recorder.port.postMessage({ type: 'stop', take: id, frame: take.start + frames });
+    return new Promise(resolve => { take.done = resolve; });
 }
 
-function alignLayer(take, under, length) {
-    const offset = layerOffset(take.getChannelData(0), under, take.sampleRate);
-    const aligned = audioContext.createBuffer(take.numberOfChannels, length, take.sampleRate);
-    for (let ch = 0; ch < take.numberOfChannels; ch++) {
-        const source = take.getChannelData(ch);
-        const target = aligned.getChannelData(ch);
-        for (let i = 0; i < length; i++) {
-            const j = i + offset < 0 ? i + offset + length : i + offset;
-            target[i] = j < source.length ? source[j] : 0;
+function onRecorderMessage(e) {
+    const d = e.data;
+    const take = takes.get(d.take);
+    if (d.type === 'chunk') {
+        if (take) {
+            take.L.push(d.L.slice(0, d.frames));
+            take.R.push(d.R.slice(0, d.frames));
+            take.frames += d.frames;
         }
+        recorder.port.postMessage({ type: 'return', chunk: d }, [d.L.buffer, d.R.buffer]);
+    } else if (d.type === 'end' && take) {
+        takes.delete(d.take);
+        if (d.lost) console.warn('looper: ' + d.lost + ' frames could not be kept');
+        const buffer = audioContext.createBuffer(2, Math.max(1, take.frames), audioContext.sampleRate);
+        [take.L, take.R].forEach((parts, ch) => {
+            const data = buffer.getChannelData(ch);
+            let offset = 0;
+            parts.forEach(part => { data.set(part, offset); offset += part.length; });
+        });
+        if (take.done) take.done(take.frames ? buffer : null);
     }
-    return aligned;
+}
+
+// The layer joins the loop sample for sample; the loop repeats under it for as many whole cycles as the layer lasted
+function addLayerTo(under, underLength, layer) {
+    const length = layer.length;
+    const out = audioContext.createBuffer(2, length, audioContext.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+        const target = out.getChannelData(ch);
+        const top = layer.getChannelData(Math.min(ch, layer.numberOfChannels - 1));
+        const below = under && underLength > 0 ? under.getChannelData(Math.min(ch, under.numberOfChannels - 1)) : null;
+        for (let i = 0; i < length; i++) target[i] = top[i] + (below ? below[i % underLength] : 0);
+    }
+    return out;
+}
+
+// A slot remembers the takes it replaced, so the last layer can be taken back
+const SLOT_HISTORY = 4;
+
+function keepForUndo(slot) {
+    if (!slot.audioBuffer) return;
+    slot.history.push({ audioBuffer: slot.audioBuffer, loopSamples: slot.loopSamples });
+    if (slot.history.length > SLOT_HISTORY) slot.history.shift();
+}
+
+function setSlotAudio(key, buffer, loopSamples) {
+    const slot = loopSlots[key];
+    keepForUndo(slot);
+    slot.audioBuffer = buffer;
+    slot.loopSamples = loopSamples;
+    slot.duration = loopSamples / audioContext.sampleRate;
+    if (slot.playback) swapSlotPlayback(key);
+    updateSlotUI();
+}
+
+// 16-bit WAV of the loop, with the master's ceiling so peaks round off the way they did when heard
+function slotWav(slot) {
+    const length = slot.loopSamples || slot.audioBuffer.length;
+    const rate = slot.audioBuffer.sampleRate;
+    const bytes = new DataView(new ArrayBuffer(44 + length * 4));
+    const text = (o, t) => { for (let i = 0; i < t.length; i++) bytes.setUint8(o + i, t.charCodeAt(i)); };
+    text(0, 'RIFF'); bytes.setUint32(4, 36 + length * 4, true); text(8, 'WAVE');
+    text(12, 'fmt '); bytes.setUint32(16, 16, true); bytes.setUint16(20, 1, true); bytes.setUint16(22, 2, true);
+    bytes.setUint32(24, rate, true); bytes.setUint32(28, rate * 4, true); bytes.setUint16(32, 4, true); bytes.setUint16(34, 16, true);
+    text(36, 'data'); bytes.setUint32(40, length * 4, true);
+    const knee = LIMITER.CEILING;
+    const round = x => {
+        const over = Math.abs(x) - knee;
+        const y = over > 0 ? Math.sign(x) * (knee + (1 - knee) * Math.tanh(over / (1 - knee))) : x;
+        return Math.max(-32768, Math.min(32767, Math.round(y * 32767)));
+    };
+    const L = slot.audioBuffer.getChannelData(0);
+    const R = slot.audioBuffer.getChannelData(Math.min(1, slot.audioBuffer.numberOfChannels - 1));
+    for (let i = 0; i < length; i++) {
+        bytes.setInt16(44 + i * 4, round(L[i]), true);
+        bytes.setInt16(46 + i * 4, round(R[i]), true);
+    }
+    return new Blob([bytes], { type: 'audio/wav' });
 }
 
 function addPressHandler(element, handler) {
@@ -711,37 +841,68 @@ function initSystem() {
         masterGain = audioContext.createGain();
         masterGain.gain.value = AUDIO_CONSTANTS.MASTER_VOLUME;
 
+        pitchBus = audioContext.createGain();
+        pitchBend = audioContext.createConstantSource();
+        pitchBend.offset.value = 0;
+        pitchBend.connect(pitchBus);
+        pitchBend.start();
+        const vibrato = audioContext.createOscillator();
+        vibrato.frequency.value = 5.5;
+        vibratoDepth = audioContext.createGain();
+        vibratoDepth.gain.value = 0;
+        vibrato.connect(vibratoDepth);
+        vibratoDepth.connect(pitchBus);
+        vibrato.start();
+
+        noiseLoop = audioContext.createBuffer(1, audioContext.sampleRate * 2, audioContext.sampleRate);
+        const noiseData = noiseLoop.getChannelData(0);
+        for (let i = 0; i < noiseData.length; i++) noiseData[i] = Math.random() * 2 - 1;
+
         analyser = audioContext.createAnalyser();
         analyser.fftSize = AUDIO_CONSTANTS.ANALYSER_FFT_SIZE;
         
-        const delayNode = audioContext.createDelay();
-        delayNode.delayTime.value = AUDIO_CONSTANTS.DELAY_TIME;
+        // Delay: a dotted eighth at the tempo, left then right, each repeat darker than the one before.
+        // The kick and the sub stay out of it, so the repeats don't muddy the low end
+        const delayIn = audioContext.createGain();
+        delayIn.channelCount = 1;
+        delayIn.channelCountMode = 'explicit';
+        const delayLowCut = audioContext.createBiquadFilter();
+        delayLowCut.type = 'highpass';
+        delayLowCut.frequency.value = 160;
+        delayL = audioContext.createDelay(2);
+        delayR = audioContext.createDelay(2);
+        const delayCross = audioContext.createGain();
+        delayCross.gain.value = 0.75;
+        const delayTone = audioContext.createBiquadFilter();
+        delayTone.type = 'lowpass';
+        delayTone.frequency.value = 3200;
         const delayFeedback = audioContext.createGain();
         delayFeedback.gain.value = AUDIO_CONSTANTS.DELAY_FEEDBACK;
+        const delaySides = audioContext.createChannelMerger(2);
         const delayMix = audioContext.createGain();
         delayMix.gain.value = 0;
-        
-        delayNode.connect(delayFeedback);
-        delayFeedback.connect(delayNode);
-        delayNode.connect(delayMix);
-        
+
+        delayIn.connect(delayLowCut);
+        delayLowCut.connect(delayL);
+        delayL.connect(delaySides, 0, 0);
+        delayL.connect(delayCross);
+        delayCross.connect(delayR);
+        delayR.connect(delaySides, 0, 1);
+        delayR.connect(delayTone);
+        delayTone.connect(delayFeedback);
+        delayFeedback.connect(delayL);
+        delaySides.connect(delayMix);
+        syncDelay();
+
+        // Reverb: a tail that darkens as it fades, 20 ms after the sound; the lows stay dry
+        const reverbLowCut = audioContext.createBiquadFilter();
+        reverbLowCut.type = 'highpass';
+        reverbLowCut.frequency.value = 220;
         const reverbNode = audioContext.createConvolver();
+        reverbNode.buffer = makeImpulse(audioContext, AUDIO_CONSTANTS.REVERB_TIME);
         const reverbMix = audioContext.createGain();
         reverbMix.gain.value = 0;
-        
-        const reverbTime = AUDIO_CONSTANTS.REVERB_TIME;
-        const sampleRate = audioContext.sampleRate;
-        const length = sampleRate * reverbTime;
-        const impulse = audioContext.createBuffer(2, length, sampleRate);
-        const impulseL = impulse.getChannelData(0);
-        const impulseR = impulse.getChannelData(1);
-        
-        for (let i = 0; i < length; i++) {
-            const decay = Math.pow(1 - i / length, 2);
-            impulseL[i] = (Math.random() * 2 - 1) * decay;
-            impulseR[i] = (Math.random() * 2 - 1) * decay;
-        }
-        reverbNode.buffer = impulse;
+        reverbLowCut.connect(reverbNode);
         reverbNode.connect(reverbMix);
         
         const filterNode = audioContext.createBiquadFilter();
@@ -764,9 +925,19 @@ function initSystem() {
         const ceiling = audioContext.createWaveShaper();
         ceiling.curve = createCeilingCurve(LIMITER.CEILING);
 
-        masterGain.connect(delayNode);
-        masterGain.connect(reverbNode);
-        masterGain.connect(filterNode);
+        // Distortion, crush and chorus sit in series, each a crossfade from dry to processed, so turning one up
+        // changes the sound instead of piling a copy on top of it. Delay and reverb take what comes out of them
+        const insertDistortion = makeInsert();
+        const insertCrush = makeInsert();
+        const insertChorus = makeInsert();
+        masterGain.connect(insertDistortion.input);
+        insertDistortion.output.connect(insertCrush.input);
+        insertCrush.output.connect(insertChorus.input);
+        const fxOut = insertChorus.output;
+
+        fxOut.connect(delayIn);
+        fxOut.connect(reverbLowCut);
+        fxOut.connect(filterNode);
         delayMix.connect(filterNode);
         reverbMix.connect(filterNode);
         filterNode.connect(limiter);
@@ -775,80 +946,68 @@ function initSystem() {
         ceiling.connect(analyser);
         analyser.connect(audioContext.destination);
 
-        // Recorded loops already carry the FX and master level, so they join after the FX chain, still under the limiter
+        // Loops are recorded before the limiter and play back into it, so they meet everything else there once
         loopBus = audioContext.createGain();
         loopBus.connect(limiter);
 
-        // Distortion
         const distortionNode = audioContext.createWaveShaper();
         distortionNode.curve = makeDistortionCurve(0);
         distortionNode.oversample = '4x';
-        const distortionMix = audioContext.createGain();
-        distortionMix.gain.value = 0;
+        insertDistortion.input.connect(distortionNode);
+        distortionNode.connect(insertDistortion.wet);
 
-        masterGain.connect(distortionNode);
-        distortionNode.connect(distortionMix);
-        distortionMix.connect(filterNode);
-
-        // Bitcrusher - try AudioWorklet first, fallback to ScriptProcessor
+        // Bitcrusher - try AudioWorklet first, fallback to ScriptProcessor; until it's ready the insert stays dry
         let crushAmount = 0;
         let bitcrusherNode;
-        const bitcrusherMix = audioContext.createGain();
-        bitcrusherMix.gain.value = 0;
 
-        // Async setup for AudioWorklet with fallback
         async function setupBitcrusher() {
             if (audioContext.audioWorklet) {
                 try {
                     await audioContext.audioWorklet.addModule('bitcrusher-processor.js');
-                    bitcrusherNode = new AudioWorkletNode(audioContext, 'bitcrusher-processor');
+                    bitcrusherNode = new AudioWorkletNode(audioContext, 'bitcrusher-processor', { outputChannelCount: [2] });
 
                     window.setCrushAmount = (val) => {
                         crushAmount = val;
                         bitcrusherNode.port.postMessage({ crushAmount: val });
                     };
 
-                    masterGain.connect(bitcrusherNode);
-                    bitcrusherNode.connect(bitcrusherMix);
-                    bitcrusherMix.connect(filterNode);
-
-                    console.log('Bitcrusher: using AudioWorklet');
+                    insertCrush.input.connect(bitcrusherNode);
+                    bitcrusherNode.connect(insertCrush.wet);
                     return;
                 } catch (e) {
                     console.warn('AudioWorklet failed, falling back to ScriptProcessor:', e);
                 }
             }
 
-            // Fallback to ScriptProcessorNode
             bitcrusherNode = audioContext.createScriptProcessor(4096, 1, 1);
+            let crushPhase = 0;
+            let crushHeld = 0;
             bitcrusherNode.onaudioprocess = function(e) {
                 const input = e.inputBuffer.getChannelData(0);
                 const output = e.outputBuffer.getChannelData(0);
                 if (crushAmount === 0) {
-                    for (let i = 0; i < input.length; i++) {
-                        output[i] = input[i];
+                    output.set(input);
+                    return;
+                }
+                const step = Math.pow(0.5, 16 - 1.5 * crushAmount);
+                const rate = 1 / (1 + 0.6 * Math.pow(crushAmount, 1.5));
+                for (let i = 0; i < input.length; i++) {
+                    crushPhase += rate;
+                    if (crushPhase >= 1) {
+                        crushPhase -= 1;
+                        crushHeld = Math.round(input[i] / step) * step;
                     }
-                } else {
-                    const step = Math.pow(0.5, 16 - crushAmount);
-                    for (let i = 0; i < input.length; i++) {
-                        output[i] = Math.round(input[i] / step) * step;
-                    }
+                    output[i] = crushHeld;
                 }
             };
 
             window.setCrushAmount = (val) => { crushAmount = val; };
 
-            masterGain.connect(bitcrusherNode);
-            bitcrusherNode.connect(bitcrusherMix);
-            bitcrusherMix.connect(filterNode);
-
-            console.log('Bitcrusher: using ScriptProcessor (fallback)');
+            insertCrush.input.connect(bitcrusherNode);
+            bitcrusherNode.connect(insertCrush.wet);
         }
 
-        // Start async setup (connects when ready)
         const bitcrusherReady = setupBitcrusher();
-
-        window.bitcrusherMix = bitcrusherMix;
 
         // Karplus-Strong worklet registration
         window.karplusStrongReady = false;
@@ -858,54 +1017,76 @@ function initSystem() {
             }).catch(() => {})
             : Promise.resolve();
 
-        // Drum engine worklet registration
+        // Drum engine worklet registration: stereo, each voice in its own place
         window.drumEngineReady = false;
         const drumEngineLoaded = (async () => {
             if (!audioContext.audioWorklet) return;
             try {
                 await audioContext.audioWorklet.addModule('drum-engine-processor.js');
-                const drumEngine = new AudioWorkletNode(audioContext, 'drum-engine-processor');
+                const drumEngine = new AudioWorkletNode(audioContext, 'drum-engine-processor', { outputChannelCount: [2] });
                 drumEngine.connect(masterGain);
                 window.drumEngine = drumEngine;
                 window.drumEngineReady = true;
+                Object.keys(padSettings).forEach(sendPad);
             } catch(e) {
                 console.warn('Drum engine worklet failed, using fallback:', e);
                 window.drumEngineReady = false;
             }
         })();
 
-        audioReady = Promise.all([bitcrusherReady, karplusReady, drumEngineLoaded]).then(() => {
+        // The looper's recorder listens before the limiter; without AudioWorklet loops keep only their events
+        const recorderLoaded = (async () => {
+            if (!audioContext.audioWorklet) return;
+            try {
+                await audioContext.audioWorklet.addModule('recorder-processor.js');
+                recorder = new AudioWorkletNode(audioContext, 'recorder-processor', { numberOfOutputs: 0 });
+                recorder.port.onmessage = onRecorderMessage;
+                filterNode.connect(recorder);
+            } catch (e) {
+                console.warn('Recorder worklet failed, loops keep their events only:', e);
+                recorder = null;
+            }
+        })();
+
+        audioReady = Promise.all([bitcrusherReady, karplusReady, drumEngineLoaded, recorderLoaded]).then(() => {
             audioLoaded = true;
             applySliders();
         });
 
-        // Chorus effect using modulated delay
-        const chorusDelay = audioContext.createDelay();
-        chorusDelay.delayTime.value = 0.03; // 30ms base delay
+        // Chorus: two delay lines swept in opposite directions, one on each side
+        const chorusDelayL = audioContext.createDelay(0.1);
+        const chorusDelayR = audioContext.createDelay(0.1);
+        chorusDelayL.delayTime.value = 0.025;
+        chorusDelayR.delayTime.value = 0.032;
         const chorusLFO = audioContext.createOscillator();
         const chorusLFOGain = audioContext.createGain();
-        const chorusMix = audioContext.createGain();
-
+        const chorusInvert = audioContext.createGain();
+        const chorusSides = audioContext.createChannelMerger(2);
         chorusLFO.type = 'sine';
-        chorusLFO.frequency.value = 1.5; // 1.5 Hz modulation
-        chorusLFOGain.gain.value = 0.002; // Small modulation depth
-        chorusMix.gain.value = 0;
-
+        chorusLFO.frequency.value = 1.5;
+        chorusLFOGain.gain.value = 0.002;
+        chorusInvert.gain.value = -1;
         chorusLFO.connect(chorusLFOGain);
-        chorusLFOGain.connect(chorusDelay.delayTime);
+        chorusLFOGain.connect(chorusDelayL.delayTime);
+        chorusLFOGain.connect(chorusInvert);
+        chorusInvert.connect(chorusDelayR.delayTime);
         chorusLFO.start();
-
-        masterGain.connect(chorusDelay);
-        chorusDelay.connect(chorusMix);
-        chorusMix.connect(filterNode);
+        insertChorus.input.connect(chorusDelayL);
+        insertChorus.input.connect(chorusDelayR);
+        chorusDelayL.connect(chorusSides, 0, 0);
+        chorusDelayR.connect(chorusSides, 0, 1);
+        chorusSides.connect(insertChorus.wet);
 
         window.delayMix = delayMix;
         window.reverbMix = reverbMix;
         window.filterNode = filterNode;
         window.distortionNode = distortionNode;
-        window.distortionMix = distortionMix;
-        // bitcrusherNode and setCrushAmount are set in setupBitcrusher()
-        window.chorusMix = chorusMix;
+        window.distortionMix = insertDistortion.wet;
+        window.distortionDry = insertDistortion.dry;
+        window.bitcrusherMix = insertCrush.wet;
+        window.bitcrusherDry = insertCrush.dry;
+        window.chorusMix = insertChorus.wet;
+        window.chorusDry = insertChorus.dry;
         window.chorusLFOGain = chorusLFOGain;
 
         mediaStreamDestination = audioContext.createMediaStreamDestination();
@@ -1014,9 +1195,46 @@ function flash(el, time, ms) {
     }
 }
 
-function playDrum(type, skipRecording = false, time) {
+function atTime(time, fn) {
+    const delay = (time - audioContext.currentTime) * 1000;
+    if (delay > 5) setTimeout(fn, delay);
+    else fn();
+}
+
+// The key on screen for a frequency at the current octave; notes outside the 13 keys light nothing
+function keyFor(freq) {
+    const index = Math.round(69 + 12 * Math.log2(freq / 440)) - 60 - 12 * octaveShift;
+    const name = KEY_NOTES[index];
+    return name ? document.querySelector(`.key[data-note="${name}"]`) : null;
+}
+
+// A key stays lit while any of its notes is held
+function lightKey(el, time) {
+    atTime(time, () => {
+        el._held = (el._held || 0) + 1;
+        el.classList.add('active');
+    });
+}
+
+function unflash(el, time) {
+    atTime(time, () => {
+        el._held = Math.max(0, (el._held || 0) - 1);
+        if (!el._held) el.classList.remove('active');
+    });
+}
+
+// where each drum sits, as in drum-engine-processor.js: kick and snare in the middle, the kit spread around them
+const DRUM_PAN = { kick: 0, snare: 0, hihat: 0.35, clap: -0.15, tom1: -0.3, perc: -0.4, cymbal: 0.25, rim: 0.2 };
+
+// how loud a hit is for its velocity; the curve keeps soft hits audible
+function drumLevel(velocity) {
+    return 0.15 + 0.85 * Math.pow(velocity, 1.4);
+}
+
+// velocity 0–1 (1 when it isn't known: pads, keys, the pattern); variant 'open' lets the hat ring
+function playDrum(type, skipRecording = false, time, velocity = 1, variant) {
     if (!audioLoaded) {
-        initSystem().then(() => playDrum(type, skipRecording, time));
+        initSystem().then(() => playDrum(type, skipRecording, time, velocity, variant));
         return;
     }
 
@@ -1031,16 +1249,25 @@ function playDrum(type, skipRecording = false, time) {
         loopSlots[recordingSlot].loop.push({
             type: 'drum',
             sound: type,
+            velocity,
+            variant,
             time: now - recordingStart
         });
     }
 
     if (window.drumEngineReady && window.drumEngine) {
-        window.drumEngine.port.postMessage({ type: 'trigger', voice: type, time: now });
+        window.drumEngine.port.postMessage({ type: 'trigger', voice: type, time: now, velocity, open: variant === 'open' });
         return;
     }
 
-    const nodes = []; // Track all nodes for cleanup
+    const hitGain = audioContext.createGain();
+    hitGain.gain.value = drumLevel(velocity);
+    const hitPan = audioContext.createStereoPanner();
+    hitPan.pan.value = DRUM_PAN[type] || 0;
+    hitGain.connect(hitPan);
+    hitPan.connect(masterGain);
+
+    const nodes = [hitGain, hitPan]; // Track all nodes for cleanup
     const curves = initSharedCurves(); // Use shared curves
     let maxDuration = 0.5; // Default duration
 
@@ -1060,7 +1287,7 @@ function playDrum(type, skipRecording = false, time) {
             clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
             clickOsc.connect(clickDist);
             clickDist.connect(clickGain);
-            clickGain.connect(masterGain);
+            clickGain.connect(hitGain);
             clickOsc.start(now);
             clickOsc.stop(now + 0.015);
             nodes.push(clickOsc, clickGain, clickDist);
@@ -1078,7 +1305,7 @@ function playDrum(type, skipRecording = false, time) {
             bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
             bodyOsc.connect(bodyDist);
             bodyDist.connect(bodyGain);
-            bodyGain.connect(masterGain);
+            bodyGain.connect(hitGain);
             bodyOsc.start(now);
             bodyOsc.stop(now + 0.45);
             nodes.push(bodyOsc, bodyGain, bodyDist);
@@ -1096,7 +1323,7 @@ function playDrum(type, skipRecording = false, time) {
             subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
             subOsc.connect(subFilter);
             subFilter.connect(subGain);
-            subGain.connect(masterGain);
+            subGain.connect(hitGain);
             subOsc.start(now);
             subOsc.stop(now + 0.55);
             nodes.push(subOsc, subGain, subFilter);
@@ -1118,7 +1345,7 @@ function playDrum(type, skipRecording = false, time) {
             crackGain.gain.exponentialRampToValueAtTime(0.001, now + 0.012);
             crackOsc.connect(crackDist);
             crackDist.connect(crackGain);
-            crackGain.connect(masterGain);
+            crackGain.connect(hitGain);
             crackOsc.start(now);
             crackOsc.stop(now + 0.012);
             nodes.push(crackOsc, crackGain, crackDist);
@@ -1143,7 +1370,7 @@ function playDrum(type, skipRecording = false, time) {
             bodyOsc.connect(bodyFilter);
             bodyOsc2.connect(bodyFilter);
             bodyFilter.connect(bodyGain);
-            bodyGain.connect(masterGain);
+            bodyGain.connect(hitGain);
             bodyOsc.start(now);
             bodyOsc2.start(now);
             bodyOsc.stop(now + 0.12);
@@ -1170,7 +1397,7 @@ function playDrum(type, skipRecording = false, time) {
             noise.connect(noiseHP);
             noiseHP.connect(noiseLP);
             noiseLP.connect(noiseGain);
-            noiseGain.connect(masterGain);
+            noiseGain.connect(hitGain);
             noise.start(now);
             nodes.push(noise, noiseHP, noiseLP, noiseGain);
             break;
@@ -1201,7 +1428,7 @@ function playDrum(type, skipRecording = false, time) {
             });
 
             metalHP.connect(metalGain);
-            metalGain.connect(masterGain);
+            metalGain.connect(hitGain);
             nodes.push(metalHP, metalGain);
 
             // Noise sizzle
@@ -1218,7 +1445,7 @@ function playDrum(type, skipRecording = false, time) {
             noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
             noise.connect(noiseHP);
             noiseHP.connect(noiseGain);
-            noiseGain.connect(masterGain);
+            noiseGain.connect(hitGain);
             noise.start(now);
             nodes.push(noise, noiseHP, noiseGain);
             break;
@@ -1245,7 +1472,7 @@ function playDrum(type, skipRecording = false, time) {
                 burstGain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.08);
                 burst.connect(burstBP);
                 burstBP.connect(burstGain);
-                burstGain.connect(masterGain);
+                burstGain.connect(hitGain);
                 burst.start(now + delay);
                 nodes.push(burst, burstBP, burstGain);
             }
@@ -1264,7 +1491,7 @@ function playDrum(type, skipRecording = false, time) {
             tailGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
             tail.connect(tailBP);
             tailBP.connect(tailGain);
-            tailGain.connect(masterGain);
+            tailGain.connect(hitGain);
             tail.start(now + 0.04);
             nodes.push(tail, tailBP, tailGain);
             break;
@@ -1285,7 +1512,7 @@ function playDrum(type, skipRecording = false, time) {
             bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
             bodyOsc.connect(bodyFilter);
             bodyFilter.connect(bodyGain);
-            bodyGain.connect(masterGain);
+            bodyGain.connect(hitGain);
             bodyOsc.start(now);
             bodyOsc.stop(now + 0.4);
             nodes.push(bodyOsc, bodyGain, bodyFilter);
@@ -1298,7 +1525,7 @@ function playDrum(type, skipRecording = false, time) {
             overGain.gain.setValueAtTime(0.3, now);
             overGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
             overOsc.connect(overGain);
-            overGain.connect(masterGain);
+            overGain.connect(hitGain);
             overOsc.start(now);
             overOsc.stop(now + 0.1);
             nodes.push(overOsc, overGain);
@@ -1312,7 +1539,7 @@ function playDrum(type, skipRecording = false, time) {
             clickGain.gain.setValueAtTime(0.25, now);
             clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
             clickNoise.connect(clickGain);
-            clickGain.connect(masterGain);
+            clickGain.connect(hitGain);
             clickNoise.start(now);
             nodes.push(clickNoise, clickGain);
             break;
@@ -1341,7 +1568,7 @@ function playDrum(type, skipRecording = false, time) {
             modGain.connect(carrier.frequency);
             carrier.connect(filter);
             filter.connect(outputGain);
-            outputGain.connect(masterGain);
+            outputGain.connect(hitGain);
             carrier.start(now);
             modulator.start(now);
             carrier.stop(now + 0.1);
@@ -1372,7 +1599,7 @@ function playDrum(type, skipRecording = false, time) {
             });
 
             metalHP.connect(metalGain);
-            metalGain.connect(masterGain);
+            metalGain.connect(hitGain);
             nodes.push(metalHP, metalGain);
 
             const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.8, audioContext.sampleRate);
@@ -1388,7 +1615,7 @@ function playDrum(type, skipRecording = false, time) {
             noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
             noise.connect(noiseHP);
             noiseHP.connect(noiseGain);
-            noiseGain.connect(masterGain);
+            noiseGain.connect(hitGain);
             noise.start(now);
             nodes.push(noise, noiseHP, noiseGain);
             break;
@@ -1409,7 +1636,7 @@ function playDrum(type, skipRecording = false, time) {
             clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
             clickOsc.connect(clickHP);
             clickHP.connect(clickGain);
-            clickGain.connect(masterGain);
+            clickGain.connect(hitGain);
             clickOsc.start(now);
             clickOsc.stop(now + 0.025);
             nodes.push(clickOsc, clickGain, clickHP);
@@ -1427,7 +1654,7 @@ function playDrum(type, skipRecording = false, time) {
             bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
             bodyOsc.connect(bodyBP);
             bodyBP.connect(bodyGain);
-            bodyGain.connect(masterGain);
+            bodyGain.connect(hitGain);
             bodyOsc.start(now);
             bodyOsc.stop(now + 0.05);
             nodes.push(bodyOsc, bodyGain, bodyBP);
@@ -1441,14 +1668,24 @@ function playDrum(type, skipRecording = false, time) {
     }
 }
 
-function playNote(freq, skipRecording = false, time, releaseMs = releaseTime, wave = document.getElementById('waveType').dataset.value) {
+// A note sounds from opts.time for as long as it's held: keys, the pointer and MIDI call voice.release();
+// loops and the API pass opts.hold in seconds. velocity 0–1 moves level and brightness together
+function playNote(freq, opts = {}) {
     if (!audioContext) {
         initSystem();
     }
 
+    const wave = opts.wave || document.getElementById('waveType').dataset.value;
+    const skipRecording = !!opts.skipRecording;
+
+    // string needs its worklet; a release that lands before it loads still ends the note
     if (wave === 'string' && !audioLoaded) {
-        audioReady.then(() => playNote(freq, skipRecording, time, releaseMs, wave));
-        return;
+        const pending = { released: false, release() { pending.released = true; } };
+        audioReady.then(() => {
+            const voice = playNote(freq, opts);
+            if (voice && pending.released) voice.release();
+        });
+        return pending;
     }
 
     // The vocoder has nothing to shape without the mic; a played note asks for it, a loop or the API stays silent
@@ -1459,50 +1696,53 @@ function playNote(freq, skipRecording = false, time, releaseMs = releaseTime, wa
             micBtn.classList.add('blink');
             setTimeout(() => micBtn.classList.remove('blink'), 1500);
         }
-        return;
+        return null;
     }
 
     if (audioContext.state === 'suspended') {
         audioContext.resume();
     }
 
-    const now = Math.max(time || 0, audioContext.currentTime);
+    const now = Math.max(opts.time || 0, audioContext.currentTime);
+    const velocity = opts.velocity === undefined ? 1 : Math.max(0, Math.min(1, opts.velocity));
+    const hold = opts.hold === undefined ? Infinity : Math.max(0, opts.hold);
 
-    const noteEntry = Object.entries(notes).find(([key, f]) => f === freq);
-    if (noteEntry) {
-        const [noteName] = noteEntry;
-        flash(document.querySelector(`[data-note="${noteName}"]`), now, 200);
-    }
+    const keyEl = keyFor(freq);
+    if (keyEl) lightKey(keyEl, now);
 
     const attack = attackTime / 1000;
-    const release = Math.max(releaseMs / 1000, attack + 0.05);
-    const tail = wave === 'string' ? Math.max(release, 1.5) : release;
-    const nodes = []; // Track all nodes for cleanup
+    const release = Math.max(releaseTime / 1000, 0.05);
+    // a plucked string rings on after the key lets go
+    const ring = wave === 'string' ? Math.max(release, 1.5) : release;
+    const level = 0.3 + 0.7 * velocity;
     const curves = initSharedCurves();
-    let voiceAnimationIds = []; // Track animation frames for vocoder
+    const voice = { nodes: [], sources: [], links: [], animationIds: [], released: false, start: now, endTime: Infinity };
+    const nodes = voice.nodes;
+    const sources = voice.sources;
 
-    // Main output gain with ADSR
+    const bend = osc => {
+        pitchBus.connect(osc.detune);
+        voice.links.push([pitchBus, osc.detune]);
+    };
+
     const outputGain = audioContext.createGain();
-    outputGain.gain.value = 0;
     outputGain.gain.setValueAtTime(0, now);
-    outputGain.gain.linearRampToValueAtTime(0.28, now + attack);
-    const sustainTime = Math.min(tail * 0.3, 0.2, (tail - attack) / 2);
-    outputGain.gain.linearRampToValueAtTime(0.2, now + attack + sustainTime);
-    outputGain.gain.exponentialRampToValueAtTime(0.001, now + tail);
+    outputGain.gain.linearRampToValueAtTime(0.28 * level, now + attack);
+    outputGain.gain.setTargetAtTime(0.2 * level, now + attack, 0.06);
     nodes.push(outputGain);
 
-    // Filter with envelope
+    // Opens with the attack, harder notes open further, and settles while the note is held
     const filter = audioContext.createBiquadFilter();
     filter.type = 'lowpass';
     filter.Q.value = 2;
     const filterBase = Math.min(freq * 1.5, 800);
-    const filterPeak = Math.min(freq * 8, 12000);
+    const filterTop = Math.min(freq * 8, 12000);
+    const filterPeak = filterBase + (filterTop - filterBase) * (0.35 + 0.65 * velocity);
     filter.frequency.setValueAtTime(filterBase, now);
-    filter.frequency.linearRampToValueAtTime(filterPeak, now + attack * 0.8);
-    filter.frequency.exponentialRampToValueAtTime(filterBase, now + release * 0.8);
+    filter.frequency.linearRampToValueAtTime(filterPeak, now + attack * 0.8 + 0.001);
+    filter.frequency.setTargetAtTime(filterBase + (filterPeak - filterBase) * 0.35, now + attack * 0.8 + 0.001, 0.25);
     nodes.push(filter);
 
-    // Soft saturation (use shared curve)
     const saturator = audioContext.createWaveShaper();
     saturator.curve = curves.tanh18;
     saturator.connect(filter);
@@ -1510,22 +1750,22 @@ function playNote(freq, skipRecording = false, time, releaseMs = releaseTime, wa
     outputGain.connect(masterGain);
     nodes.push(saturator);
 
+    let stringNode = null;
+    let stringGain = null;
+
     if (wave === 'noise') {
-        const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * release, audioContext.sampleRate);
-        const noiseData = noiseBuffer.getChannelData(0);
-        for (let i = 0; i < noiseBuffer.length; i++) noiseData[i] = Math.random() * 2 - 1;
         const noiseSource = audioContext.createBufferSource();
-        noiseSource.buffer = noiseBuffer;
+        noiseSource.buffer = noiseLoop;
+        noiseSource.loop = true;
         const noiseFilter = audioContext.createBiquadFilter();
         noiseFilter.type = 'bandpass';
-        noiseFilter.frequency.value = freq;
         noiseFilter.Q.value = 15;
         noiseFilter.frequency.setValueAtTime(freq * 2, now);
-        noiseFilter.frequency.exponentialRampToValueAtTime(freq, now + release * 0.3);
+        noiseFilter.frequency.exponentialRampToValueAtTime(freq, now + 0.1);
         noiseSource.connect(noiseFilter);
         noiseFilter.connect(saturator);
-        noiseSource.start(now);
-        noiseSource.stop(now + release);
+        noiseSource.start(now, Math.random() * (noiseLoop.duration - 0.1));
+        sources.push(noiseSource);
         nodes.push(noiseSource, noiseFilter);
 
     } else if (wave === 'pulse') {
@@ -1549,41 +1789,33 @@ function playNote(freq, skipRecording = false, time, releaseMs = releaseTime, wa
         subGain.gain.value = 0.3;
         subOsc.connect(subGain);
         subGain.connect(saturator);
+        [osc1, osc2, subOsc].forEach(bend);
         osc1.start(now);
         osc2.start(now);
         subOsc.start(now);
-        osc1.stop(now + release);
-        osc2.stop(now + release);
-        subOsc.stop(now + release);
+        sources.push(osc1, osc2, subOsc);
         nodes.push(osc1, osc2, pulseGain, subOsc, subGain);
 
     } else if (wave === 'string') {
-        const duration = tail;
         const bodyFilter = audioContext.createBiquadFilter();
         bodyFilter.type = 'peaking';
         bodyFilter.frequency.setValueAtTime(freq * 2, now);
         bodyFilter.Q.value = 1;
         bodyFilter.gain.value = 3;
-        const stringGain = audioContext.createGain();
+        stringGain = audioContext.createGain();
         stringGain.gain.setValueAtTime(0.6, now);
-        stringGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
         if (window.karplusStrongReady) {
-            const karplusNode = new AudioWorkletNode(audioContext, 'karplus-strong-processor', {
-                processorOptions: { frequency: freq }
+            stringNode = new AudioWorkletNode(audioContext, 'karplus-strong-processor', {
+                processorOptions: { frequency: freq, startAt: now }
             });
-            karplusNode.connect(bodyFilter);
-            bodyFilter.connect(stringGain);
-            stringGain.connect(saturator);
-            setTimeout(() => {
-                karplusNode.port.postMessage({ stop: true });
-            }, (now + duration - audioContext.currentTime) * 1000);
-            nodes.push(karplusNode, bodyFilter, stringGain);
+            stringNode.connect(bodyFilter);
+            nodes.push(stringNode);
         } else {
-            // Fallback: pre-computed buffer for environments without AudioWorklet
+            // Without AudioWorklet: a pre-computed pluck, long enough for a held note to ring out
             const sampleRate = audioContext.sampleRate;
             const period = Math.round(sampleRate / freq);
-            const bufferSize = Math.ceil(sampleRate * duration);
+            const bufferSize = Math.ceil(sampleRate * 4);
             const buffer = audioContext.createBuffer(1, bufferSize, sampleRate);
             const data = buffer.getChannelData(0);
             const delayLine = new Float32Array(period);
@@ -1598,12 +1830,13 @@ function playNote(freq, skipRecording = false, time, releaseMs = releaseTime, wa
             const source = audioContext.createBufferSource();
             source.buffer = buffer;
             source.connect(bodyFilter);
-            bodyFilter.connect(stringGain);
-            stringGain.connect(saturator);
             source.start(now);
-            source.stop(now + duration);
-            nodes.push(source, bodyFilter, stringGain);
+            sources.push(source);
+            nodes.push(source);
         }
+        bodyFilter.connect(stringGain);
+        stringGain.connect(saturator);
+        nodes.push(bodyFilter, stringGain);
 
     } else if (wave === 'formant') {
         const vowels = { a: [800, 1200, 2500], e: [400, 2200, 2800], i: [300, 2300, 3000], o: [500, 900, 2500], u: [350, 700, 2500] };
@@ -1642,17 +1875,17 @@ function playNote(freq, skipRecording = false, time, releaseMs = releaseTime, wa
         lfo.connect(lfoGain);
         lfoGain.connect(source.detune);
         lfoGain.connect(source2.detune);
+        [source, source2].forEach(bend);
         formantMix.connect(saturator);
         source.start(now);
         source2.start(now);
         lfo.start(now);
-        source.stop(now + release);
-        source2.stop(now + release);
-        lfo.stop(now + release);
+        sources.push(source, source2, lfo);
         nodes.push(lfo, lfoGain);
 
     } else if (wave === 'vocoder') {
-        // Simplified vocoder - fewer bands for performance
+        // Each band of the mic drives the same band of the carrier. The envelope is followed in the audio graph
+        // (rectify, smooth, scale), so it keeps up with the voice at the sample rate, also in a background tab
         const bandFreqs = [200, 400, 800, 1600, 3200, 6400];
         const carrier = audioContext.createOscillator();
         const carrier2 = audioContext.createOscillator();
@@ -1670,43 +1903,45 @@ function playNote(freq, skipRecording = false, time, releaseMs = releaseTime, wa
         const micTap = audioContext.createGain();
         micTap.gain.value = 1;
         micSource.connect(micTap);
+        voice.links.push([micSource, micTap]);
         nodes.push(carrier, carrier2, carrierMix, vocoderMix, micTap);
         bandFreqs.forEach(bandFreq => {
             const analysisFilter = audioContext.createBiquadFilter();
             analysisFilter.type = 'bandpass';
             analysisFilter.frequency.value = bandFreq;
             analysisFilter.Q.value = 4;
+            const rectify = audioContext.createWaveShaper();
+            rectify.curve = curves.rectify;
+            const smooth = audioContext.createBiquadFilter();
+            smooth.type = 'lowpass';
+            smooth.frequency.value = 30;
+            smooth.Q.value = 0.5;
+            const scale = audioContext.createGain();
+            scale.gain.value = 9;
+            const ceiling = audioContext.createWaveShaper();
+            ceiling.curve = curves.unit;
             const synthFilter = audioContext.createBiquadFilter();
             synthFilter.type = 'bandpass';
             synthFilter.frequency.value = bandFreq;
             synthFilter.Q.value = 6;
             const vca = audioContext.createGain();
             vca.gain.value = 0;
-            const analyser = audioContext.createAnalyser();
-            analyser.fftSize = 128;
-            analyser.smoothingTimeConstant = 0.5;
             micTap.connect(analysisFilter);
-            analysisFilter.connect(analyser);
+            analysisFilter.connect(rectify);
+            rectify.connect(smooth);
+            smooth.connect(scale);
+            scale.connect(ceiling);
+            ceiling.connect(vca.gain);
             carrierMix.connect(synthFilter);
             synthFilter.connect(vca);
             vca.connect(vocoderMix);
-            nodes.push(analysisFilter, synthFilter, vca, analyser);
-            const dataArray = new Float32Array(analyser.fftSize);
-            const updateEnvelope = () => {
-                if (audioContext.currentTime > now + release) return;
-                analyser.getFloatTimeDomainData(dataArray);
-                let sum = 0;
-                for (let j = 0; j < dataArray.length; j++) sum += dataArray[j] * dataArray[j];
-                vca.gain.setTargetAtTime(Math.min(Math.sqrt(sum / dataArray.length) * 6, 1), audioContext.currentTime, 0.02);
-                voiceAnimationIds.push(requestAnimationFrame(updateEnvelope));
-            };
-            voiceAnimationIds.push(requestAnimationFrame(updateEnvelope));
+            nodes.push(analysisFilter, rectify, smooth, scale, ceiling, synthFilter, vca);
         });
+        [carrier, carrier2].forEach(bend);
         vocoderMix.connect(saturator);
         carrier.start(now);
         carrier2.start(now);
-        carrier.stop(now + release);
-        carrier2.stop(now + release);
+        sources.push(carrier, carrier2);
 
     } else {
         // Standard waves with 5-voice unison
@@ -1724,8 +1959,9 @@ function playNote(freq, skipRecording = false, time, releaseMs = releaseTime, wa
             panner.pan.value = unisonPan[i];
             osc.connect(panner);
             panner.connect(oscMix);
+            bend(osc);
             osc.start(now);
-            osc.stop(now + release);
+            sources.push(osc);
             nodes.push(osc, panner);
         });
         oscMix.connect(saturator);
@@ -1743,26 +1979,46 @@ function playNote(freq, skipRecording = false, time, releaseMs = releaseTime, wa
         driftGain.gain.setValueAtTime(15, now);
         driftLFO.connect(driftGain);
         driftGain.connect(subOsc.detune);
+        bend(subOsc);
         subOsc.start(now);
         driftLFO.start(now);
-        subOsc.stop(now + release);
-        driftLFO.stop(now + release);
+        sources.push(subOsc, driftLFO);
         nodes.push(subOsc, subGain, driftLFO, driftGain);
     }
 
-    // Register voice for cleanup
-    const voice = registerSynthVoice(nodes, now - audioContext.currentTime + tail + 0.2);
-    voice.animationIds = voiceAnimationIds;
     voice.out = outputGain;
 
+    voice.release = (at) => {
+        if (voice.released) return;
+        voice.released = true;
+        // a release inside the attack waits for it, so the ramp it would cancel has already landed
+        const t = Math.max(at === undefined ? audioContext.currentTime : at, now + attack + 0.005);
+        const end = t + ring * 1.5;
+        const g = outputGain.gain;
+        g.cancelScheduledValues(t);
+        g.setTargetAtTime(0, t, ring / 5);
+        filter.frequency.cancelScheduledValues(t);
+        filter.frequency.setTargetAtTime(filterBase, t, ring / 4);
+        if (stringGain) {
+            stringGain.gain.cancelScheduledValues(t);
+            stringGain.gain.setTargetAtTime(0, t, ring / 5);
+        }
+        if (stringNode) stringNode.port.postMessage({ stopAt: end });
+        sources.forEach(s => { try { s.stop(end); } catch (e) { /* already stopped */ } });
+        if (keyEl) unflash(keyEl, t);
+        if (voice.event) voice.event.dur = t - now;
+        endSynthVoice(voice, end);
+    };
+
+    registerSynthVoice(voice);
+
     if (!skipRecording && (isRecording || isOverdub)) {
-        loopSlots[recordingSlot].loop.push({
-            type: 'synth',
-            freq: freq,
-            wave: wave,
-            time: now - recordingStart
-        });
+        voice.event = { type: 'synth', freq, wave, velocity, time: now - recordingStart };
+        loopSlots[recordingSlot].loop.push(voice.event);
     }
+
+    if (hold !== Infinity) voice.release(now + hold);
+    return voice;
 }
 
 document.getElementById('micBtn').addEventListener('click', toggleMic);
@@ -1776,23 +2032,104 @@ document.getElementById('micBtn').addEventListener('click', toggleMic);
     });
 });
 
+// Tune and decay act on the last pad played by hand; the engine keeps them per pad
+const padSettings = {};
+['kick', 'snare', 'hihat', 'clap', 'tom1', 'perc', 'cymbal', 'rim'].forEach(d => { padSettings[d] = { tune: 0, decay: 1 }; });
+let selectedPad = 'kick';
+const PAD_NAMES = { kick: 'kick', snare: 'snare', hihat: 'hat', clap: 'clap', tom1: 'tom', perc: 'perc', cymbal: 'cymbal', rim: 'rim' };
+
+function sendPad(drum) {
+    if (window.drumEngine) window.drumEngine.port.postMessage({ type: 'set', voice: drum, tune: padSettings[drum].tune, decay: padSettings[drum].decay });
+}
+
+function showPad() {
+    const settings = padSettings[selectedPad];
+    document.getElementById('padName').textContent = PAD_NAMES[selectedPad];
+    document.getElementById('padTune').value = settings.tune;
+    document.getElementById('padTuneVal').textContent = (settings.tune > 0 ? '+' : '') + settings.tune;
+    document.getElementById('padDecay').value = Math.round(settings.decay * 100);
+    document.getElementById('padDecayVal').textContent = Math.round(settings.decay * 100) + '%';
+    document.querySelectorAll('.pad').forEach(p => p.classList.toggle('selected', p.dataset.sound === selectedPad));
+}
+
+function selectPad(drum) {
+    if (selectedPad === drum) return;
+    selectedPad = drum;
+    showPad();
+}
+
+function setPad(drum, changes) {
+    Object.assign(padSettings[drum], changes);
+    sendPad(drum);
+    if (drum === selectedPad) showPad();
+}
+
+document.getElementById('padTune').addEventListener('input', function() {
+    setPad(selectedPad, { tune: parseInt(this.value, 10) });
+});
+document.getElementById('padDecay').addEventListener('input', function() {
+    setPad(selectedPad, { decay: parseInt(this.value, 10) / 100 });
+});
+showPad();
+
 document.querySelectorAll('.pad').forEach(pad => {
     addPressHandler(pad, function() {
         const sound = this.dataset.sound;
+        selectPad(sound);
         playDrum(sound);
     });
 });
 
-document.querySelectorAll('.key').forEach(key => {
-    addPressHandler(key, function() {
-        const note = this.dataset.note;
-        playNote(notes[note]);
-    });
+// A pressed key sounds until it's let go; sliding across the keys plays each one it reaches
+const keyboardEl = document.querySelector('.keyboard');
+const pointerNotes = new Map();
+
+function pressKey(pointerId, key) {
+    const held = pointerNotes.get(pointerId);
+    if (held && held.key === key) return;
+    if (held && held.voice) held.voice.release();
+    if (key) lastNote = freqMidi(keyFreq(key.dataset.note));
+    pointerNotes.set(pointerId, { key, voice: key ? playNote(keyFreq(key.dataset.note)) : null });
+}
+
+function liftKey(pointerId) {
+    const held = pointerNotes.get(pointerId);
+    if (!held) return;
+    pointerNotes.delete(pointerId);
+    if (held.voice) held.voice.release();
+}
+
+keyboardEl.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    const key = e.target.closest('.key');
+    if (!key) return;
+    keyboardEl.setPointerCapture(e.pointerId);
+    pressKey(e.pointerId, key);
 });
+keyboardEl.addEventListener('pointermove', e => {
+    if (!pointerNotes.has(e.pointerId)) return;
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    pressKey(e.pointerId, under ? under.closest('.key') : null);
+});
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => {
+    keyboardEl.addEventListener(type, e => liftKey(e.pointerId));
+});
+keyboardEl.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+
+function shiftOctave(step) {
+    const next = Math.max(OCTAVE_MIN, Math.min(OCTAVE_MAX, octaveShift + step));
+    if (next === octaveShift) return;
+    octaveShift = next;
+    updateKeyLabels();
+}
+
+document.getElementById('octDown').addEventListener('click', () => shiftOctave(-1));
+document.getElementById('octUp').addEventListener('click', () => shiftOctave(1));
 
 const drums =['kick', 'snare', 'hihat', 'clap', 'tom1', 'perc', 'cymbal', 'rim'];
 
-drums.forEach(drum => {
+// A drum step goes on, then accented, then off. A keys step takes the last note played; the same note again clears it
+[...drums, 'keys'].forEach(drum => {
     const stepsContainer = document.querySelector(`.seq-steps[data-drum="${drum}"]`);
     for (let i = 0; i < 16; i++) {
         const step = document.createElement('div');
@@ -1800,8 +2137,10 @@ drums.forEach(drum => {
         step.dataset.drum = drum;
         step.dataset.index = i;
         addPressHandler(step, function() {
-            sequencerSteps[drum][i] = !sequencerSteps[drum][i];
-            this.classList.toggle('active');
+            const row = sequencerSteps[drum];
+            if (drum === 'keys') row[i] = row[i] === lastNote ? null : lastNote;
+            else row[i] = !row[i] ? 1 : row[i] === 2 ? 0 : 2;
+            paintStep(this, row[i]);
             saveSequencerState();
             updatePatternCount();
         });
@@ -1844,14 +2183,16 @@ function clockTick() {
 function scheduleSequencer(horizon) {
     while (nextStepTime < horizon) {
         const step = currentStep;
-        const time = nextStepTime;
+        const stepLength = 60 / parseInt(document.getElementById('tempo').value) / 4;
+        const time = nextStepTime + (step % 2 ? swing * 0.5 * stepLength : 0);
 
         if (time > audioContext.currentTime - SCHEDULER.LATE) {
             drums.forEach(drum => {
-                if (sequencerSteps[drum][step]) {
-                    playDrum(drum, false, time);
-                }
+                const hit = sequencerSteps[drum][step];
+                if (hit) playDrum(drum, false, time, hit === 2 ? ACCENT : 1);
             });
+            const note = sequencerSteps.keys[step];
+            if (note !== null) playNote(midiFreq(note), { time, hold: stepLength * 0.5 });
 
             const run = seqRun;
             setTimeout(() => {
@@ -1860,7 +2201,7 @@ function scheduleSequencer(horizon) {
         }
 
         currentStep = (currentStep + 1) % 16;
-        nextStepTime += 60 / parseInt(document.getElementById('tempo').value) / 4;
+        nextStepTime += stepLength;
     }
 }
 
@@ -1924,13 +2265,12 @@ function stopSequencer(shouldStopRecording = true) {
 }
 
 document.getElementById('clearSeq').addEventListener('click', () => {
-    drums.forEach(drum => {
-        sequencerSteps[drum] = Array(16).fill(false);
-    });
-    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    clearPattern();
     saveSequencerState();
     updatePatternCount();
 });
+
+let takeId = null;
 
 function startRecording() {
     recordingSlot = activeSlot;
@@ -1941,9 +2281,7 @@ function startRecording() {
     isOverdub = false;
     recordingStart = audioContext.currentTime;
     loopSlots[recordingSlot].loop = [];
-    loopSlots[recordingSlot].loopSamples = 0;
-
-    startMediaRecording();
+    takeId = recordFrom(recordingStart);
 
     document.getElementById('recordBtn').textContent = 'recording...';
     document.getElementById('recordBtn').classList.add('active');
@@ -1953,10 +2291,13 @@ function startRecording() {
 
 function stopRecording() {
     isRecording = false;
-    loopSlots[recordingSlot].loopSamples = Math.round((audioContext.currentTime - recordingStart) * audioContext.sampleRate);
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-    }
+    const key = recordingSlot;
+    const frames = Math.round((audioContext.currentTime - recordingStart) * audioContext.sampleRate);
+    if (!loopSlots[key].audioBuffer) loopSlots[key].loopSamples = frames;
+    recordFor(takeId, frames).then(take => {
+        if (take) setSlotAudio(key, take, take.length);
+    });
+    takeId = null;
     document.getElementById('recordBtn').textContent = 'rec manual';
     document.getElementById('recordBtn').classList.remove('active');
     document.getElementById('recStatus').textContent = 'off';
@@ -1971,8 +2312,7 @@ function startOverdub() {
     recordingStart = now;
     startSlot(recordingSlot, now);
     overdubLength = loopSlots[recordingSlot].playback ? loopSlots[recordingSlot].playback.length : 0;
-
-    startMediaRecording();
+    takeId = recordFrom(now);
 
     document.getElementById('overdubBtn').textContent = 'layering...';
     document.getElementById('overdubBtn').classList.add('active');
@@ -1984,20 +2324,24 @@ function stopOverdub() {
     if (overdubStop) return;
 
     const now = audioContext.currentTime;
-    const recorder = mediaRecorder;
-    let stopAt = now;
-    if (overdubLength > 0) {
-        const cycles = Math.max(1, Math.ceil((now - recordingStart) / overdubLength));
-        stopAt = recordingStart + cycles * overdubLength;
-    }
+    const key = recordingSlot;
+    const slot = loopSlots[key];
+    const under = slot.audioBuffer;
+    const underLength = slot.loopSamples;
+    // the layer closes on the loop boundary, so the take holds whole cycles
+    const cycles = overdubLength > 0 ? Math.max(1, Math.ceil((now - recordingStart) / overdubLength)) : 0;
+    const frames = cycles && underLength ? cycles * underLength : Math.round((now - recordingStart) * audioContext.sampleRate);
+    const stopAt = recordingStart + frames / audioContext.sampleRate;
+
+    recordFor(takeId, frames).then(layer => {
+        if (layer) setSlotAudio(key, addLayerTo(under, underLength, layer), layer.length);
+    });
+    takeId = null;
 
     const finish = () => {
         overdubStop = null;
         isOverdub = false;
-        loopSlots[recordingSlot].loopSamples = Math.round((stopAt - recordingStart) * audioContext.sampleRate);
-        if (recorder && recorder.state !== 'inactive') {
-            recorder.stop();
-        }
+        if (!slot.audioBuffer) slot.loopSamples = frames;
         document.getElementById('overdubBtn').textContent = 'add layer';
         document.getElementById('overdubBtn').classList.remove('active');
         document.getElementById('recStatus').textContent = 'off';
@@ -2008,8 +2352,8 @@ function stopOverdub() {
         return;
     }
 
-    // The layer closes on the loop boundary so the new take keeps whole cycles; the extra time covers the recorder delay that alignLayer trims from the start
-    overdubStop = setTimeout(finish, (stopAt - now + LAYER_SEARCH) * 1000 + 50);
+    // the take ends on its own frame; this only puts the buttons back when it does
+    overdubStop = setTimeout(finish, (stopAt - now) * 1000);
 }
 
 document.getElementById('recordBtn').addEventListener('click', () => {
@@ -2112,9 +2456,9 @@ function scheduleSlotEvents(playback, horizon) {
 
         if (event.time < playback.length && time > audioContext.currentTime - SCHEDULER.LATE) {
             if (event.type === 'drum') {
-                playDrum(event.sound, true, time);
+                playDrum(event.sound, true, time, event.velocity, event.variant);
             } else if (event.type === 'synth') {
-                playNote(event.freq, true, time, undefined, event.wave);
+                playNote(event.freq, { skipRecording: true, time, wave: event.wave, velocity: event.velocity, hold: event.dur || 0 });
             }
         }
         playback.index++;
@@ -2125,8 +2469,8 @@ function clearSlot(key) {
     stopSlot(key);
     const slot = loopSlots[key];
     slot.loop = [];
-    slot.audioBlob = null;
     slot.audioBuffer = null;
+    slot.history = [];
     slot.duration = 0;
     slot.loopSamples = 0;
     if (key === demoSlot) demoSlot = null;
@@ -2163,8 +2507,8 @@ document.getElementById('clearLoopBtn').addEventListener('click', () => {
 });
 
 document.getElementById('downloadBtn').addEventListener('click', () => {
-    const blob = loopSlots[activeSlot].audioBlob;
-    if (!blob) return;
+    if (!loopSlots[activeSlot].audioBuffer) return;
+    const blob = slotWav(loopSlots[activeSlot]);
 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2172,7 +2516,7 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
     a.href = url;
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const tempo = document.getElementById('tempo').value;
-    a.download = `playground-mk1-${activeSlot}-${tempo}bpm-${timestamp}.webm`;
+    a.download = `playground-mk1-${activeSlot}-${tempo}bpm-${timestamp}.wav`;
     document.body.appendChild(a);
     a.click();
 
@@ -2187,7 +2531,7 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
 // Export all non-empty slots
 function exportAllSlots() {
     const slotsWithContent = Object.entries(loopSlots)
-        .filter(([key, slot]) => slot.audioBlob !== null);
+        .filter(([key, slot]) => slot.audioBuffer !== null);
 
     if (slotsWithContent.length === 0) {
         showMessage('no audio to export');
@@ -2199,11 +2543,11 @@ function exportAllSlots() {
 
     slotsWithContent.forEach(([key, slot], index) => {
         setTimeout(() => {
-            const url = URL.createObjectURL(slot.audioBlob);
+            const url = URL.createObjectURL(slotWav(slot));
             const a = document.createElement('a');
             a.style.display = 'none';
             a.href = url;
-            a.download = `playground-mk1-${key}-${tempo}bpm-${timestamp}.webm`;
+            a.download = `playground-mk1-${key}-${tempo}bpm-${timestamp}.wav`;
             document.body.appendChild(a);
             a.click();
 
@@ -2218,6 +2562,21 @@ function exportAllSlots() {
 }
 
 document.getElementById('exportAllBtn').addEventListener('click', exportAllSlots);
+
+// takes the slot back to what it was before its last take or layer
+function undoLayer(key) {
+    const slot = loopSlots[key];
+    const previous = slot.history.pop();
+    if (!previous) return;
+    slot.audioBuffer = previous.audioBuffer;
+    slot.loopSamples = previous.loopSamples;
+    slot.duration = previous.loopSamples / audioContext.sampleRate;
+    if (slot.playback) swapSlotPlayback(key);
+    updateSlotUI();
+    showMessage('layer undone');
+}
+
+document.getElementById('undoLayerBtn').addEventListener('click', () => undoLayer(activeSlot));
 
 document.querySelectorAll('.slot-btn').forEach(btn => {
     btn.addEventListener('click', function() {
@@ -2252,19 +2611,16 @@ function updateSlotUI() {
         }
     });
     
-    if (slot.audioBlob) {
-        document.getElementById('downloadBtn').style.display = 'block';
-    } else {
-        document.getElementById('downloadBtn').style.display = 'none';
-    }
+    document.getElementById('downloadBtn').style.display = slot.audioBuffer ? 'block' : 'none';
+    document.getElementById('undoLayerBtn').style.display = slot.history.length ? 'block' : 'none';
 
     document.getElementById('playLoopBtn').textContent = slot.playback ? 'stop' : 'play';
     document.getElementById('playAllBtn').textContent = Object.values(loopSlots).some(s => s.playback) ? 'stop all' : 'play all';
 }
 
 function setMasterVolume(value) {
-    if (masterGain) masterGain.gain.value = value;
-    if (loopBus) loopBus.gain.value = value / AUDIO_CONSTANTS.MASTER_VOLUME;
+    if (masterGain) setParam(masterGain.gain, value);
+    if (loopBus) setParam(loopBus.gain, value / AUDIO_CONSTANTS.MASTER_VOLUME);
 }
 
 document.getElementById('masterVol').addEventListener('input', function() {
@@ -2285,13 +2641,19 @@ document.getElementById('release').addEventListener('input', function() {
 document.getElementById('tempo').addEventListener('input', function() {
     document.getElementById('tempoVal').textContent = this.value;
     document.getElementById('tempoStatus').textContent = this.value;
+    syncDelay();
+});
+
+document.getElementById('swing').addEventListener('input', function() {
+    swing = this.value / 100;
+    document.getElementById('swingVal').textContent = this.value + '%';
 });
 
 document.getElementById('reverb').addEventListener('input', function() {
     const value = this.value / 100;
     document.getElementById('reverbVal').textContent = this.value + '%';
     if (window.reverbMix) {
-        window.reverbMix.gain.value = value;
+        setParam(window.reverbMix.gain, value);
     }
 });
 
@@ -2299,48 +2661,34 @@ document.getElementById('delay').addEventListener('input', function() {
     const value = this.value / 100;
     document.getElementById('delayVal').textContent = this.value + '%';
     if (window.delayMix) {
-        window.delayMix.gain.value = value;
+        setParam(window.delayMix.gain, value);
     }
 });
 
 document.getElementById('filter').addEventListener('input', function() {
-    const value = parseInt(this.value);
+    const value = filterHz(parseInt(this.value));
     document.getElementById('filterVal').textContent = value + 'Hz';
     if (window.filterNode) {
-        window.filterNode.frequency.setValueAtTime(value, audioContext.currentTime);
+        setParam(window.filterNode.frequency, value);
     }
 });
 
 document.getElementById('distort').addEventListener('input', function() {
     const value = parseInt(this.value);
     document.getElementById('distortVal').textContent = value + '%';
-    if (window.distortionNode && window.distortionMix) {
-        // Update distortion curve based on amount (0-100 maps to 0-400 for curve)
-        window.distortionNode.curve = makeDistortionCurve(value * 4);
-        // Mix in the distortion (0% = no effect, 100% = full effect)
-        window.distortionMix.gain.value = value / 100;
-    }
+    applyDistortion(value / 100);
 });
 
 document.getElementById('crush').addEventListener('input', function() {
     const value = parseInt(this.value);
     document.getElementById('crushVal').textContent = value;
-    if (window.setCrushAmount && window.bitcrusherMix) {
-        window.setCrushAmount(value);
-        // Mix in the bitcrusher when active
-        window.bitcrusherMix.gain.value = value > 0 ? 1 : 0;
-    }
+    applyCrush(value);
 });
 
 document.getElementById('chorus').addEventListener('input', function() {
     const value = parseInt(this.value);
     document.getElementById('chorusVal').textContent = value + '%';
-    if (window.chorusMix && window.chorusLFOGain) {
-        // Mix in the chorus effect
-        window.chorusMix.gain.value = value / 100;
-        // Increase modulation depth with intensity
-        window.chorusLFOGain.gain.value = 0.002 + (value / 100) * 0.003;
-    }
+    applyChorus(value / 100);
 });
 
 // Know how
@@ -2403,7 +2751,26 @@ if (currentLayout !== 'qwerty') {
     }
 }
 
+// Labels follow the layout and the octave: white keys show key · note, black keys only the key
+function updateKeyLabels() {
+    const keyOf = {};
+    Object.keys(keyMap).forEach(k => { if (notes[keyMap[k]]) keyOf[keyMap[k]] = k; });
+    document.querySelectorAll('.key').forEach(el => {
+        const name = el.dataset.note;
+        const label = el.querySelector('.key-label');
+        const letter = keyOf[name] || '';
+        if (el.classList.contains('black')) {
+            label.textContent = letter;
+            return;
+        }
+        const pitch = name.replace(/\d/, '').toLowerCase() + (parseInt(name.slice(-1), 10) + octaveShift);
+        label.textContent = letter ? letter + ' · ' + pitch : pitch;
+    });
+    document.getElementById('octVal').textContent = 'c' + (4 + octaveShift);
+}
+
 function showLayoutKeys() {
+    updateKeyLabels();
     const keysFor = test => Object.keys(keyMap).filter(k => notes[keyMap[k]] && test(keyMap[k])).join(' ');
     knowHowPanel.querySelector('[data-keys="white"]').textContent = keysFor(n => !n.includes('#'));
     knowHowPanel.querySelector('[data-keys="black"]').textContent = keysFor(n => n.includes('#'));
@@ -2480,6 +2847,13 @@ document.addEventListener('keydown', (e) => {
 
     if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
 
+    // a focused slider keeps its arrows
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !(document.activeElement && document.activeElement.matches('input, select, textarea'))) {
+        e.preventDefault();
+        shiftOctave(e.key === 'ArrowLeft' ? -1 : 1);
+        return;
+    }
+
     // Checked before the note map, which owns plain 'e'
     if (e.shiftKey && key === 'e') {
         exportAllSlots();
@@ -2489,9 +2863,11 @@ document.addEventListener('keydown', (e) => {
     if (keyMap[key]) {
         const val = keyMap[key];
         if (drums.includes(val)) {
+            selectPad(val);
             playDrum(val);
-        } else {
-            playNote(notes[val]);
+        } else if (!keyNotes.has(key)) {
+            lastNote = freqMidi(keyFreq(val));
+            keyNotes.set(key, playNote(keyFreq(val)));
         }
         return;
     }
@@ -2558,6 +2934,24 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// A held letter holds its note; leaving the window lets every held note go, so none is left hanging
+const keyNotes = new Map();
+
+document.addEventListener('keyup', (e) => {
+    const key = e.key.toLowerCase();
+    if (!keyNotes.has(key)) return;
+    const voice = keyNotes.get(key);
+    keyNotes.delete(key);
+    if (voice) voice.release();
+});
+
+window.addEventListener('blur', () => {
+    keyNotes.forEach(voice => { if (voice) voice.release(); });
+    keyNotes.clear();
+    [...pointerNotes.keys()].forEach(liftKey);
+    releaseMidiNotes();
+});
+
 // Cache color values to avoid repeated getComputedStyle calls
 let cachedVizBgColor = null;
 let cachedVizLineColor = null;
@@ -2618,7 +3012,7 @@ function resizeCanvas() {
 new ResizeObserver(resizeCanvas).observe(canvas);
 
 function updatePatternCount() {
-    let totalActive = 0;
+    let totalActive = sequencerSteps.keys.filter(note => note !== null).length;
     drums.forEach(drum => {
         const activeSteps = sequencerSteps[drum].filter(step => step).length;
         totalActive += activeSteps;
@@ -2629,7 +3023,7 @@ function updatePatternCount() {
 function isSlotFree(key) {
     const slot = loopSlots[key];
     const beingRecorded = (isRecording || isOverdub) && key === recordingSlot;
-    return !slot.audioBlob && !slot.audioBuffer && slot.loop.length === 0 && !beingRecorded;
+    return !slot.audioBuffer && slot.loop.length === 0 && !beingRecorded;
 }
 
 // Kept for n0body, which clicked the old start button to wake the audio engine
@@ -2844,10 +3238,8 @@ document.getElementById('loadDemoBtn').addEventListener('click', () => {
 
     if (demoSlot) clearSlot(demoSlot);
 
-    drums.forEach(drum => {
-        sequencerSteps[drum] = Array(16).fill(false);
-    });
-    
+    clearPattern();
+
     sequencerSteps.kick[0] = true;
     sequencerSteps.kick[4] = true;
     sequencerSteps.kick[8] = true;
@@ -2906,13 +3298,7 @@ document.getElementById('clearAllBtn').addEventListener('click', () => {
 
     Object.keys(loopSlots).forEach(clearSlot);
 
-    drums.forEach(drum => {
-        sequencerSteps[drum] = Array(16).fill(false);
-    });
-
-    document.querySelectorAll('.step').forEach(step => {
-        step.classList.remove('active');
-    });
+    clearPattern();
 
     if (isPlaying) {
         stopSequencer();
@@ -2957,7 +3343,7 @@ const midiDrumMap = {
     40: 'snare',   // Electric Snare
     42: 'hihat',   // Closed Hi-Hat
     44: 'hihat',   // Pedal Hi-Hat
-    46: 'hihat',   // Open Hi-Hat
+    46: 'hihat',   // Open Hi-Hat (played open)
     39: 'clap',    // Hand Clap
     45: 'tom1',    // Low Tom
     47: 'tom1',    // Low-Mid Tom
@@ -2969,29 +3355,69 @@ const midiDrumMap = {
     57: 'cymbal',  // Crash Cymbal 2
 };
 
+// Held notes by channel and note number; with the sustain pedal down, a note let go waits for the pedal
+const midiNotes = new Map();
+const midiSustained = new Set();
+let sustainPedal = false;
+
+function releaseMidiNotes() {
+    midiNotes.forEach(voice => { if (voice) voice.release(); });
+    midiNotes.clear();
+    midiSustained.forEach(voice => { if (voice) voice.release(); });
+    midiSustained.clear();
+}
+
 function handleMIDIMessage(event) {
     const [status, data1, data2] = event.data;
     const command = status >> 4;
     const channel = status & 0xf;
+    const id = channel * 128 + data1;
 
-    // Note On (command = 9) with velocity > 0
     if (command === 9 && data2 > 0) {
-        const note = data1;
-
+        const velocity = data2 / 127;
         // Channel 10 (index 9) is drums in GM
         if (channel === 9) {
-            const drumSound = midiDrumMap[note];
-            if (drumSound) {
-                playDrum(drumSound);
-            }
-        } else {
-            // Play synth note
-            const freq = midiNoteToFreq(note);
-            playNote(freq);
+            const drumSound = midiDrumMap[data1];
+            if (drumSound) playDrum(drumSound, false, undefined, velocity, data1 === 46 ? 'open' : undefined);
+            return;
         }
+        const previous = midiNotes.get(id);
+        if (previous) previous.release();
+        lastNote = data1;
+        midiNotes.set(id, playNote(midiNoteToFreq(data1), { velocity }));
+        return;
     }
-    // Note Off (command = 8) or Note On with velocity 0
-    // (Currently notes are one-shot, no sustain handling needed)
+
+    if (command === 8 || (command === 9 && data2 === 0)) {
+        const voice = midiNotes.get(id);
+        if (voice === undefined) return;
+        midiNotes.delete(id);
+        if (!voice) return;
+        if (sustainPedal) midiSustained.add(voice);
+        else voice.release();
+        return;
+    }
+
+    if (command === 0xB && data1 === 64) {
+        sustainPedal = data2 >= 64;
+        if (!sustainPedal) {
+            midiSustained.forEach(voice => voice.release());
+            midiSustained.clear();
+        }
+        return;
+    }
+
+    // mod wheel: vibrato up to a third of a semitone
+    if (command === 0xB && data1 === 1 && vibratoDepth) {
+        vibratoDepth.gain.setTargetAtTime((data2 / 127) * 35, audioContext.currentTime, 0.03);
+        return;
+    }
+
+    // pitch bend: ±2 semitones
+    if (command === 0xE && pitchBend) {
+        const value = ((data2 << 7) | data1) - 8192;
+        pitchBend.offset.setTargetAtTime((value / 8192) * 200, audioContext.currentTime, 0.008);
+    }
 }
 
 function onMIDISuccess(access) {
@@ -3096,23 +3522,35 @@ window.MK1 = (function() {
     return {
         // === DRUMS ===
         drums: {
-            hit: function(pad) {
+            // velocity 0-1 is optional; 1 is a full hit, as before
+            hit: function(pad, velocity) {
                 if (!isValidPad(pad)) return;
                 const drumType = drumMap[pad - 1];
-                playDrum(drumType, true); // skipRecording = true for API calls
+                playDrum(drumType, true, undefined, typeof velocity === 'number' ? clamp(velocity, 0, 1) : 1); // skipRecording = true for API calls
+            },
+
+            // semitones, -12 to 12; pitch and length move together, like tape
+            setTune: function(pad, semitones) {
+                if (!isValidPad(pad)) return;
+                setPad(drumMap[pad - 1], { tune: Math.round(clamp(semitones, -12, 12)) });
+            },
+
+            // 0.2-1 of the pad's natural length
+            setDecay: function(pad, value) {
+                if (!isValidPad(pad)) return;
+                setPad(drumMap[pad - 1], { decay: clamp(value, 0.2, 1) });
             }
         },
 
         // === SYNTH ===
         synth: {
-            play: function(note, duration) {
+            // velocity 0-1 is optional; without it notes play at full level, as before
+            play: function(note, duration, velocity) {
                 const freq = noteFrequencies[note];
                 if (!freq) return;
 
-                // Duration in seconds, default to current release time
-                const durationMs = duration ? duration * 1000 : releaseTime;
-
-                playNote(freq, true, undefined, Math.max(50, durationMs)); // skipRecording = true for API calls
+                // held for duration seconds, then the release; without one it's a pluck
+                playNote(freq, { skipRecording: true, hold: duration > 0 ? duration : 0, velocity: typeof velocity === 'number' ? clamp(velocity, 0, 1) : 1 });
             },
 
             stop: function() {
@@ -3169,17 +3607,10 @@ window.MK1 = (function() {
                 const drumType = drumMap[track - 1];
                 const stepIndex = step - 1;
 
-                sequencerSteps[drumType][stepIndex] = !!active;
+                sequencerSteps[drumType][stepIndex] = active ? 1 : 0;
 
-                // Update UI
                 const stepEl = document.querySelector(`.step[data-drum="${drumType}"][data-index="${stepIndex}"]`);
-                if (stepEl) {
-                    if (active) {
-                        stepEl.classList.add('active');
-                    } else {
-                        stepEl.classList.remove('active');
-                    }
-                }
+                if (stepEl) paintStep(stepEl, sequencerSteps[drumType][stepIndex]);
                 updatePatternCount();
             },
 
@@ -3187,27 +3618,48 @@ window.MK1 = (function() {
                 if (!isValidTrack(track) || !isValidStep(step)) return false;
 
                 const drumType = drumMap[track - 1];
-                return sequencerSteps[drumType][step - 1];
+                return !!sequencerSteps[drumType][step - 1];
+            },
+
+            // an accent turns the step on as well
+            setAccent: function(track, step, accent) {
+                if (!isValidTrack(track) || !isValidStep(step)) return;
+                const drumType = drumMap[track - 1];
+                const row = sequencerSteps[drumType];
+                row[step - 1] = accent ? 2 : row[step - 1] ? 1 : 0;
+                const stepEl = document.querySelector(`.step[data-drum="${drumType}"][data-index="${step - 1}"]`);
+                if (stepEl) paintStep(stepEl, row[step - 1]);
+                updatePatternCount();
+            },
+
+            // the keys row: note like 'C4', or null to clear the step
+            setNote: function(step, note) {
+                if (!isValidStep(step)) return;
+                const freq = note ? noteFrequencies[note] : null;
+                if (note && !freq) return;
+                sequencerSteps.keys[step - 1] = freq ? freqMidi(freq) : null;
+                const stepEl = document.querySelector(`.step[data-drum="keys"][data-index="${step - 1}"]`);
+                if (stepEl) paintStep(stepEl, sequencerSteps.keys[step - 1]);
+                updatePatternCount();
+            },
+
+            getNote: function(step) {
+                if (!isValidStep(step)) return null;
+                const midi = sequencerSteps.keys[step - 1];
+                return midi === null ? null : noteName(midi).toUpperCase();
             },
 
             clearTrack: function(track) {
                 if (!isValidTrack(track)) return;
 
                 const drumType = drumMap[track - 1];
-                sequencerSteps[drumType] = Array(16).fill(false);
-
-                // Update UI
-                document.querySelectorAll(`.step[data-drum="${drumType}"]`).forEach(s => {
-                    s.classList.remove('active');
-                });
+                sequencerSteps[drumType] = Array(16).fill(0);
+                updateSequencerUI();
                 updatePatternCount();
             },
 
             clearAll: function() {
-                drums.forEach(drum => {
-                    sequencerSteps[drum] = Array(16).fill(false);
-                });
-                document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+                clearPattern();
                 updatePatternCount();
             },
 
@@ -3230,6 +3682,20 @@ window.MK1 = (function() {
 
             isPlaying: function() {
                 return isPlaying;
+            },
+
+            // 0-1: straight to an MPC's 75%
+            setSwing: function(value) {
+                const v = clamp(value, 0, 1);
+                swing = v;
+                const slider = document.getElementById('swing');
+                const display = document.getElementById('swingVal');
+                if (slider) slider.value = Math.round(v * 100);
+                if (display) display.textContent = Math.round(v * 100) + '%';
+            },
+
+            getSwing: function() {
+                return swing;
             }
         },
 
@@ -3238,7 +3704,7 @@ window.MK1 = (function() {
             setReverb: function(value) {
                 const v = clamp(value, 0, 1);
                 if (window.reverbMix) {
-                    window.reverbMix.gain.value = v;
+                    setParam(window.reverbMix.gain, v);
                 }
 
                 // Update UI
@@ -3251,7 +3717,7 @@ window.MK1 = (function() {
             setDelay: function(value) {
                 const v = clamp(value, 0, 1);
                 if (window.delayMix) {
-                    window.delayMix.gain.value = v;
+                    setParam(window.delayMix.gain, v);
                 }
 
                 // Update UI
@@ -3262,25 +3728,22 @@ window.MK1 = (function() {
             },
 
             setFilter: function(value) {
-                // 0-1 maps to 100-20000Hz (logarithmic would be better but linear is simpler)
+                // 0-1 maps to 100-20000Hz, linear, as n0body learned it; the slider shows it on its log scale
                 const freq = Math.round(100 + clamp(value, 0, 1) * 19900);
                 if (window.filterNode && audioContext) {
-                    window.filterNode.frequency.setValueAtTime(freq, audioContext.currentTime);
+                    setParam(window.filterNode.frequency, freq);
                 }
 
                 // Update UI
                 const slider = document.getElementById('filter');
                 const display = document.getElementById('filterVal');
-                if (slider) slider.value = freq;
+                if (slider) slider.value = filterPosition(freq);
                 if (display) display.textContent = freq + 'Hz';
             },
 
             setDistortion: function(value) {
                 const v = clamp(value, 0, 1);
-                if (window.distortionNode && window.distortionMix) {
-                    window.distortionNode.curve = makeDistortionCurve(v * 400);
-                    window.distortionMix.gain.value = v;
-                }
+                applyDistortion(v);
 
                 // Update UI
                 const slider = document.getElementById('distort');
@@ -3291,10 +3754,7 @@ window.MK1 = (function() {
 
             setChorus: function(value) {
                 const v = clamp(value, 0, 1);
-                if (window.chorusMix && window.chorusLFOGain) {
-                    window.chorusMix.gain.value = v;
-                    window.chorusLFOGain.gain.value = 0.002 + v * 0.003;
-                }
+                applyChorus(v);
 
                 // Update UI
                 const slider = document.getElementById('chorus');
@@ -3304,12 +3764,9 @@ window.MK1 = (function() {
             },
 
             setCrush: function(value) {
-                // 0-1 maps to 0-16 bit reduction
-                const crushVal = Math.round(clamp(value, 0, 1) * 16);
-                if (window.setCrushAmount && window.bitcrusherMix) {
-                    window.setCrushAmount(crushVal);
-                    window.bitcrusherMix.gain.value = crushVal > 0 ? 1 : 0;
-                }
+                // 0-1 maps to the slider's 0-8: fewer bits and a lower sample rate together
+                const crushVal = Math.round(clamp(value, 0, 1) * 8);
+                applyCrush(crushVal);
 
                 // Update UI
                 const slider = document.getElementById('crush');
@@ -3546,9 +4003,10 @@ window.MK1 = (function() {
                         reverb: window.reverbMix?.gain.value || 0,
                         delay: window.delayMix?.gain.value || 0,
                         filter: window.filterNode?.frequency.value || 10000,
-                        distortion: window.distortionMix?.gain.value || 0,
-                        chorus: window.chorusMix?.gain.value || 0
+                        distortion: (window.distortionMix?.gain.value || 0) / DISTORTION_MAKEUP,
+                        chorus: (window.chorusMix?.gain.value || 0) / 0.6
                     },
+                    swing: swing,
                     sequencer: JSON.parse(JSON.stringify(sequencerSteps)),
                     looper: MK1.looper.getAllStatus()
                 };

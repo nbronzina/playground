@@ -169,6 +169,72 @@
     color: var(--text-primary);
 }
 
+/* A header that carries one small control on the right, without growing taller than the title */
+.module-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 1.2rem;
+}
+
+.header-control {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: lowercase;
+}
+
+.header-control input[type="range"] {
+    width: 7rem;
+}
+
+.header-control .control-value {
+    min-width: 2.6rem;
+}
+
+.octave {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.octave-btn {
+    width: 1.6rem;
+    height: 1.2rem;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--border-secondary);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.75rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.octave-btn:hover,
+.octave-btn:focus-visible {
+    border-color: var(--text-primary);
+}
+
+@media (pointer: coarse) {
+    .octave-btn {
+        width: 2.5rem;
+        height: 2.5rem;
+    }
+}
+
+.octave-val {
+    min-width: 2rem;
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
 .console .btn,
 .console .btn-secondary {
     padding: 0.6rem 0.5rem;
@@ -566,6 +632,59 @@ input[type="range"]::-moz-range-thumb {
     background: var(--accent);
     border-color: var(--accent);
     opacity: 0.5;
+}
+
+/* An accent wears a white frame inside the lit step */
+.step.accent {
+    box-shadow: inset 0 0 0 2px var(--text-primary);
+}
+
+.seq-row-keys .step {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    color: #000;
+}
+
+/* the pad that tune and decay act on */
+.pad.selected {
+    border-color: var(--text-secondary);
+}
+
+.pad-edit {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    min-width: 0;
+}
+
+.pad-edit-name {
+    min-width: 3.5rem;
+    text-align: right;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.pad-edit .header-control input[type="range"] {
+    width: 5.5rem;
+}
+
+@media (max-width: 600px) {
+    .module-header-row {
+        flex-wrap: wrap;
+        row-gap: 0.5rem;
+    }
+
+    .pad-edit {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.5rem 1rem;
+    }
 }
 
 /* === STATUS BAR (TRANSPORT) === */
