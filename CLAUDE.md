@@ -196,7 +196,8 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - At rest: slipmat and strobe on empty platters, a gold line that breathes in the viz (still with reduced motion, paused in a hidden tab)
 - Keys: q/p play, w/o restart, e/i eject, ← → crossfade, double-click resets a knob or fader
 - Mobile (≤ 1000 px): one deck at a time with an A/B toggle; ≥ 40 px targets on touch
-- on air: one click sends the speakers mix (after the limiter) to mk-air; the cue path never goes out
+- on air: one click sends the speakers mix (after the limiter) to mk-air; the cue path never goes out. Same header as mk-1: the button is the lamp, then time, listeners, the link and end (two presses)
+- One screen at 1920×1000 and 2560×1360: platters, knobs and volume faders follow the height; on a wide screen the crate is one strip under the decks and its records scroll sideways
 
 **mk-air**
 - A radio that forgets: on air now (live list), listen with one tap at mk-air/?r=<id>, on-air light, time, who, listeners, stereo meter; paused / ended / not found / can't reach say what happened
