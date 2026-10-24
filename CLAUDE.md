@@ -28,7 +28,7 @@ play·ground
 │   └── mk-dwell    — field of generative sound you move through (mk-dwell/)
 ├── airtists        — who plays here when you don't
 │   └── n0body      — autonomous agent, plays mk-1 through window.MK1, goes on air at mk-air
-│                     (separate repo: github.com/nbronzina/n0body)
+│                     (page in n0body/ here; its mind, dist/n0body.js, and docs in the n0body repo)
 └── planned
     └── mk-room     — local sharing (not built, not linked anywhere)
 
@@ -41,8 +41,8 @@ playground/
 ├── README.md                     — repo front page (not published)
 ├── BRIEF.md                      — session brief template (not published)
 ├── _config.yml                   — Pages config: excludes the three notes above
-├── sitemap.xml                   — the 6 pages, for Search Console
-├── og/                           — 1200×630 share images: home, about, mk-1, mk-2, mk-air, mk-dwell
+├── sitemap.xml                   — the 7 pages, for Search Console
+├── og/                           — 1200×630 share images: home, about, mk-1, mk-2, mk-air, mk-dwell, n0body
 ├── index.html                    — home: playable hero, tools / spaces / airtists
 ├── about.html
 ├── air-client.js                 — window.PGAir: mk-air signaling v1 + WebRTC, shared by mk-1, mk-2, mk-air
@@ -62,13 +62,17 @@ playground/
 │   ├── index.html                — on air now, listen (?r=id), go on air with the mic
 │   ├── css/air.css
 │   └── js/air.js
-└── mk-dwell/
-    ├── index.html
-    ├── css/dwell.css
-    └── js/
-        ├── audio.js              — engine: sources, drone, texture, events, scheduler
-        ├── input.js              — cursor / touch position, zone tint
-        └── main.js               — entry screen, enter / esc, know how
+├── mk-dwell/
+│   ├── index.html
+│   ├── css/dwell.css
+│   └── js/
+│       ├── audio.js              — engine: sources, drone, texture, events, scheduler
+│       ├── input.js              — cursor / touch position, zone tint
+│       └── main.js               — entry screen, enter / esc, know how
+└── n0body/
+    ├── index.html                — the set and the lamp up top, mk-1 (mk-1.html?embed) filling the rest
+    ├── css/n0body.css
+    └── js/n0body.js              — loads /n0body/dist/n0body.js into mk-1's frame (same origin), play / stop, on air, the groq key
 
 Serve over http to work locally (`python3 -m http.server`): AudioWorklet does not load from file://.
 
@@ -179,6 +183,7 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - Modulation: lfoGain → formant detune (slow organic movement, 1–2 Hz, ±20 cents)
 - Node lifecycle: stop() → setTimeout(disconnect, 100) in cleanupVoice and the looper
 - on air: one click sends mk-1's master (after the limiter) to mk-air, no mic; end takes two presses, as in mk-2 and mk-air. MK1.air.start({name}) / stop() / status() for n0body, which goes on air for every session
+- mk-1.html?embed (inside a frame) shows only the console: n0body's page brings the header, the lamp and the footer
 - MK1 additions, all optional: synth.play(note, duration, velocity), drums.hit(pad, velocity), drums.setTune / setDecay, sequencer.setAccent / setNote / getNote / setSwing / getSwing. fx.setFilter keeps its linear 100–20000 Hz meaning
 
 **mk-2**
@@ -200,6 +205,12 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - Signaling on Render (mk-air repo): wakes from the free tier's sleep with an honest "waking the radio"
 - No TURN. A listener without a direct line after 8 s (or whose line fails) is relayed by the server over the same WebSocket: the broadcaster records Opus at 48 kbps (MediaRecorder, only while someone is relayed), the listener decodes with WebCodecs and schedules it 0.7 s ahead on its AudioContext; the page says "relayed by the radio." Caps on the server: 5 relayed at once, a monthly budget (RELAY_GB, default 4) under Render's free 5 GB
 - Relay needs a broadcaster on Chrome / Edge / Firefox and a listener on Chrome / Edge / desktop Firefox / Safari 26+; elsewhere a blocked listener sees "can't reach"
+
+**n0body**
+- Its page lives here (n0body/): play·ground header with the set (state · mood · time · bpm, or how many sets so far), the on air lamp with time, listeners and the link, play / stop, know how; mk-1 below, console only, filling the screen
+- The mind is the n0body repo's dist/n0body.js, served at /n0body/dist/n0body.js on the same origin and loaded into mk-1's frame; what it learns and the groq key stay in localStorage, shared across the origin
+- play starts a set and goes on air; stop plays the outro, then off air. space toggles. No modal: the groq key (optional, "mind") and "forget what it learned" (two presses) live in know how
+- The old address, nbronzina.github.io/n0body/, redirects here
 
 **mk-dwell**
 - Entry screen (name, one line, enter) → inside, cursor or finger position → spatial field
@@ -224,6 +235,7 @@ Serve over http to work locally (`python3 -m http.server`): AudioWorklet does no
 - 2026-10-19 · mk-1 and mk-2 go on air directly with their own master (WebRTC), no mic or tab capture; n0body through MK1.air
 - 2026-10-19 · mk-air accent is #ff5a4a
 - 2026-10-23 · Everything free and open source, nothing paid: no TURN service. The mk-air server relays the sound for listeners whose network blocks a direct line, within a monthly budget
+- 2026-10-24 · n0body's page lives in play·ground (n0body/), in the family's design; the n0body repo keeps the mind and the docs; the old URL redirects
 
 ## Collaborators
 

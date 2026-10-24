@@ -36,6 +36,8 @@
 
     <link rel="stylesheet" href="playground-core.css">
     <link rel="stylesheet" href="mk-1.css">
+    <!-- inside n0body's page mk-1 shows only its console; set before the first paint so the header never flashes -->
+    <script>if (window.parent !== window && /[?&]embed\b/.test(location.search)) document.documentElement.classList.add('embedded');</script>
 </head>
 <body>
     <div class="screen">
@@ -424,6 +426,7 @@
             <a href="mk-2.html">mk-2</a>
             <a href="mk-air/">mk-air</a>
             <a href="mk-dwell/">mk-dwell</a>
+            <a href="n0body/">n0body</a>
             <a href="about.html">about</a>
             <a href="https://buymeacoffee.com/nbronzina" target="_blank" rel="noopener">buy me a coffee ↗</a>
         </nav>

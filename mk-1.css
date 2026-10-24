@@ -13,6 +13,13 @@
     --key-gap: #1a1a1a;
 }
 
+/* === EMBEDDED IN N0BODY'S PAGE === */
+/* n0body's page has the header, the lamp and the footer; mk-1 brings only its console */
+.embedded .screen > .header,
+.embedded .pg-footer {
+    display: none;
+}
+
 /* === CONSOLE: ONE SCREEN, ONE INSTRUMENT === */
 /* Header and console fill the screen; the footer waits below the fold */
 .screen {
@@ -658,20 +665,24 @@ input[type="range"]::-moz-range-thumb {
 .pad-edit {
     display: flex;
     align-items: center;
-    gap: 1.25rem;
+    gap: 1rem;
     min-width: 0;
 }
 
 .pad-edit-name {
-    min-width: 3.5rem;
     text-align: right;
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--text-primary);
 }
 
+/* the drums column narrows with the window; the sliders give way before the values get cut */
 .pad-edit .header-control input[type="range"] {
-    width: 5.5rem;
+    width: clamp(3.5rem, 5vw, 5.5rem);
+}
+
+.pad-edit .header-control .control-value {
+    min-width: 2.2rem;
 }
 
 @media (max-width: 600px) {

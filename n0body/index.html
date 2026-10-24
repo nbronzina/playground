@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en" data-piece="n0body">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>n0body · an agent that plays mk-1 · play·ground</title>
+    <meta name="description" content="n0body is not a person: an agent that plays mk-1 on its own, goes on air at mk-air and learns between sets. press play and listen. part of playground.">
+    <meta name="author" content="nicolás bronzina">
+    <link rel="canonical" href="https://nbronzina.github.io/playground/n0body/">
+
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="color-scheme" content="dark">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0a0a'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='14' font-weight='600' text-anchor='middle' fill='%23fff'%3Epg%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%230a0a0a'/%3E%3Ctext x='90' y='120' font-family='monospace' font-size='80' font-weight='600' text-anchor='middle' fill='%23fff'%3Epg%3C/text%3E%3C/svg%3E">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="play·ground">
+    <meta property="og:url" content="https://nbronzina.github.io/playground/n0body/">
+    <meta property="og:title" content="n0body · an agent that plays mk-1 · play·ground">
+    <meta property="og:description" content="not a person. an agent that plays mk-1 on its own and goes on air. it learns between sets.">
+    <meta property="og:image" content="https://nbronzina.github.io/playground/og/n0body.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="n0body, an agent that plays mk-1: the console mid-set, on air">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://nbronzina.github.io/playground/n0body/">
+    <meta name="twitter:title" content="n0body · an agent that plays mk-1 · play·ground">
+    <meta name="twitter:description" content="not a person. an agent that plays mk-1 on its own and goes on air. it learns between sets.">
+    <meta name="twitter:image" content="https://nbronzina.github.io/playground/og/n0body.png">
+    <meta name="twitter:image:alt" content="n0body, an agent that plays mk-1: the console mid-set, on air">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+    <link rel="stylesheet" href="../playground-core.css">
+    <link rel="stylesheet" href="css/n0body.css">
+</head>
+<body>
+    <div class="screen">
+    <header class="header">
+        <h1 class="brand wordmark"><a href="../index.html">play<span class="separator">·</span>ground</a> n<span class="mark">0</span>body</h1>
+
+        <p class="set" aria-live="polite"><span id="setState">waking mk-1…</span><span class="mind-tag" id="mindTag" hidden>mind</span></p>
+
+        <div class="air" id="air" hidden>
+            <span class="lamp" id="lamp" data-state="off">on air</span>
+            <span class="air-clock" id="airClock"></span>
+            <span class="air-count" id="airCount"></span>
+            <button class="air-link" id="airLink" type="button" hidden><span class="air-url" id="airUrl"></span> <span class="air-copy" id="airCopy">copy</span></button>
+        </div>
+
+        <div class="header-actions">
+            <button class="header-btn play-btn" id="playBtn" type="button" aria-pressed="false" disabled>play</button>
+            <button id="knowHow" class="header-btn" type="button" aria-expanded="false" aria-controls="knowHowPanel">know how</button>
+        </div>
+
+        <div class="knowhow-panel" id="knowHowPanel" role="region" aria-labelledby="knowHow" tabindex="-1" hidden>
+            <section class="knowhow-section knowhow-play">
+                <h2>play</h2>
+                <p><em>play</em> n0body starts a set on mk-1 and goes on air at <a href="../mk-air/">mk-air</a> · anyone can listen</p>
+                <p><em>stop</em> it plays an outro, then goes off air</p>
+                <p><em>space</em> play, stop · <em>esc</em> closes this</p>
+                <form class="mind" id="mindForm">
+                    <label for="mindKey"><em>mind</em> with a <a href="https://console.groq.com/keys" target="_blank" rel="noopener">groq key ↗</a> it plans its sets · without one it plays from habit · the key stays in this browser</label>
+                    <div class="mind-row">
+                        <input class="field" id="mindKey" type="password" autocomplete="off" spellcheck="false" placeholder="gsk_…">
+                        <button class="btn-line" id="mindSave" type="submit">save</button>
+                        <button class="btn-line" id="mindForget" type="button" hidden>forget the key</button>
+                    </div>
+                    <p class="mind-state" id="mindState" aria-live="polite"></p>
+                </form>
+            </section>
+            <section class="knowhow-section">
+                <h2>sound</h2>
+                <p>it plays mk-1 like anyone would: pads, keys, the pattern, the effects. every set goes out live and is gone when it ends.</p>
+                <p>what it learns stays in this browser: <span id="memory">nothing yet</span>.</p>
+                <p><button class="btn-line" id="forgetAll" type="button">forget what it learned</button></p>
+            </section>
+            <section class="knowhow-section">
+                <h2>who</h2>
+                <p>n0body. not a person. an agent that plays on its own and gets better between sets.</p>
+                <p>by <a href="https://nicolasbronzina.com" target="_blank" rel="noopener">nicolás bronzina ↗</a> · <a href="https://github.com/nbronzina/n0body" target="_blank" rel="noopener">code on github ↗</a></p>
+            </section>
+            <section class="knowhow-section">
+                <h2>support</h2>
+                <p>free · <a href="https://buymeacoffee.com/nbronzina" target="_blank" rel="noopener">buy me a coffee ↗</a></p>
+            </section>
+        </div>
+    </header>
+
+    <main class="stage">
+        <iframe id="stage" title="mk-1, played by n0body" allow="autoplay"></iframe>
+    </main>
+    </div>
+
+    <footer class="pg-footer">
+        <nav class="pg-footer-nav" aria-label="play·ground">
+            <a href="../index.html" class="wordmark">play<span class="separator">·</span>ground</a>
+            <a href="../mk-1.html">mk-1</a>
+            <a href="../mk-2.html">mk-2</a>
+            <a href="../mk-air/">mk-air</a>
+            <a href="../mk-dwell/">mk-dwell</a>
+            <a href="../n0body/" aria-current="page">n0body</a>
+            <a href="../about.html">about</a>
+            <a href="https://buymeacoffee.com/nbronzina" target="_blank" rel="noopener">buy me a coffee ↗</a>
+        </nav>
+        <p class="pg-footer-credit">designed, coded &amp; built by <a href="https://nicolasbronzina.com" target="_blank" rel="noopener">nicolás bronzina ↗</a></p>
+    </footer>
+
+    <script src="js/n0body.js"></script>
+</body>
+</html>
