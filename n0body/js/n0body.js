@@ -1,5 +1,6 @@
-// n0body's page: mk-1 in a frame with only its console, n0body's mind loaded into it, the set and the lamp up here.
-// The mind lives in the n0body repo and is served next to play·ground, on the same origin, so it can reach MK1
+// n0body's page: mk-1 in a frame with only its console, n0body's mind loaded into it, the set and the radio up here.
+// The mind lives in the n0body repo and is served next to play·ground, on the same origin, so it can reach MK1.
+// Playing and going on air are separate: whoever is at the page decides when n0body's set goes out
 (function () {
     'use strict';
 
@@ -12,9 +13,9 @@
     const setState = $('setState');
     const mindTag = $('mindTag');
     const air = $('air');
-    const lamp = $('lamp');
+    const airBtn = $('airBtn');
     const airClock = $('airClock');
-    const airCount = $('airCount');
+    const airStatus = $('airStatus');
     const airLink = $('airLink');
     const airUrl = $('airUrl');
     const airCopy = $('airCopy');
@@ -23,9 +24,11 @@
     let n0 = null;
     let llm = null;
     let playing = false;
-    let onAir = false;
     let airSince = 0;
-    let airFailed = '';
+    let airNote = '';
+    let airNoteUntil = 0;
+    let airArmed = 0;
+    let lastAir = 'off';
     let note = '';
     let noteUntil = 0;
     let copiedUntil = 0;
@@ -47,6 +50,7 @@
     function fail(text) {
         setState.textContent = text;
         playBtn.disabled = true;
+        airBtn.disabled = true;
     }
 
     frame.addEventListener('load', () => {
@@ -76,6 +80,7 @@
         if (saved && llm) llm.activate(saved);
         showMind();
         playBtn.disabled = false;
+        airBtn.disabled = false;
         update();
         setInterval(update, 500);
     }
@@ -102,24 +107,6 @@
             : 'nothing yet';
     }
 
-    // a set is on air from its first hit to the end of its outro
-    function goOnAir() {
-        if (!mk1 || !mk1.MK1.air) return;
-        onAir = true;
-        airFailed = '';
-        mk1.MK1.air.start({ name: 'n0body' }).catch(err => {
-            onAir = false;
-            const why = err && err.code;
-            airFailed = why === 'unreachable' ? "the radio isn't answering" : why === 'full' ? 'the radio is full' : why === 'end' ? '' : "couldn't go on air";
-        });
-    }
-
-    function goOffAir() {
-        if (!onAir) return;
-        onAir = false;
-        if (mk1 && mk1.MK1.air) mk1.MK1.air.stop();
-    }
-
     function toggle() {
         if (!n0) return;
         const s = n0.getStatus();
@@ -127,7 +114,6 @@
             if (!s.isEnding) n0.stop();
         } else {
             n0.start();
-            goOnAir();
         }
         update();
     }
@@ -138,8 +124,7 @@
         if (!n0) return;
         const s = n0.getStatus();
         if (playing && !s.isPlaying) {
-            goOffAir();
-            note = 'off air · nothing kept';
+            note = 'set over';
             noteUntil = Date.now() + 4000;
         }
         playing = s.isPlaying;
@@ -151,7 +136,6 @@
         let line;
         if (s.isPlaying) {
             line = [s.currentState, s.mood, s.elapsedFormatted, s.bpm ? s.bpm + ' bpm' : ''].filter(Boolean).join(' · ');
-            if (airFailed) line += ' · ' + airFailed;
         } else if (note && Date.now() < noteUntil) {
             line = note;
         } else {
@@ -159,26 +143,102 @@
         }
         if (setState.textContent !== line) setState.textContent = line;
 
-        showAir(mk1 && mk1.MK1.air ? mk1.MK1.air.status() : { state: 'off' });
+        showAir(airState());
         showMemory();
     }
 
+    // ---------- on air: its own button, never tied to play ----------
+
+    const airState = () => (mk1 && mk1.MK1.air ? mk1.MK1.air.status() : { state: 'off' });
+
+    const AIR_FAILS = {
+        unreachable: "the radio isn't answering. try again in a minute.",
+        refused: "this page can't reach the radio.",
+        full: 'the radio is full. try again later.',
+        lost: 'the line was down too long. off air.',
+        replaced: 'it went on from another window.',
+        server: 'the radio closed it.'
+    };
+
+    function setAirNote(text, ms) {
+        airNote = text;
+        airNoteUntil = ms ? Date.now() + ms : Infinity;
+        update();
+    }
+
+    function disarmAir() {
+        clearTimeout(airArmed);
+        airArmed = 0;
+        airBtn.classList.remove('armed');
+    }
+
+    airBtn.addEventListener('click', () => {
+        if (!mk1 || !mk1.MK1.air) return;
+        const state = airState().state;
+        if (state === 'off') {
+            setAirNote('', 0);
+            mk1.MK1.air.start({ name: 'n0body' }).catch(err => {
+                const why = err && err.code;
+                if (why === 'end') setAirNote('off air.', 4000);
+                else setAirNote(AIR_FAILS[why] || AIR_FAILS.unreachable);
+            });
+            update();
+            return;
+        }
+        // before the room is live there is nothing to cut
+        if (state !== 'live' && state !== 'reconnecting') {
+            mk1.MK1.air.stop();
+            update();
+            return;
+        }
+        // two presses, no dialog: a stray click shouldn't cut a set off the radio
+        if (!airArmed) {
+            airBtn.classList.add('armed');
+            airArmed = setTimeout(() => { disarmAir(); update(); }, 3000);
+            update();
+            return;
+        }
+        disarmAir();
+        mk1.MK1.air.stop();
+        setAirNote('off air · nothing kept', 4000);
+    });
+
+    // mk-air's signaling sleeps on Render's free tier; a hover wakes it before the click lands
+    airBtn.addEventListener('pointerenter', () => {
+        if (mk1 && mk1.PGAir && airState().state === 'off') mk1.PGAir.wake();
+    }, { once: true });
+
     function showAir(st) {
         const state = st.state;
+        // the radio dropped it without anyone pressing end: say so instead of going quiet
+        if (state === 'off' && (lastAir === 'live' || lastAir === 'reconnecting') && !(airNote && Date.now() < airNoteUntil)) {
+            airNote = 'off air.';
+            airNoteUntil = Date.now() + 4000;
+        }
+        lastAir = state;
+        const live = state === 'live';
+        const held = state === 'reconnecting';
+        airBtn.dataset.state = live ? 'on' : held ? 'hold' : state === 'off' ? 'off' : 'busy';
+        airBtn.setAttribute('aria-pressed', state === 'off' ? 'false' : 'true');
+        airBtn.textContent = airArmed ? 'end? press again' : 'on air';
         if (state === 'off') {
-            air.hidden = true;
+            if (airArmed) disarmAir();
             airSince = 0;
+            const showNote = airNote && Date.now() < airNoteUntil;
+            air.hidden = !showNote;
+            airClock.textContent = '';
+            airStatus.textContent = showNote ? airNote : '';
+            airLink.hidden = true;
             return;
         }
         air.hidden = false;
-        const live = state === 'live';
-        lamp.dataset.state = live ? 'on' : 'hold';
-        lamp.textContent = live ? 'on air' : state === 'reconnecting' ? 'on hold' : 'going on air';
         if (live && !airSince) airSince = Date.now();
-        airClock.textContent = live ? clock(Date.now() - airSince) : '';
-        airCount.textContent = live ? (st.listeners ? st.listeners + ' listening' : 'nobody listening yet') : state === 'waking' ? 'waking the radio…' : '';
-        airLink.hidden = !live || !st.link;
-        if (live && st.link) {
+        airClock.textContent = live || held ? clock(Date.now() - airSince) : '';
+        airStatus.textContent = live ? (st.listeners ? st.listeners + ' listening' : 'nobody listening yet')
+            : held ? 'the line dropped. reconnecting…'
+            : state === 'waking' ? 'waking the radio… up to a minute' : 'going on air…';
+        airLink.hidden = !(live || held) || !st.link;
+        if (st.link) {
             airUrl.textContent = 'mk-air/?r=' + st.id;
             airLink.dataset.link = st.link;
             if (Date.now() > copiedUntil) airCopy.textContent = 'copy';
@@ -291,6 +351,6 @@
         if (e.key === ' ' && !knowHowOpen()) { e.preventDefault(); toggle(); }
     });
 
-    // closing the tab ends the set: nobody should be left listening to a room about to vanish
-    window.addEventListener('pagehide', goOffAir);
+    // closing the tab takes n0body off air: nobody should be left listening to a room about to vanish
+    window.addEventListener('pagehide', () => { if (mk1 && mk1.MK1.air) mk1.MK1.air.stop(); });
 })();

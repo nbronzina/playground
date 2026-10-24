@@ -70,8 +70,9 @@
     min-width: 5.5em;
 }
 
+/* red is the radio's; a set playing only gets a white frame */
 .play-btn[aria-pressed="true"] {
-    border-color: var(--accent);
+    border-color: var(--text-primary);
 }
 
 /* === THE SET === */
@@ -119,33 +120,36 @@
     display: none;
 }
 
-/* lit: dark text on the red (6.4:1), never white on it (3.1:1). Only the glow breathes, never the text */
-.lamp {
-    display: inline-flex;
-    align-items: center;
-    padding: .3em .8em;
-    border: 2px solid var(--border-secondary);
-    border-radius: 6px;
-    font-weight: 600;
-    letter-spacing: .12em;
-    line-height: 1.2;
-    color: var(--text-secondary);
+/* the on air button is the lamp. Lit: dark text on the red (6.4:1), never white on it (3.1:1). Only the glow breathes */
+.air-btn {
     /* a lamp switches, it doesn't fade: halfway through, its text would sit on its own color */
     transition: box-shadow .6s ease;
 }
 
-.lamp[data-state="on"] {
+.air-btn[data-state="busy"],
+.air-btn[data-state="hold"],
+.air-btn.armed {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.air-btn[data-state="busy"]:hover,
+.air-btn[data-state="hold"]:hover,
+.air-btn.armed:hover {
+    background: none;
+}
+
+.air-btn[data-state="hold"] {
+    animation: hold 1.4s steps(1) infinite;
+}
+
+.air-btn[data-state="on"]:not(.armed),
+.air-btn[data-state="on"]:not(.armed):hover {
     background: var(--accent);
     border-color: var(--accent);
     color: var(--on-lamp);
     box-shadow: 0 0 14px var(--glow);
     animation: glow 2.6s ease-in-out infinite alternate;
-}
-
-.lamp[data-state="hold"] {
-    border-color: var(--accent);
-    color: var(--accent);
-    animation: hold 1.4s steps(1) infinite;
 }
 
 @keyframes glow {
@@ -344,9 +348,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .lamp,
-    .lamp[data-state="on"],
-    .lamp[data-state="hold"] {
+    .air-btn,
+    .air-btn[data-state="on"],
+    .air-btn[data-state="hold"] {
         animation: none;
         transition: none;
     }
