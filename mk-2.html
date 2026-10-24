@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-piece="mk-2">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -42,15 +42,14 @@
 <body>
     <header class="header">
         <h1 class="brand wordmark"><a href="index.html">play<span class="separator">·</span>ground</a> mk-2</h1>
+        <div class="air-info" id="airInfo">
+            <span class="air-clock" id="airClock" hidden></span>
+            <span class="air-status" id="airStatus" aria-live="polite"></span>
+            <button class="air-link" id="airLink" type="button" hidden><span class="air-url" id="airUrl"></span> <span class="air-copy" id="airCopy">copy</span></button>
+            <button class="header-btn" id="airEnd" type="button" hidden>end</button>
+        </div>
         <div class="header-actions">
-            <div class="air" id="air" data-state="off">
-                <button id="airGo" class="header-btn" type="button">on air</button>
-                <span class="air-lamp" id="airLamp" hidden>on air</span>
-                <span class="air-time" id="airTime" hidden></span>
-                <span class="air-msg" id="airMsg" aria-live="polite"></span>
-                <button id="airShare" class="header-btn air-share" type="button" hidden><span id="airUrl"></span> &middot; <span id="airCopy">copy</span></button>
-                <button id="airEnd" class="header-btn air-end" type="button" hidden>end</button>
-            </div>
+            <button id="airBtn" class="header-btn air-btn" type="button" aria-pressed="false" data-state="off">on air</button>
             <button id="knowHow" class="header-btn" aria-expanded="false" aria-controls="knowHowPanel">know how</button>
         </div>
         <div class="knowhow-panel" id="knowHowPanel" hidden>
@@ -1197,42 +1196,46 @@
   }
   if(!canRoute()) msg('this browser cannot route outputs &middot; one output only');
 
-  /* ---------- al aire ----------
-     sale `out`: el master después del limiter, lo mismo que va a SPEAKERS.
-     el cue y la mezcla de auriculares cuelgan de otra rama, así que nunca salen. ni micrófono ni captura de pestaña. */
-  const airBox = document.getElementById('air');
-  const airGo = document.getElementById('airGo');
-  const airLamp = document.getElementById('airLamp');
-  const airTime = document.getElementById('airTime');
-  const airMsg = document.getElementById('airMsg');
-  const airShare = document.getElementById('airShare');
+  /* ---------- on air ----------
+     what goes out is `out`: the master after the limiter, the same as SPEAKERS.
+     the cue and the headphone mix hang off another branch, so they never go out. no mic, no tab capture. */
+  const airBtn = document.getElementById('airBtn');
+  const airClock = document.getElementById('airClock');
+  const airStatus = document.getElementById('airStatus');
+  const airLink = document.getElementById('airLink');
   const airUrl = document.getElementById('airUrl');
   const airCopy = document.getElementById('airCopy');
   const airEnd = document.getElementById('airEnd');
-  const AIR_GONE = {
-    end: 'off air &middot; nothing kept',
-    lost: 'the line was down too long &middot; the room is gone',
-    replaced: 'it went on from another window',
-    server: 'the radio closed it',
-    full: 'the radio is full &middot; try again later',
-    refused: "this page can't reach the radio",
-    unreachable: "the radio isn't answering &middot; try again in a minute"
+  const AIR_ENDS = {
+    end: 'off air. nothing kept.',
+    lost: 'the line was down too long. off air.',
+    replaced: 'it went on from another window.',
+    server: 'the radio closed it.',
+    full: 'the radio is full. try again later.',
+    refused: "this page can't reach the radio.",
+    unreachable: "the radio isn't answering. try again in a minute."
   };
   var air = null, airDest = null, airTick = 0, airArmed = 0, airQuiet = 0, airCopied = 0;
   const listening = n => n ? n + ' listening' : 'nobody listening yet';
 
-  function airView(state, text){
-    const up = state === 'on' || state === 'hold';
-    airBox.dataset.state = state;
-    airGo.hidden = state !== 'off';
-    airLamp.hidden = airTime.hidden = airShare.hidden = airEnd.hidden = !up;
-    airLamp.textContent = state === 'hold' ? 'on hold' : 'on air';
-    airMsg.innerHTML = text || '';
+  function airNote(text, ms){
+    clearTimeout(airQuiet);
+    airStatus.textContent = text;
+    if(ms) airQuiet = setTimeout(() => { airStatus.textContent = ''; }, ms);
   }
-  function airClock(){
+  function airTime(){
     if(!air || !air.since) return;
     const s = Math.max(0, Math.floor((Date.now() - air.since) / 1000)), h = Math.floor(s / 3600);
-    airTime.textContent = (h ? h + ':' + String(Math.floor(s % 3600 / 60)).padStart(2,'0') : Math.floor(s / 60)) + ':' + String(s % 60).padStart(2,'0');
+    airClock.textContent = (h ? h + ':' + String(Math.floor(s % 3600 / 60)).padStart(2,'0') : Math.floor(s / 60)) + ':' + String(s % 60).padStart(2,'0');
+  }
+  /* off · busy (connecting, waking) · on · hold (the line dropped, the room waits) */
+  function airShow(state){
+    const live = state === 'on' || state === 'hold';
+    airBtn.dataset.state = state;
+    airBtn.setAttribute('aria-pressed', state === 'off' ? 'false' : 'true');
+    airClock.hidden = airLink.hidden = airEnd.hidden = !live;
+    clearInterval(airTick);
+    if(live){ airTime(); airTick = setInterval(airTime, 1000); }
   }
   function airDisarm(){
     clearTimeout(airArmed); airArmed = 0;
@@ -1243,44 +1246,39 @@
   function goOnAir(){
     if(air) return;
     const AIR = window.PGAir;
-    if(!AIR || !window.RTCPeerConnection || !window.MediaStreamAudioDestinationNode){ airView('off', "this browser can't go on air"); return; }
+    if(!AIR || !window.RTCPeerConnection || !window.MediaStreamAudioDestinationNode){ airNote("this browser can't go on air."); return; }
     audio();
     if(!airDest) airDest = ctx.createMediaStreamDestination();
     out.connect(airDest);
-    clearTimeout(airQuiet);
-    airView('going', 'going on air&hellip;');
     let a;
     try{ a = air = AIR.goLive({stream: airDest.stream, name: '', from: 'mk-2'}); }
-    catch(err){ out.disconnect(airDest); airView('off', "this browser can't go on air"); return; }
-    a.on('waking', () => airView('going', 'waking the radio&hellip; it can take a minute'));
+    catch(err){ out.disconnect(airDest); airNote("this browser can't go on air."); return; }
+    airShow('busy');
+    airNote('going on air…');
+    a.on('waking', () => airNote('waking the radio… up to a minute'));
     a.on('live', e => {
       airUrl.textContent = 'mk-air/?r=' + e.id;
-      airShare.title = e.link;
-      airView('on', listening(a.listeners));
-      airClock();
-      airTick = setInterval(airClock, 1000);
+      airShow('on');
+      airNote(listening(a.listeners));
     });
-    a.on('count', e => { if(a.state === 'live') airMsg.textContent = listening(e.listeners); });
-    a.on('reconnecting', () => airView('hold', 'lost the line &middot; reconnecting&hellip;'));
-    a.on('resumed', () => airView('on', listening(a.listeners)));
+    a.on('count', e => { if(a.state === 'live') airNote(listening(e.listeners)); });
+    a.on('reconnecting', () => { airShow('hold'); airNote('the line dropped. reconnecting…'); });
+    a.on('resumed', () => { airShow('on'); airNote(listening(a.listeners)); });
     a.on('ended', e => {
-      clearInterval(airTick); airDisarm();
       try{ out.disconnect(airDest); }catch(err){}
-      if(air === a) air = null;
-      airView('off', AIR_GONE[e.reason] || AIR_GONE.unreachable);
-      if(e.reason === 'end') airQuiet = setTimeout(() => { if(!air) airMsg.textContent = ''; }, 6000);
+      if(air !== a) return;
+      air = null;
+      airDisarm();
+      airShow('off');
+      if(e.reason === 'end') airNote(a.id ? AIR_ENDS.end : 'off air.', 4000);
+      else airNote(AIR_ENDS[e.reason] || AIR_ENDS.unreachable);
     });
   }
 
-  airGo.addEventListener('click', goOnAir);
-  /* render duerme: despertarlo cuando el puntero llega ahorra casi todo el arranque en frío antes del clic. */
-  const airWake = () => { if(window.PGAir) PGAir.wake(); };
-  airGo.addEventListener('pointerenter', airWake, {once:true});
-  airGo.addEventListener('focus', airWake, {once:true});
-
-  /* dos toques, sin diálogo: el primero solo pregunta. */
-  airEnd.addEventListener('click', () => {
+  /* two presses, no dialog: a stray click shouldn't cut a set. before going live there is nothing to cut */
+  function airAskEnd(){
     if(!air) return;
+    if(!air.id){ air.end(); return; }
     if(!airArmed){
       airEnd.textContent = 'end? press again';
       airEnd.classList.add('armed');
@@ -1289,9 +1287,16 @@
     }
     airDisarm();
     air.end();
-  });
+  }
 
-  airShare.addEventListener('click', async () => {
+  airBtn.addEventListener('click', () => { if(air) airAskEnd(); else goOnAir(); });
+  airEnd.addEventListener('click', airAskEnd);
+  /* the radio sleeps on Render's free tier: waking it when the pointer arrives saves most of the cold start before the click */
+  const airWake = () => { if(window.PGAir && !air) PGAir.wake(); };
+  airBtn.addEventListener('pointerenter', airWake, {once:true});
+  airBtn.addEventListener('focus', airWake, {once:true});
+
+  airLink.addEventListener('click', async () => {
     if(!air || !air.link) return;
     const link = air.link;
     let ok = false;
@@ -1304,17 +1309,18 @@
       t.remove();
     }
     if(!ok){
-      airMsg.textContent = link;
-      getSelection().selectAllChildren(airMsg);
+      /* nothing to copy with: the whole link, selected, for ctrl+c */
+      airNote(link);
+      getSelection().selectAllChildren(airStatus);
     }
     airCopy.textContent = ok ? 'copied' : 'selected';
     clearTimeout(airCopied);
     airCopied = setTimeout(() => { airCopy.textContent = 'copy'; }, 2000);
   });
 
-  /* cerrar la pestaña es salir del aire: nadie tiene que escuchar una sala que está por desaparecer. */
+  /* closing the tab is going off air: nobody should hear a room that is about to vanish */
   addEventListener('pagehide', () => { if(air) air.end(); });
-  /* con un server local de prueba (?air=), los links a mk-air lo llevan; en producción no cambia nada. */
+  /* a local test server (?air=) stays on when following a link to mk-air; in production nothing changes */
   addEventListener('DOMContentLoaded', () => {
     if(window.PGAir) document.querySelectorAll('a[href="mk-air/"]').forEach(a => { a.href = PGAir.withServer(a.getAttribute('href')); });
   });
