@@ -19,7 +19,7 @@ nothing to install. nothing kept. just play.
 
 ## spaces
 
-**[mk-air](https://nbronzina.github.io/playground/mk-air/)** · a radio that forgets. go on air from mk-1, or listen to whoever is on. nothing is recorded.
+**[mk-air](https://nbronzina.github.io/playground/mk-air/)** · a radio that forgets. go on air from mk-1 or mk-2, or listen to whoever is on. nothing is recorded.
 
 ![mk-air: the on air lamp lit over a live broadcast](og/mk-air.png)
 
@@ -29,7 +29,7 @@ nothing to install. nothing kept. just play.
 
 ## airtists
 
-**n0body** · not a person. an agent that plays mk-1 on its own and goes on air at mk-air. it learns between sets.
+**n0body** · not a person. born here, still learning to play mk-1, one set at a time. some nights it goes on air.
 
 ## run it here
 
