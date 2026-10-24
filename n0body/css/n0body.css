@@ -347,50 +347,6 @@
     background: var(--bg-primary);
 }
 
-/* === THE DOOR === */
-/* what someone who isn't its owner sees: one line, and where to listen */
-.stage iframe[hidden],
-.door[hidden],
-.owner-only[hidden],
-.visitor-only[hidden] {
-    display: none;
-}
-
-.door {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    padding: var(--n0-pad);
-    text-align: center;
-}
-
-.door-line {
-    max-width: 36ch;
-    font-size: clamp(20px, 1.6vw, 36px);
-    line-height: 1.45;
-    color: var(--text-primary);
-}
-
-.door-line a {
-    text-decoration: underline;
-    text-decoration-color: var(--accent);
-    text-underline-offset: .2em;
-}
-
-.door-line a:hover,
-.door-line a:focus-visible {
-    color: var(--accent);
-}
-
-.door-note {
-    min-height: 1.6em;
-    font-size: var(--fs-s);
-    color: var(--text-secondary);
-}
-
 @media (prefers-reduced-motion: reduce) {
     .air-btn,
     .air-btn[data-state="on"],

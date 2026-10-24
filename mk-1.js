@@ -3055,8 +3055,7 @@ const AIR_ENDS = {
     server: 'the radio closed it.',
     full: 'the radio is full. try again later.',
     refused: "this page can't reach the radio.",
-    unreachable: "the radio isn't answering. try again in a minute.",
-    reserved: 'that name is kept for someone on the radio.'
+    unreachable: "the radio isn't answering. try again in a minute."
 };
 
 function airTime(since) {
@@ -3111,7 +3110,6 @@ function airStart(opts) {
         session = PGAir.goLive({
             stream: mediaStreamDestination.stream,
             name: typeof o.name === 'string' ? o.name : '',
-            key: typeof o.key === 'string' ? o.key : undefined,
             from: typeof o.from === 'string' && o.from ? o.from : 'mk-1'
         });
     } catch (e) {

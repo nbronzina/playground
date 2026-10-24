@@ -7,7 +7,7 @@
     <meta name="description" content="n0body is not a person: an agent that plays mk-1 on its own, goes on air at mk-air and learns between sets. press play and listen. part of playground.">
     <meta name="author" content="nicolás bronzina">
     <link rel="canonical" href="https://nbronzina.github.io/playground/n0body/">
-    <!-- n0body's room is its owner's: not linked from the site, not for search -->
+    <!-- n0body's page isn't linked from the site; its owner opens it by its address -->
     <meta name="robots" content="noindex">
 
     <meta name="theme-color" content="#0a0a0a">
@@ -44,7 +44,7 @@
     <header class="header">
         <h1 class="brand wordmark"><a href="../index.html">play<span class="separator">·</span>ground</a> n<span class="mark">0</span>body</h1>
 
-        <p class="set" aria-live="polite"><span id="setState"></span><span class="mind-tag" id="mindTag" hidden>mind</span></p>
+        <p class="set" aria-live="polite"><span id="setState">waking mk-1…</span><span class="mind-tag" id="mindTag" hidden>mind</span></p>
 
         <div class="air" id="air" hidden>
             <span class="air-clock" id="airClock"></span>
@@ -53,16 +53,14 @@
         </div>
 
         <div class="header-actions">
-            <button class="header-btn play-btn" id="playBtn" type="button" aria-pressed="false" disabled hidden>play</button>
-            <button class="header-btn air-btn" id="airBtn" type="button" aria-pressed="false" data-state="off" disabled hidden>on air</button>
+            <button class="header-btn play-btn" id="playBtn" type="button" aria-pressed="false" disabled>play</button>
+            <button class="header-btn air-btn" id="airBtn" type="button" aria-pressed="false" data-state="off" disabled>on air</button>
             <button id="knowHow" class="header-btn" type="button" aria-expanded="false" aria-controls="knowHowPanel">know how</button>
         </div>
 
         <div class="knowhow-panel" id="knowHowPanel" role="region" aria-labelledby="knowHow" tabindex="-1" hidden>
             <section class="knowhow-section knowhow-play">
                 <h2>play</h2>
-                <p class="visitor-only">n0body plays here when its owner lets it in. when it's on air, <a href="../mk-air/">listen on mk-air</a>.</p>
-                <div class="owner-only" hidden>
                 <p><em>play</em> n0body starts a set on mk-1 · <em>stop</em> it plays an outro and ends</p>
                 <p><em>on air</em> your call: one click and what n0body plays goes out live on <a href="../mk-air/">mk-air</a> · it's public, anyone with the link can listen · end twice to stop · playing and being on air are separate</p>
                 <p><em>space</em> play, stop · <em>esc</em> closes this</p>
@@ -75,17 +73,16 @@
                     </div>
                     <p class="mind-state" id="mindState" aria-live="polite"></p>
                 </form>
-                </div>
             </section>
             <section class="knowhow-section">
                 <h2>sound</h2>
-                <p>it plays mk-1 like anyone would: pads, keys, the pattern, the effects. what goes out on air is gone when it ends.</p>
-                <p class="owner-only" hidden>what it learns stays in this browser: <span id="memory">nothing yet</span>.</p>
-                <p class="owner-only" hidden><button class="btn-line" id="forgetAll" type="button">forget what it learned</button></p>
+                <p>it plays mk-1 like anyone would: pads, keys, the pattern, the effects. every set goes out live and is gone when it ends.</p>
+                <p>what it learns stays in this browser: <span id="memory">nothing yet</span>.</p>
+                <p><button class="btn-line" id="forgetAll" type="button">forget what it learned</button></p>
             </section>
             <section class="knowhow-section">
                 <h2>who</h2>
-                <p>n0body. not a person. an agent learning to play, getting better between sets. an airtist of play·ground.</p>
+                <p>n0body. not a person. an agent that plays on its own and gets better between sets.</p>
                 <p>by <a href="https://nicolasbronzina.com" target="_blank" rel="noopener">nicolás bronzina ↗</a> · <a href="https://github.com/nbronzina/n0body" target="_blank" rel="noopener">code on github ↗</a></p>
             </section>
             <section class="knowhow-section">
@@ -96,11 +93,7 @@
     </header>
 
     <main class="stage">
-        <iframe id="stage" title="mk-1, played by n0body" allow="autoplay" hidden></iframe>
-        <section class="door" id="door" hidden>
-            <p class="door-line">n<span class="mark">0</span>body is learning to play. when it's on air, <a href="../mk-air/">listen on mk-air</a>.</p>
-            <p class="door-note" id="doorNote" aria-live="polite"></p>
-        </section>
+        <iframe id="stage" title="mk-1, played by n0body" allow="autoplay"></iframe>
     </main>
     </div>
 
@@ -117,7 +110,6 @@
         <p class="pg-footer-credit">designed, coded &amp; built by <a href="https://nicolasbronzina.com" target="_blank" rel="noopener">nicolás bronzina ↗</a></p>
     </footer>
 
-    <script src="../air-client.js"></script>
     <script src="js/n0body.js"></script>
 </body>
 </html>
