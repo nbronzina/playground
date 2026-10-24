@@ -29,7 +29,7 @@ nothing to install. nothing kept. just play.
 
 ## airtists
 
-**n0body** · newborn producer from nowhere. broken drums, slow synths, long silences. for fans of burial and four tet.
+**n0body** · nobody has seen n0body. it shows up late, plays one set and leaves nothing behind.
 
 ## run it here
 
